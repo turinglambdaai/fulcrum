@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fulcrum — One keystroke. Everything within reach.</title>
+    <meta name="description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.">
+    <link rel="canonical" href="https://fulcrum.jrtx.site/">
+    <meta name="theme-color" content="#D97706">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Fulcrum">
+    <meta property="og:title" content="Fulcrum — One keystroke. Everything within reach.">
+    <meta property="og:description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.">
+    <meta property="og:url" content="https://fulcrum.jrtx.site/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Fulcrum — One keystroke. Everything within reach.">
+    <meta name="twitter:description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: apps, files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='115' fill='%23D97706'/%3E%3Cpath d='M108 404 L404 404' stroke='%23FFFFFF' stroke-width='30' stroke-linecap='round'/%3E%3Cpath d='M256 236 L344 388 L168 388 Z' fill='%23FFFFFF'/%3E%3Cpath d='M132 282 L380 176' stroke='%23FFFFFF' stroke-width='24' stroke-linecap='round'/%3E%3Ccircle cx='398' cy='168' r='30' fill='%23FFFFFF'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,500&display=swap" rel="stylesheet">
+    <script>document.documentElement.classList.add('js-anim')</script>
+    <style>
+        :root {
+            --accent: #D97706;
+            --accent-hover: #B45309;
+            --accent-soft: rgba(217, 119, 6, 0.15);
+            --accent-tint: rgba(217, 119, 6, 0.08);
+            --accent-bright: #FBBF24;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Nav -->
+    <nav class="nav-container">
+        <div class="nav-wrapper">
+            <div class="nav-brand">
+                <svg class="nav-logo" width="28" height="28" viewBox="0 0 512 512" fill="none">
+                    <rect width="512" height="512" rx="115" fill="#D97706"/>
+                    <path d="M108 404 L404 404" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+                    <path d="M256 236 L344 388 L168 388 Z" fill="#FFFFFF"/>
+                    <path d="M132 282 L380 176" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
+                    <circle cx="398" cy="168" r="30" fill="#FFFFFF"/>
+                </svg>
+                Fulcrum
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#features" class="optional" data-en="Features" data-zh="功能">Features</a></li>
+                <li><a href="#platforms" class="optional" data-en="Platforms" data-zh="平台">Platforms</a></li>
+                <li><a href="#compare" class="optional" data-en="Compare" data-zh="对比">Compare</a></li>
+                <li><a href="#pricing" class="optional" data-en="Pricing" data-zh="价格">Pricing</a></li>
+                <li><a href="https://github.com/turinglambdaai/fulcrum" class="optional">GitHub</a></li>
+                <li class="lang-dropdown-wrapper">
+                    <button class="lang-btn" onclick="void 0">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                        <span id="current-lang-label" data-en="English" data-zh="简体中文">English</span>
+                    </button>
+                    <ul class="lang-menu">
+                        <li onclick="setLanguage('en')">English</li>
+                        <li onclick="setLanguage('zh')">简体中文</li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="overview">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Keyboard-first launcher · macOS · Windows · Linux" data-zh="键盘优先的启动器 · macOS · Windows · Linux">Keyboard-first launcher · macOS · Windows · Linux</span>
+            <h1 class="animate-on-scroll">
+                <span data-en="One keystroke." data-zh="一次按键，">One keystroke.</span>
+                <span class="accent" data-en="Everything within reach." data-zh="直达一切。">Everything within reach.</span>
+            </h1>
+            <p class="lead animate-on-scroll"
+                data-en="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. Press one global hotkey and a floating command palette appears: fuzzy-search apps and files, revisit your clipboard history, expand snippets, calculate, fire web-search bangs and run plugins — all on-device."
+                data-zh="Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器。按下全局热键，浮出命令面板：模糊搜索应用与文件、回溯剪贴板历史、展开片段、随手计算、发起网络搜索、运行插件——一切都在本机完成。">
+                Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. Press one global hotkey and a floating command palette appears: fuzzy-search apps and files, revisit your clipboard history, expand snippets, calculate, fire web-search bangs and run plugins — all on-device.
+            </p>
+
+            <div class="hero-buttons animate-on-scroll">
+                <a href="https://github.com/turinglambdaai/fulcrum" class="btn btn-primary" data-en="Get Early Access" data-zh="抢先体验">Get Early Access</a>
+                <a href="https://github.com/turinglambdaai/fulcrum/tree/main/docs" class="btn btn-secondary" data-en="Read the Docs" data-zh="阅读文档">Read the Docs</a>
+            </div>
+
+            <div class="hero-visual animate-on-scroll">
+                <div class="launcher">
+                    <div class="launcher-search">
+                        <span class="launcher-chevron" aria-hidden="true">›</span>
+                        <span class="launcher-query" data-en="ful" data-zh="ful">ful</span>
+                        <span class="launcher-caret" aria-hidden="true"></span>
+                    </div>
+                    <div class="launcher-results">
+                        <div class="launcher-row is-active">
+                            <span class="row-icon" aria-hidden="true">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>
+                            </span>
+                            <span class="row-title" data-en="Figma" data-zh="Figma">Figma</span>
+                            <span class="row-kind" data-en="Application" data-zh="应用">Application</span>
+                        </div>
+                        <div class="launcher-row">
+                            <span class="row-icon" aria-hidden="true">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                            </span>
+                            <span class="row-title" data-en="fulcrum changelog" data-zh="fulcrum 更新日志">fulcrum changelog</span>
+                            <span class="row-kind" data-en="Snippet" data-zh="片段">Snippet</span>
+                        </div>
+                        <div class="launcher-row">
+                            <span class="row-icon" aria-hidden="true">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="12" x2="9.01" y2="12"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="9" y1="16" x2="9.01" y2="16"/><line x1="15" y1="16" x2="15.01" y2="16"/></svg>
+                            </span>
+                            <span class="row-title" data-en="1+2*3" data-zh="1+2*3">1+2*3</span>
+                            <span class="row-value" data-en="= 7" data-zh="= 7">= 7</span>
+                            <span class="row-kind" data-en="Calculator" data-zh="计算器">Calculator</span>
+                        </div>
+                        <div class="launcher-row">
+                            <span class="row-icon" aria-hidden="true">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                            </span>
+                            <span class="row-title" data-en="!gh fuzzy search" data-zh="!gh fuzzy search">!gh fuzzy search</span>
+                            <span class="row-kind" data-en="Web Search" data-zh="网络搜索">Web Search</span>
+                        </div>
+                    </div>
+                    <div class="launcher-footer">
+                        <span class="launcher-hint"><span class="launcher-kbd" data-en="↑↓" data-zh="↑↓">↑↓</span><span data-en="navigate" data-zh="选择">navigate</span></span>
+                        <span class="launcher-hint"><span class="launcher-kbd" data-en="↵" data-zh="↵">↵</span><span data-en="open" data-zh="打开">open</span></span>
+                        <span class="launcher-hint launcher-hint-right"><span class="launcher-kbd" data-en="esc" data-zh="esc">esc</span><span data-en="dismiss" data-zh="关闭">dismiss</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Why Fulcrum" data-zh="为什么是 Fulcrum">Why Fulcrum</span>
+            <h2 class="section-title animate-on-scroll">
+                <span data-en="Everything you reach for," data-zh="你伸手可及的一切，">Everything you reach for,</span>
+                <span class="accent" data-en="one keystroke away." data-zh="只差一次按键。">one keystroke away.</span>
+            </h2>
+            <p class="section-lead animate-on-scroll"
+               data-en="Fulcrum stays out of the way until one hotkey calls it — then apps, files, clips, calculations and commands are a few letters away."
+               data-zh="Fulcrum 平时隐于幕后，一个热键唤出——此后应用、文件、剪贴、计算与命令，都只差几个字母。">
+                Fulcrum stays out of the way until one hotkey calls it — then apps, files, clips, calculations and commands are a few letters away.
+            </p>
+
+            <div class="bento-grid">
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    </div>
+                    <h3 data-en="Blazing fuzzy search" data-zh="疾速模糊搜索">Blazing fuzzy search</h3>
+                    <p data-en="Type a few letters and results appear as you type — sub-second fuzzy matching across apps, files and actions."
+                       data-zh="敲几个字母，结果随输入即时出现——跨应用、文件与操作的亚秒级模糊匹配。">Type a few letters and results appear as you type — sub-second fuzzy matching across apps, files and actions.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    </div>
+                    <h3 data-en="All your apps" data-zh="所有应用">All your apps</h3>
+                    <p data-en="Every installed application, one query away. Launch it, switch to it, done — no digging through menus or docks."
+                       data-zh="每个已安装的应用，一次查询直达。启动、切换、完成——不必再在菜单和 Dock 里翻找。">Every installed application, one query away. Launch it, switch to it, done — no digging through menus or docks.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                    </div>
+                    <h3 data-en="Clipboard history" data-zh="剪贴板历史">Clipboard history</h3>
+                    <p data-en="Everything you copy is kept and searchable on-device. Paste last week's link like it was yesterday's."
+                       data-zh="复制过的一切都保存在本机、随时可搜。上周的链接，像昨天的随取随贴。">Everything you copy is kept and searchable on-device. Paste last week's link like it was yesterday's.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                    </div>
+                    <h3 data-en="Snippets" data-zh="文本片段">Snippets</h3>
+                    <p data-en="Save the replies, templates and code fragments you keep retyping — expand them anywhere by name."
+                       data-zh="把反复输入的回复、模板和代码片段存起来——按名字随处展开。">Save the replies, templates and code fragments you keep retyping — expand them anywhere by name.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="9" y1="7" x2="15" y2="7"/><line x1="9" y1="12" x2="9.01" y2="12"/><line x1="15" y1="12" x2="15.01" y2="12"/><line x1="9" y1="16" x2="9.01" y2="16"/><line x1="15" y1="16" x2="15.01" y2="16"/></svg>
+                    </div>
+                    <h3 data-en="Calculator with functions & constants" data-zh="计算器：函数与常量">Calculator with functions & constants</h3>
+                    <p data-en="Inline math as you type — sqrt, sin, log and constants like π and e, without switching apps."
+                       data-zh="边输入边计算——支持 sqrt、sin、log 与 π、e 等常量，无需切换应用。">Inline math as you type — sqrt, sin, log and constants like π and e, without switching apps.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    </div>
+                    <h3 data-en="Web-search bangs" data-zh="网络搜索 bang">Web-search bangs</h3>
+                    <p data-en="!g Google, !gh GitHub, !w Wikipedia, !so Stack Overflow — a bang jumps straight into the right search box."
+                       data-zh="!g 谷歌、!gh GitHub、!w 维基百科、!so Stack Overflow——一个 bang 直达对应的搜索框。">!g Google, !gh GitHub, !w Wikipedia, !so Stack Overflow — a bang jumps straight into the right search box.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+                    </div>
+                    <h3 data-en="System commands" data-zh="系统命令">System commands</h3>
+                    <p data-en="Lock the screen, sleep, mute — system actions live in the same palette, no menu digging required."
+                       data-zh="锁屏、睡眠、静音——系统操作也在同一块面板里，不必翻菜单。">Lock the screen, sleep, mute — system actions live in the same palette, no menu digging required.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                    </div>
+                    <h3 data-en="Plugin ecosystem" data-zh="插件生态">Plugin ecosystem</h3>
+                    <p data-en="A language-agnostic plugin protocol: JSON over stdio. Write plugins in any language; Fulcrum runs them."
+                       data-zh="语言无关的插件协议：JSON over stdio。用什么语言写插件都行，Fulcrum 负责运行。">A language-agnostic plugin protocol: JSON over stdio. Write plugins in any language; Fulcrum runs them.</p>
+                </div>
+                <div class="bento-card animate-on-scroll">
+                    <div class="card-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3 data-en="100% on-device, private by default" data-zh="100% 本机运行，默认私有">100% on-device, private by default</h3>
+                    <p data-en="Search indexes, clipboard history and snippets never leave your machine. The core needs no account."
+                       data-zh="搜索索引、剪贴板历史与片段永不离开你的机器。核心功能无需注册账号。">Search indexes, clipboard history and snippets never leave your machine. The core needs no account.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Platforms -->
+    <section id="platforms">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Platforms" data-zh="跨平台">Platforms</span>
+            <h2 class="section-title animate-on-scroll">
+                <span data-en="One Racket backend." data-zh="一个 Racket 后端。">One Racket backend.</span>
+                <span class="accent" data-en="Three first-party UIs." data-zh="三套一等原生 UI。">Three first-party UIs.</span>
+            </h2>
+            <p class="section-lead animate-on-scroll"
+               data-en="Built with the Rivet framework: one shared Racket backend embedded in each app, first-party native UI on every platform. No WebView anywhere."
+               data-zh="基于 Rivet 框架构建：一个共享的 Racket 后端嵌入每个应用，每个平台都是一等原生 UI。没有任何 WebView。">
+                Built with the Rivet framework: one shared Racket backend embedded in each app, first-party native UI on every platform. No WebView anywhere.
+            </p>
+
+            <div class="platforms-grid">
+                <div class="platform-card animate-on-scroll">
+                    <div class="platform-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></svg>
+                    </div>
+                    <div class="platform-name">macOS</div>
+                    <div class="platform-format">SwiftUI</div>
+                </div>
+                <div class="platform-card animate-on-scroll">
+                    <div class="platform-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    </div>
+                    <div class="platform-name">Windows</div>
+                    <div class="platform-format">WinUI 3</div>
+                </div>
+                <div class="platform-card animate-on-scroll">
+                    <div class="platform-icon">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+                    </div>
+                    <div class="platform-name">Linux</div>
+                    <div class="platform-format">GTK4</div>
+                </div>
+            </div>
+
+            <div class="chips-row animate-on-scroll">
+                <span class="version-badge">
+                    <span class="ver">v0.1.0</span>
+                    <span data-en="in active development" data-zh="积极开发中">in active development</span>
+                </span>
+                <a class="rivet-chip" href="https://rivet.jrtx.site">
+                    <svg width="14" height="14" viewBox="0 0 512 512" fill="none">
+                        <rect width="512" height="512" rx="115" fill="#0891B2"/>
+                        <circle cx="256" cy="150" r="40" fill="#FFFFFF"/>
+                        <path d="M256 190 L256 330" stroke="#FFFFFF" stroke-width="38" stroke-linecap="round"/>
+                        <path d="M256 240 L170 290 M256 240 L342 290" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round"/>
+                        <circle cx="170" cy="290" r="22" fill="none" stroke="#FFFFFF" stroke-width="20"/>
+                        <circle cx="342" cy="290" r="22" fill="none" stroke="#FFFFFF" stroke-width="20"/>
+                        <path d="M170 312 L170 400 M342 312 L342 400" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+                    </svg>
+                    <span data-en="Built with Rivet" data-zh="基于 Rivet 构建">Built with Rivet</span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Compare -->
+    <section id="compare">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Compare" data-zh="对比">Compare</span>
+            <h2 class="section-title animate-on-scroll">
+                <span data-en="A familiar idea," data-zh="熟悉的想法，">A familiar idea,</span>
+                <span class="accent" data-en="a different foundation." data-zh="不同的地基。">a different foundation.</span>
+            </h2>
+            <p class="section-lead animate-on-scroll" style="margin-bottom: 0;"
+               data-en="Fulcrum next to the launchers you may already use — platforms, UI, plugins, AI and price, stated plainly."
+               data-zh="把 Fulcrum 与你可能已在使用的启动器放在一起——平台、UI、插件、AI 与价格，如实陈述。">
+                Fulcrum next to the launchers you may already use — platforms, UI, plugins, AI and price, stated plainly.
+            </p>
+
+            <div class="compare-table-wrap animate-on-scroll">
+                <table class="compare">
+                    <thead>
+                        <tr>
+                            <th data-en=" " data-zh=" "></th>
+                            <th class="yes">Fulcrum</th>
+                            <th>Raycast</th>
+                            <th>PowerToys Run</th>
+                            <th>Ulauncher</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td data-en="Platforms" data-zh="平台">Platforms</td>
+                            <td class="yes">macOS · Windows · Linux</td>
+                            <td data-en="macOS (Windows rolling out)" data-zh="macOS（Windows 逐步推出）">macOS (Windows rolling out)</td>
+                            <td>Windows</td>
+                            <td>Linux</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Native UI" data-zh="原生 UI">Native UI</td>
+                            <td class="yes">SwiftUI · WinUI 3 · GTK4</td>
+                            <td data-en="native on macOS" data-zh="macOS 上原生">native on macOS</td>
+                            <td data-en="WPF on Windows" data-zh="Windows 上的 WPF">WPF on Windows</td>
+                            <td data-en="GTK on Linux" data-zh="Linux 上的 GTK">GTK on Linux</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Plugin protocol" data-zh="插件协议">Plugin protocol</td>
+                            <td class="yes" data-en="JSON over stdio — any language" data-zh="JSON over stdio——语言不限">JSON over stdio — any language</td>
+                            <td>TypeScript API</td>
+                            <td data-en="C# plugins" data-zh="C# 插件">C# plugins</td>
+                            <td data-en="Python plugins" data-zh="Python 插件">Python plugins</td>
+                        </tr>
+                        <tr>
+                            <td>AI</td>
+                            <td class="yes" data-en="planned — bring your own key" data-zh="规划中——自带密钥（BYOK）">planned — bring your own key</td>
+                            <td data-en="bundled in Pro" data-zh="Pro 内置">bundled in Pro</td>
+                            <td data-en="—" data-zh="—">—</td>
+                            <td data-en="—" data-zh="—">—</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Price" data-zh="价格">Price</td>
+                            <td class="yes" data-en="free core · Pro planned at $8/mo" data-zh="核心免费 · Pro 计划 $8/月">free core · Pro planned at $8/mo</td>
+                            <td data-en="free + $8/mo Pro" data-zh="免费 + $8/月 Pro">free + $8/mo Pro</td>
+                            <td data-en="free · MIT" data-zh="免费 · MIT">free · MIT</td>
+                            <td data-en="free · GPL" data-zh="免费 · GPL">free · GPL</td>
+                        </tr>
+                        <tr>
+                            <td data-en="Openness" data-zh="开放性">Openness</td>
+                            <td class="yes" data-en="source-available core · MIT plugin SDK" data-zh="核心源码可见 · MIT 插件 SDK">source-available core · MIT plugin SDK</td>
+                            <td data-en="closed source" data-zh="闭源">closed source</td>
+                            <td data-en="open source · MIT" data-zh="开源 · MIT">open source · MIT</td>
+                            <td data-en="open source · GPL" data-zh="开源 · GPL">open source · GPL</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section id="pricing">
+        <div class="container">
+            <span class="eyebrow animate-on-scroll" data-en="Pricing" data-zh="价格">Pricing</span>
+            <h2 class="section-title animate-on-scroll">
+                <span data-en="Start free." data-zh="免费开始，">Start free.</span>
+                <span class="accent" data-en="Pro when 1.0 lands." data-zh="1.0 之后再升级。">Pro when 1.0 lands.</span>
+            </h2>
+            <p class="section-lead animate-on-scroll"
+               data-en="A preview of where pricing is heading. During early access, Fulcrum is free."
+               data-zh="价格方向的预览。抢先体验期间，Fulcrum 完全免费。">
+                A preview of where pricing is heading. During early access, Fulcrum is free.
+            </p>
+
+            <div class="pricing-grid">
+                <div class="pricing-card animate-on-scroll">
+                    <div class="plan-name" data-en="Free" data-zh="免费版">Free</div>
+                    <div class="plan-price">$0<span class="unit" data-en="forever" data-zh="永久">forever</span></div>
+                    <ul class="plan-features">
+                        <li><span class="tick">✓</span><span data-en="All core launcher features" data-zh="全部核心启动器功能">All core launcher features</span></li>
+                        <li><span class="tick">✓</span><span data-en="Unlimited local use" data-zh="无限制本地使用">Unlimited local use</span></li>
+                        <li><span class="tick">✓</span><span data-en="100% on-device, no account required" data-zh="100% 本机运行，无需账号">100% on-device, no account required</span></li>
+                    </ul>
+                </div>
+                <div class="pricing-card featured animate-on-scroll">
+                    <span class="plan-badge" data-en="Planned for 1.0" data-zh="计划随 1.0 推出">Planned for 1.0</span>
+                    <div class="plan-name" data-en="Pro" data-zh="专业版">Pro</div>
+                    <div class="plan-price">$8<span class="unit" data-en="/mo" data-zh="/月">/mo</span></div>
+                    <div class="plan-alt" data-en="or $72/yr" data-zh="或 $72/年">or $72/yr</div>
+                    <ul class="plan-features">
+                        <li><span class="tick">✓</span><span data-en="AI commands (bring your own key)" data-zh="AI 命令（自带密钥）">AI commands (bring your own key)</span></li>
+                        <li><span class="tick">✓</span><span data-en="Unlimited clipboard history" data-zh="无限剪贴板历史">Unlimited clipboard history</span></li>
+                        <li><span class="tick">✓</span><span data-en="Cloud sync for settings & snippets" data-zh="设置与片段云同步">Cloud sync for settings & snippets</span></li>
+                        <li><span class="tick">✓</span><span data-en="Themes" data-zh="主题">Themes</span></li>
+                    </ul>
+                </div>
+                <div class="pricing-card animate-on-scroll">
+                    <div class="plan-name" data-en="Team" data-zh="团队版">Team</div>
+                    <div class="plan-price">$12<span class="unit" data-en="/user/mo" data-zh="/用户/月">/user/mo</span></div>
+                    <ul class="plan-features">
+                        <li><span class="tick">✓</span><span data-en="Everything in Pro" data-zh="包含 Pro 全部功能">Everything in Pro</span></li>
+                        <li><span class="tick">✓</span><span data-en="Shared team snippets" data-zh="团队共享片段">Shared team snippets</span></li>
+                        <li><span class="tick">✓</span><span data-en="License management" data-zh="许可证管理">License management</span></li>
+                        <li><span class="tick">✓</span><span data-en="SSO — coming later" data-zh="SSO——后续支持">SSO — coming later</span></li>
+                    </ul>
+                </div>
+            </div>
+
+            <p class="pricing-note animate-on-scroll"
+               data-en="Pricing finalizes toward 1.0. Everything is free during early access."
+               data-zh="价格将在 1.0 前最终确定。抢先体验期间完全免费。">
+                Pricing finalizes toward 1.0. Everything is free during early access.
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <svg width="22" height="22" viewBox="0 0 512 512" fill="none">
+                    <rect width="512" height="512" rx="115" fill="#D97706"/>
+                    <path d="M108 404 L404 404" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round"/>
+                    <path d="M256 236 L344 388 L168 388 Z" fill="#FFFFFF"/>
+                    <path d="M132 282 L380 176" stroke="#FFFFFF" stroke-width="24" stroke-linecap="round"/>
+                    <circle cx="398" cy="168" r="30" fill="#FFFFFF"/>
+                </svg>
+                Fulcrum
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/turinglambdaai/fulcrum">GitHub</a>
+                <a href="https://github.com/turinglambdaai/fulcrum/blob/main/CHANGELOG.md" data-en="Changelog" data-zh="更新日志">Changelog</a>
+                <a href="https://rivet.jrtx.site">Rivet</a>
+                <a href="https://glaze.jrtx.site">Glaze</a>
+            </div>
+            <div class="footer-note">© 2026 TuringLambda AI</div>
+        </div>
+    </footer>
+
+    <script>
+        // Unified language policy: explicit choice wins; otherwise follow system/browser locale.
+        var LANGUAGE_OVERRIDE_KEY = 'fulcrum-lang-override-v2';
+        var LEGACY_LANGUAGE_KEY = 'site-lang';
+        var pageMetadata = {
+            en: {
+                title: 'Fulcrum — One keystroke. Everything within reach.',
+                description: 'Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.'
+            },
+            zh: {
+                title: 'Fulcrum 支点 — 一次按键，直达一切。',
+                description: 'Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器：一个全局热键唤出浮动命令面板——模糊搜索应用与文件、剪贴板历史、片段、计算、网络搜索 bang 与插件，100% 本机运行。'
+            }
+        };
+
+        function readLanguageOverride() {
+            try {
+                var saved = localStorage.getItem(LANGUAGE_OVERRIDE_KEY);
+                return saved === 'zh' || saved === 'en' ? saved : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function detectBrowserLanguage() {
+            var locale = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+            if (!locale) return 'zh';
+            return String(locale).toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+        }
+
+        function applyLanguage(lang, persist) {
+            if (persist) {
+                try { localStorage.setItem(LANGUAGE_OVERRIDE_KEY, lang); } catch (e) { /* private mode */ }
+            }
+
+            document.querySelectorAll('[data-en]').forEach(function (el) {
+                var text = el.getAttribute('data-' + lang);
+                if (text !== null) el.textContent = text;
+            });
+            document.querySelectorAll('[data-href-en]').forEach(function (el) {
+                var href = el.getAttribute('data-href-' + lang);
+                if (href !== null) el.setAttribute('href', href);
+            });
+            document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            document.documentElement.setAttribute('data-language', lang);
+
+            var label = document.getElementById('current-lang-label');
+            if (label) label.textContent = lang === 'zh' ? '简体中文' : 'English';
+
+            var metadata = pageMetadata[lang];
+            if (metadata) {
+                document.title = metadata.title;
+                var description = document.querySelector('meta[name="description"]');
+                if (description) description.setAttribute('content', metadata.description);
+            }
+        }
+
+        function setLanguage(lang) {
+            if (lang !== 'zh' && lang !== 'en') return;
+            applyLanguage(lang, true);
+        }
+
+        try { localStorage.removeItem(LEGACY_LANGUAGE_KEY); } catch (e) { /* private mode */ }
+        applyLanguage(readLanguageOverride() || detectBrowserLanguage(), false);
+
+        window.addEventListener('languagechange', function () {
+            if (!readLanguageOverride()) applyLanguage(detectBrowserLanguage(), false);
+        });
+
+        // Scroll-in animation.
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('is-visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.12 });
+        document.querySelectorAll('.animate-on-scroll').forEach(function (el) { observer.observe(el); });
+    </script>
+</body>
+
+</html>

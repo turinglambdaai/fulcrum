@@ -1,0 +1,79 @@
+# Fulcrum（支点）
+
+一次按键，直达一切。macOS、Windows、Linux 三平台的键盘优先启动器——一个 Racket 大脑，三套第一方原生 UI，全程无 WebView。
+
+[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.1.0--dev-C15F3C)
+
+[English](README.md) · **中文** · [fulcrum.jrtx.site](https://fulcrum.jrtx.site)
+
+## Fulcrum 是什么？
+
+按下全局热键，一个悬浮命令面板随即出现：
+
+- **模糊搜索一切** —— 应用、剪贴板历史、片段，多字段加权排序
+- **内联计算** —— 精确算术、函数、常量；↵ 复制结果
+- **剪贴板历史** —— 每次复制都记录在本机，可搜索、可置顶
+- **片段** —— 带关键词的命名文本展开
+- **Web 搜索 bang** —— `!g`、`!gh`、`!so`、`!w`、`!yt`、`!m`、`!d`、`!t`
+- **系统命令** —— 锁屏、睡眠、重启
+- **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)）
+
+搜索、历史、片段永远不离开你的设备。0.1 没有任何遥测。
+
+## 为什么还要一个启动器？
+
+因为没有任何产品能在三个桌面系统上同时提供 Raycast 级别的打磨和**原生** UI。Fulcrum 构建在 [Rivet](https://rivet.jrtx.site) 之上：一个共享的 Racket 后端嵌入每个应用，macOS 用 SwiftUI，Windows 用 WinUI 3，Linux 用 GTK4。不是 Electron，不是网页套壳。Windows 版就是 Windows 应用，macOS 版就是 macOS 应用。
+
+| | Fulcrum | Raycast | PowerToys Run | Ulauncher |
+|---|---|---|---|---|
+| 平台 | macOS + Windows + Linux | macOS（Windows beta 中） | Windows | Linux |
+| 原生 UI | **逐平台第一方** | macOS 原生 | WinUI | GTK |
+| 后端 | 一个内嵌 Racket CS | 各平台独立 | C# | Python |
+| 插件 | JSON over stdio，任意语言 | TypeScript，进程内 | C# | Python |
+| 价格 | 核心免费；1.0 推出 Pro | 免费 + Pro | 免费 | 免费 |
+
+## 仓库结构
+
+```text
+fulcrum/
+├── rivet.rktd              # 发布标识、版本、部署目标
+├── app/
+│   ├── backend.rkt         # RVT1 线上契约（RPC、Event、State）
+│   ├── update.rkt          # 签名清单更新检查（rivet/distribution）
+│   └── core/               # 搜索引擎、provider、存储、FPP1 插件
+├── macos-host/             # SwiftUI 悬浮面板 + Carbon 全局热键
+├── windows/                # WinUI 3 悬浮窗 + RegisterHotKey
+├── linux-host/             # GTK4 面板 + X11 grab（实验性）
+├── examples/plugins/epoch  # FPP1 参考插件
+├── tests/                  # 39 个后端测试（raco test tests/）
+├── docs/                   # plugins.md、release-runbook.md、商业计划
+├── site/                   # fulcrum.jrtx.site（GitHub Pages）
+└── .github/workflows/      # CI 矩阵 + tag 驱动的发布流水线
+```
+
+## 状态：v0.1.0-dev
+
+这是开发者预览仓库。后端已完成并通过全部测试（39/39）。Windows 与 macOS 宿主针对后端契约功能完备，并在各自平台的 CI 任务中编译；Linux 宿主为实验性（见 [linux-host/README.md](linux-host/README.md)）。当前受支持的开发循环是 macOS / Windows 上的 `raco rivet build` / `dev`。
+
+## 开发
+
+依赖：[Racket CS](https://racket-lang.org/)（stable）、以包形式链接的 Rivet checkout、以及平台工具链（macOS 需要 Xcode CLT，Windows 需要 VS 2022 Build Tools）。
+
+```bash
+raco pkg install --auto --no-docs --link /path/to/rivet
+raco make app/core/*.rkt app/backend.rkt
+raco test tests/
+```
+
+通过 Rivet 工具链运行启动器（macOS / Windows）：
+
+```bash
+raco rivet doctor
+raco rivet dev
+```
+
+想做插件？从 [examples/plugins/epoch](examples/plugins/epoch) 和 [docs/plugins.md](docs/plugins.md) 开始——Python 就够了。
+
+## 许可
+
+Fulcrum 核心以 BUSL-1.1 源码可用许可发布，到期自动转为 MIT（见 [LICENSE](LICENSE)）。插件协议（[docs/plugins.md](docs/plugins.md)）与示例插件为 MIT——插件是你的代码，即使启动器核心不是完全开放，协议也是开放的。这一拆分的商业考量记录在 [docs/business.zh-CN.md](docs/business.zh-CN.md)。

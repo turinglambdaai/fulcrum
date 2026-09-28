@@ -1,0 +1,22 @@
+# Rivet build artifacts
+.rivet/
+build/
+dist/
+
+# Local environment and secrets
+.env
+*.der
+*.pfx
+*.p12
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+.idea/
+.vscode/
+
+# Racket compilation artifacts
+compiled/

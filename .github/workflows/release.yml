@@ -1,0 +1,133 @@
+name: Release
+
+# Tag-driven pipeline. The 0.1 developer-preview releases run the validation
+# and packaging stages that do not need publisher identities; production
+# signing (Authenticode / Developer ID + notarization / Ed25519 update
+# manifests) activates once the secrets from docs/release-runbook.md exist.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.20
+        with:
+          version: stable
+          distribution: full
+      - name: Check tag matches rivet.rktd and CHANGELOG
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VERSION=$(racket -e '(begin (require racket/file) (hash-ref (file->value "rivet.rktd") (quote version) #f))' | tr -d '"')
+          echo "tag=$TAG rivet.rktd=$VERSION"
+          test "$TAG" = "$VERSION" || { echo "::error::tag $TAG != rivet.rktd version $VERSION"; exit 1; }
+          grep -q "^## $TAG" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $TAG' section"; exit 1; }
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+          - os: windows-latest
+            platform: windows
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout Rivet
+        uses: actions/checkout@v4
+        with:
+          repository: turinglambdaai/rivet
+          path: rivet
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.20
+        with:
+          version: stable
+          distribution: full
+      - name: Link Rivet
+        run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
+        shell: bash
+      - name: Development package (unsigned)
+        if: ${{ env.RIVET_WINDOWS_CERTIFICATE_PFX == '' && env.RIVET_MACOS_CERTIFICATE_P12 == '' }}
+        env:
+          RIVET_WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          RIVET_MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+        run: raco rivet package --development
+        shell: bash
+      - name: Production package (publisher-signed)
+        if: ${{ env.RIVET_WINDOWS_CERTIFICATE_PFX != '' || env.RIVET_MACOS_CERTIFICATE_P12 != '' }}
+        env:
+          RIVET_WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          RIVET_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          RIVET_MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          RIVET_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          RIVET_MACOS_NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
+        run: raco rivet package --production
+        shell: bash
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fulcrum-${{ matrix.platform }}
+          path: |
+            dist/
+            .rivet/build/**/*.zip
+            .rivet/build/**/*.dmg
+          if-no-files-found: warn
+
+  update-manifest:
+    name: Sign update manifest
+    needs: package
+    runs-on: ubuntu-latest
+    if: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.20
+        with:
+          version: stable
+          distribution: full
+      - name: Build manifest from release artifacts
+        env:
+          RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
+          RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
+          RIVET_UPDATE_BASE_URL: ${{ secrets.RIVET_UPDATE_BASE_URL }}
+        run: |
+          # Compose channel manifest from the packaged artifacts, sign it with
+          # the Ed25519 update key, and emit it as a release artifact. The
+          # downloads origin is updated by publishing this file to
+          # $RIVET_UPDATE_BASE_URL/stable/manifest.json (see runbook §3).
+          raco rivet release --development
+      - uses: actions/upload-artifact@v4
+        with:
+          name: update-manifest
+          path: dist/manifest.json
+          if-no-files-found: warn
+
+  github-release:
+    name: Draft GitHub release
+    needs: [package, update-manifest]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/**/*

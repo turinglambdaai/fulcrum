@@ -1,0 +1,56 @@
+<Window
+    x:Class="RivetHost.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid RowSpacing="0" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBox
+            x:Name="QueryBox"
+            Grid.Row="0"
+            Margin="12,12,12,4"
+            PlaceholderText="Search apps, clipboard, snippets, the web…"
+            IsSpellCheckEnabled="False"
+            TextChanged="QueryBox_TextChanged"
+            KeyDown="QueryBox_KeyDown" />
+
+        <InfoBar
+            x:Name="StatusBar"
+            Grid.Row="1"
+            Margin="12,0,12,0"
+            IsOpen="True"
+            IsClosable="False"
+            Severity="Informational"
+            Message="Starting embedded Racket CS…" />
+
+        <ListView
+            x:Name="ResultsList"
+            Grid.Row="2"
+            Margin="4,4,4,0"
+            SelectionMode="Single"
+            IsItemClickEnabled="True"
+            ItemClick="ResultsList_ItemClick">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                    <StackPanel Margin="8,6,8,6" Spacing="2">
+                        <TextBlock Text="{Binding}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock
+            x:Name="HintBar"
+            Grid.Row="3"
+            Margin="12,4,12,8"
+            Opacity="0.55"
+            FontSize="12"
+            Text="↑↓ navigate · ↵ run · esc hide — Fulcrum" />
+    </Grid>
+</Window>
