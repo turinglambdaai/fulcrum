@@ -68,7 +68,8 @@ jobs:
           # full CS distribution (setup-racket's install), excluding the
           # system racket, which has none.
           HITS="$(find /home/runner /opt /usr/local -maxdepth 8 \
-                    -name 'libracketcs*' 2>/dev/null | head -5)"
+                    \( -name 'libracketcs*' -o -name 'libracket.a' -o -name 'libracket.so' \) \
+                    2>/dev/null | head -8)"
           echo "$HITS"
           test -n "$HITS" || { echo "::error::libracketcs not found on runner"; exit 1; }
           echo "RIVET_RACKET_LIB_DIR=$(dirname "$(echo "$HITS" | head -1)")" >> "$GITHUB_ENV"
