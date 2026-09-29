@@ -64,15 +64,13 @@ jobs:
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
       - name: Locate libracketcs
         run: |
-          # ubuntu-latest ships a system racket without libracketcs; prefer
-          # the full CS distribution setup-racket put on PATH.
-          RACKET_BIN="$(which -a racket | grep -v '^/usr/bin/' | head -1)"
-          [ -n "$RACKET_BIN" ] || RACKET_BIN="$(command -v racket)"
-          RACKET_ROOT="$(realpath "$(dirname "$(readlink -f "$RACKET_BIN")")/..")"
-          echo "RACKET_ROOT=$RACKET_ROOT"
-          HITS="$(find "$RACKET_ROOT" -name 'libracketcs*' 2>/dev/null)"
+          # Search the runner for the embedding library shipped with the
+          # full CS distribution (setup-racket's install), excluding the
+          # system racket, which has none.
+          HITS="$(find /home/runner /opt /usr/local -maxdepth 8 \
+                    -name 'libracketcs*' 2>/dev/null | head -5)"
           echo "$HITS"
-          test -n "$HITS" || { echo "::error::libracketcs not found under $RACKET_ROOT"; exit 1; }
+          test -n "$HITS" || { echo "::error::libracketcs not found on runner"; exit 1; }
           echo "RIVET_RACKET_LIB_DIR=$(dirname "$(echo "$HITS" | head -1)")" >> "$GITHUB_ENV"
       - name: Compile backend to bytecode
         run: |
