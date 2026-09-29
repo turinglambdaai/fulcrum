@@ -1,12 +1,13 @@
-#include "posix_backend.hpp"
+#include "backend.hpp"
 
 #include <fcntl.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include <cerrno>
 #include <chrono>
-
 #include <condition_variable>
+#include <atomic>
 #include <cstring>
 #include <map>
 #include <mutex>
@@ -14,8 +15,9 @@
 #include <utility>
 #include <vector>
 
-// racketcs C API (same entry points the Windows backend uses; libracketcs
-// exports them on every platform).
+// racketcs C API. The same symbols the Windows backend links against are
+// exported by libracketcs on every platform; they are declared here because
+// libracketcs ships without a public header for the embedding entry points.
 extern "C" {
 struct racket_boot_arguments_t {
   char const* boot1_path;
@@ -31,10 +33,10 @@ struct racket_boot_arguments_t {
 
 void racket_boot(racket_boot_arguments_t* args);
 void racket_embedded_load_file(char const* filename, int with_path);
-void* racket_dynamic_require(char const* quoted_module_symbol, char const* symbol);
+void* racket_dynamic_require(void* quoted_module_symbol, void* symbol);
 void* racket_apply(void* procedure, void* args);
 void* Scons(void* a, void* d);
-void* Snil();
+void* Snil(void);
 void* Sfixnum(long v);
 void* Sstring_to_symbol(char const* s);
 void* Scar(void* pair);
@@ -44,14 +46,20 @@ int Sscheme_deinit();
 namespace fulcrum::linux {
 namespace {
 
+// 'module as a quoted symbol, the shape racket_dynamic_require expects.
+void* quoted_symbol(char const* name) {
+  auto const quote = Sstring_to_symbol("quote");
+  auto const module = Sstring_to_symbol(name);
+  return Scons(quote, Scons(module, Snil()));
+}
+
 // A rivet::Transport over a POSIX fd. Ownership is explicit: the long-lived
-// reader transport owns its fd, while per-request transports borrow it.
+// reader transport borrows its fd (the socketpair end lives as long as the
+// process), and per-request write transports borrow it too. Nothing here
+// closes the fd; process teardown and the Racket side own its lifetime.
 class FdTransport final : public rivet::Transport {
  public:
-  FdTransport(int fd, bool own) : fd_(fd), own_(own) {}
-  ~FdTransport() override {
-    if (own_ && fd_ >= 0) ::close(fd_);
-  }
+  explicit FdTransport(int fd) : fd_(fd) {}
 
   bool read_exact(std::uint8_t* destination, std::size_t size) override {
     std::size_t done = 0;
@@ -85,34 +93,6 @@ class FdTransport final : public rivet::Transport {
 
  private:
   int fd_;
-  bool own_;
-};
-
-// Cancelable one-shot pipe waiter: reading one byte from a pipe that
-// shutdown writes to unblocks poll without racing fd teardown.
-class WakeupPipe {
- public:
-  WakeupPipe() {
-    if (::pipe(fds_) != 0) {
-      fds_[0] = fds_[1] = -1;
-    }
-  }
-  ~WakeupPipe() {
-    for (int& fd : fds_) {
-      if (fd >= 0) ::close(fd);
-    }
-  }
-  int read_fd() const { return fds_[0]; }
-  void signal() {
-    if (fds_[1] >= 0) {
-      char byte = 1;
-      ssize_t ignored = ::write(fds_[1], &byte, 1);
-      (void)ignored;
-    }
-  }
-
- private:
-  int fds_[2]{-1, -1};
 };
 
 }  // namespace
@@ -126,9 +106,7 @@ struct Backend::Impl {
   std::uint64_t next_request_id{1};
   EventHandler event_handler;
 
-  int request_fd{-1};   // our end of the RVT1 socketpair
-  int response_fd{-1};  // same fd today; kept distinct for future split
-  WakeupPipe cancel_wakeup;
+  int socket_fd{-1};  // our end of the RVT1 socketpair
 
   std::thread racket_thread;
   std::thread reader_thread;
@@ -140,7 +118,7 @@ struct Backend::Impl {
     return next_request_id++;
   }
 
-  void resolve_request(std::uint64_t id, rivet::Value value) {
+  void resolve_request(std::uint64_t id, Value value) {
     CompletionHandler handler;
     {
       std::lock_guard lock(state_mutex);
@@ -177,18 +155,18 @@ struct Backend::Impl {
   }
 
   void racket_main() noexcept {
-    // One socketpair carries the whole RVT1 connection: we write Requests to
-    // socket_fds[0] and the backend reads them from socket_fds[1]; the
-    // backend writes to socket_fds[1] and our reader reads socket_fds[0].
-    int socket_fds[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, socket_fds) != 0) {
+    // One socketpair carries the whole RVT1 connection: requests go from
+    // socket_fd into the backend, Responses/Events come back on the same
+    // duplex socket. serve-fds consumes both fd numbers; they name one fd,
+    // which keeps the transport as close to the named-pipe shape as POSIX
+    // allows.
+    int fds[2];
+    if (::socketpair(AF_UNIX, SOCK_STREAM, 0, fds) != 0) {
       running.store(false, std::memory_order_release);
       return;
     }
-    int backend_in = socket_fds[1];   // backend reads requests
-    int backend_out = socket_fds[1];  // single duplex socket: same fd
-    request_fd = socket_fds[0];
-    response_fd = socket_fds[0];
+    socket_fd = fds[0];
+    int const backend_fd = fds[1];
 
     try {
       racket_boot_arguments_t boot{};
@@ -197,71 +175,76 @@ struct Backend::Impl {
       boot.boot2_path = config.scheme_boot.c_str();
       boot.boot3_path = config.racket_boot.c_str();
       boot.exec_file = config.executable_path.c_str();
-      boot.collects_dir = config.collects_dir.empty() ? nullptr
-                                                      : config.collects_dir.c_str();
-      boot.config_dir = config.config_dir.empty() ? nullptr
-                                                  : config.config_dir.c_str();
+      boot.collects_dir =
+          config.collects_dir.empty() ? nullptr : config.collects_dir.c_str();
+      boot.config_dir =
+          config.config_dir.empty() ? nullptr : config.config_dir.c_str();
       boot.dll_dir = config.dll_dir.empty() ? nullptr : config.dll_dir.c_str();
 
       racket_boot(&boot);
       racket_embedded_load_file(config.backend_bundle.c_str(), 1);
 
-      auto const module = Sstring_to_symbol(config.module_name.c_str());
+      auto const module = quoted_symbol(config.module_name.c_str());
       auto const entry = Sstring_to_symbol(config.entry_symbol.c_str());
+      // racket_dynamic_require returns a list of result values; the
+      // requested export is the first result.
       auto const results = racket_dynamic_require(module, entry);
       auto const procedure = Scar(results);
-      // serve-fds consumes the two fd numbers as fixnums; the backend port
-      // owns the socket fd from here on.
-      auto const args = Scons(Sfixnum(backend_in),
-                              Scons(Sfixnum(backend_out), Snil));
+      auto const args =
+          Scons(Sfixnum(backend_fd), Scons(Sfixnum(backend_fd), Snil()));
+
+      // serve-fds owns the backend fd from here; closing it (teardown or
+      // exit) is what makes the native reader observe EOF.
       (void)racket_apply(procedure, args);
       Sscheme_deinit();
     } catch (...) {
-      // Closing our end makes the native reader observe EOF and shut down.
+      // A failed startup leaves socket_fd open; stop() still joins cleanly
+      // and fail_all() reports the backend as dead.
     }
 
     running.store(false, std::memory_order_release);
-    cancel_wakeup.signal();
   }
 
   void reader_main() noexcept {
-    auto transport = std::make_unique<FdTransport>(response_fd, /*own=*/false);
     try {
+      FdTransport transport(socket_fd);
       for (;;) {
-        auto frame = rivet::read_frame(*transport);
+        auto frame = rivet::read_frame(transport);
         if (!frame.has_value()) {
           break;
         }
         switch (frame->type) {
-          case rivet::MessageType::Hello:
+          case MessageType::Hello:
             running.store(true, std::memory_order_release);
             break;
-          case rivet::MessageType::Response:
-            resolve_request(frame->id, rivet::decode_value(frame->payload));
+          case MessageType::Response:
+            resolve_request(frame->id, decode_value(frame->payload));
             break;
-          case rivet::MessageType::Error: {
-            auto error_value = rivet::decode_value(frame->payload);
-            std::string message{"Fulcrum backend error"};
+          case MessageType::Error: {
+            auto error_value = decode_value(frame->payload);
+            std::string message{"Rivet backend error"};
             if (auto* text = std::get_if<std::string>(&error_value.data)) {
               message = *text;
             }
             fail_request(frame->id,
-                         std::make_exception_ptr(std::runtime_error(std::move(message))));
+                         std::make_exception_ptr(
+                             std::runtime_error(std::move(message))));
             break;
           }
-          case rivet::MessageType::Event: {
-            auto event_value = rivet::decode_value(frame->payload);
+          case MessageType::Event: {
+            auto event_value = decode_value(frame->payload);
             EventHandler handler;
             {
               std::lock_guard lock(state_mutex);
               handler = event_handler;
             }
             if (handler) {
-              if (auto* list = std::get_if<rivet::Value::List>(&event_value.data);
+              if (auto* list = std::get_if<Value::List>(&event_value.data);
                   list != nullptr && !list->empty()) {
                 if (auto* name = std::get_if<std::string>(&(*list)[0].data)) {
-                  rivet::Value payload =
-                      list->size() > 1 ? (*list)[1] : rivet::Value(std::string{});
+                  Value payload = list->size() > 1
+                                      ? (*list)[1]
+                                      : Value(std::string{});
                   handler(*name, payload);
                 }
               }
@@ -273,71 +256,66 @@ struct Backend::Impl {
         }
       }
     } catch (...) {
-      // transport dead: fall through to failure delivery
+      // Transport dead: fall through to failure delivery.
     }
+    running.store(false, std::memory_order_release);
     fail_all(std::make_exception_ptr(
-        std::runtime_error("Fulcrum backend transport closed")));
+        std::runtime_error("Rivet backend transport closed")));
   }
 };
-
-bool Backend::running() const noexcept {
-  return impl_->running.load(std::memory_order_acquire);
-}
 
 Backend::Backend(RacketRuntimeConfig config)
     : impl_(std::make_unique<Impl>(std::move(config))) {}
 
 Backend::~Backend() { stop(); }
 
+bool Backend::running() const noexcept {
+  return impl_->running.load(std::memory_order_acquire);
+}
+
 void Backend::start() {
   if (impl_->running.load(std::memory_order_relaxed)) {
-    throw std::runtime_error("Fulcrum backend is already running");
+    throw std::runtime_error("Rivet backend is already running");
   }
   impl_->running.store(true, std::memory_order_release);
-  impl_->racket_thread = std::thread([impl = impl_.get()]() mutable {
-    impl->racket_main();
-  });
-  impl_->reader_thread = std::thread([impl = impl_.get()]() mutable {
-    impl->reader_main();
-  });
+  impl_->racket_thread = std::thread(
+      [impl = impl_.get()]() mutable { impl->racket_main(); });
+  impl_->reader_thread = std::thread(
+      [impl = impl_.get()]() mutable { impl->reader_main(); });
 
   // Wait for Hello (bounded) so startup failures surface synchronously.
-  auto const deadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+  auto const deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(20);
   while (!impl_->running.load(std::memory_order_acquire)) {
     if (std::chrono::steady_clock::now() > deadline) {
       stop();
-      throw std::runtime_error("Fulcrum backend did not reach Hello within 20s");
+      throw std::runtime_error(
+          "Rivet backend did not reach Hello within 20s");
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    if (!impl_->racket_thread.joinable()) {
-      throw std::runtime_error("Fulcrum backend thread failed to start");
-    }
   }
 }
 
 void Backend::stop() {
-  // Shutdown frame, then join both threads. Safe to call twice. The request
-  // socket end stays open until the backend port consumes EOF.
-  if (impl_->request_fd >= 0) {
+  // Shutdown frame, then join both threads. Safe to call twice; a failed
+  // write means the backend is already gone and the reader has hit EOF.
+  if (impl_->socket_fd >= 0) {
     try {
-      FdTransport transport(impl_->request_fd, /*own=*/false);
-      rivet::write_frame(transport,
-                         rivet::Frame{rivet::MessageType::Shutdown, 0, {}});
+      FdTransport transport(impl_->socket_fd);
+      write_frame(transport, Frame{MessageType::Shutdown, 0, {}});
       transport.flush();
     } catch (...) {
     }
   }
-  impl_->cancel_wakeup.signal();
   if (impl_->racket_thread.joinable()) impl_->racket_thread.join();
   if (impl_->reader_thread.joinable()) impl_->reader_thread.join();
   impl_->fail_all(std::make_exception_ptr(
-      std::runtime_error("Fulcrum backend stopped")));
+      std::runtime_error("Rivet backend stopped")));
 }
 
-std::future<rivet::Value> Backend::call(std::string rpc_name,
-                                        rivet::Value::List arguments) {
+std::future<Value> Backend::call(std::string rpc_name, Value::List arguments) {
   auto const id = impl_->allocate_request_id();
-  auto promise = std::make_shared<std::promise<rivet::Value>>();
+  auto promise = std::make_shared<std::promise<Value>>();
   auto future = promise->get_future();
   {
     std::lock_guard lock(impl_->state_mutex);
@@ -345,20 +323,20 @@ std::future<rivet::Value> Backend::call(std::string rpc_name,
       if (result.succeeded()) {
         promise->set_value(std::move(*result.value));
       } else {
-        std::rethrow_exception(result.error);
+        promise->set_exception(result.error);
       }
     };
   }
-  rivet::Value::List request;
+  Value::List request;
   request.emplace_back(std::move(rpc_name));
   for (auto& argument : arguments) {
     request.emplace_back(std::move(argument));
   }
   try {
-    FdTransport transport(impl_->request_fd, /*own=*/false);
-    rivet::write_frame(transport,
-                       rivet::Frame{rivet::MessageType::Request, id,
-                                    rivet::encode_value(rivet::Value(std::move(request)))});
+    FdTransport transport(impl_->socket_fd);
+    write_frame(transport,
+                Frame{MessageType::Request, id,
+                      encode_value(Value(std::move(request)))});
     transport.flush();
   } catch (...) {
     impl_->fail_request(id, std::current_exception());
@@ -367,23 +345,23 @@ std::future<rivet::Value> Backend::call(std::string rpc_name,
 }
 
 std::uint64_t Backend::request_async(std::string rpc_name,
-                                     rivet::Value::List arguments,
+                                     Value::List arguments,
                                      CompletionHandler completion) {
   auto const id = impl_->allocate_request_id();
   {
     std::lock_guard lock(impl_->state_mutex);
     impl_->pending[id] = std::move(completion);
   }
-  rivet::Value::List request;
+  Value::List request;
   request.emplace_back(std::move(rpc_name));
   for (auto& argument : arguments) {
     request.emplace_back(std::move(argument));
   }
   try {
-    FdTransport transport(impl_->request_fd, /*own=*/false);
-    rivet::write_frame(transport,
-                       rivet::Frame{rivet::MessageType::Request, id,
-                                    rivet::encode_value(rivet::Value(std::move(request)))});
+    FdTransport transport(impl_->socket_fd);
+    write_frame(transport,
+                Frame{MessageType::Request, id,
+                      encode_value(Value(std::move(request)))});
     transport.flush();
   } catch (...) {
     impl_->fail_request(id, std::current_exception());
@@ -393,9 +371,8 @@ std::uint64_t Backend::request_async(std::string rpc_name,
 
 void Backend::cancel(std::uint64_t request_id) {
   try {
-    FdTransport transport(impl_->request_fd, /*own=*/false);
-    rivet::write_frame(transport,
-                       rivet::Frame{rivet::MessageType::Cancel, request_id, {}});
+    FdTransport transport(impl_->socket_fd);
+    write_frame(transport, Frame{MessageType::Cancel, request_id, {}});
     transport.flush();
   } catch (...) {
   }
