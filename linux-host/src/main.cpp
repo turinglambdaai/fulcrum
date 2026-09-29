@@ -8,7 +8,7 @@
 #include "posix_backend.hpp"
 
 #include <gtk/gtk.h>
-#include <gdk/gdkx.h>
+#include <gdk/x11/gdkx.h>
 #include <glib-unix.h>
 
 #include <X11/Xlib.h>
@@ -305,7 +305,7 @@ class Launcher {
   }
 
   void show() {
-    gtk_search_entry_set_text(search, "");
+    gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
     gtk_window_present(window);
@@ -348,7 +348,9 @@ std::string install_x11_hotkey(GdkDisplay* display, GtkWindow* window) {
            "Bind `fulcrum --toggle` to a key in your compositor settings.";
   }
   hotkey_grab.display = gdk_x11_display_get_xdisplay(display);
-  hotkey_grab.window = gdk_x11_window_get_xid(gtk_widget_get_window(GTK_WIDGET(window)));
+  // GTK4: windows expose a GdkSurface; X11 surfaces carry the XID.
+  hotkey_grab.window = gdk_x11_surface_get_xid(
+      gtk_native_get_surface(GTK_NATIVE(window)));
   Display* dpy = hotkey_grab.display;
 
   KeyCode code = XKeysymToKeycode(dpy, XK_space);
@@ -454,11 +456,6 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_window_set_resizable(window, FALSE);
   gtk_window_set_hide_on_close(window, FALSE);
   gtk_widget_add_css_class(window, "fulcrum-window");
-  // Overlay chrome: utility window, above others, not in taskbars.
-  gtk_window_set_type_hint(window, GDK_SURFACE_TYPE_HINT_UTILITY);
-  gtk_window_set_skip_taskbar_hint(window, TRUE);
-  gtk_window_set_skip_pager_hint(window, TRUE);
-  gtk_window_set_keep_above(window, TRUE);
 
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   auto* search = gtk_search_entry_new();
@@ -517,8 +514,26 @@ void on_activate(GtkApplication* app, gpointer) {
         }
       }), nullptr);
 
-  // Realize once so the XID exists, then install the platform hotkey.
+  // Realize once so the XID exists, then install the platform hotkey and
+  // (X11 only) the overlay chrome via EWMH. Wayland compositors own these
+  // decisions; the status message already covers that honestly.
   gtk_widget_realize(window);
+  if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(window))) {
+    Display* dpy = gdk_x11_display_get_xdisplay(gtk_widget_get_display(window));
+    Window xid = gdk_x11_surface_get_xid(
+        gtk_native_get_surface(GTK_NATIVE(window)));
+    Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
+    Atom above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+    Atom skip_taskbar = XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
+    Atom wm_window_type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
+    Atom utility = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+    XChangeProperty(dpy, xid, wm_window_type, XA_ATOM, 32, PropModeReplace,
+                    reinterpret_cast<unsigned char*>(&utility), 1);
+    XChangeProperty(dpy, xid, wm_state, XA_ATOM, 32, PropModeAppend,
+                    reinterpret_cast<unsigned char*>(&above), 1);
+    XChangeProperty(dpy, xid, wm_state, XA_ATOM, 32, PropModeAppend,
+                    reinterpret_cast<unsigned char*>(&skip_taskbar), 1);
+  }
   std::string hotkey_note =
       install_x11_hotkey(gtk_widget_get_display(window), GTK_WINDOW(window));
   if (!hotkey_note.empty()) {

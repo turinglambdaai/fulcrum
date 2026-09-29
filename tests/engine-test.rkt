@@ -50,7 +50,7 @@
 (define fixture-apps
   (list (application "a1" "Firefox" "/usr/bin/firefox" "app" '() "/usr/share/applications/firefox.desktop")
         (application "a2" "File Manager" "/usr/bin/files" "app" '() "/usr/share/applications/files.desktop")
-        (application "a3" "Terminal" "/usr/bin/terminal" "app" '() "/usr/share/applications/terminal.desktop")))
+        (application "a3" "Terminal" "/bin/true" "app" '() "/usr/share/applications/terminal.desktop")))
 
 (test-case "empty query lists apps first"
   (with-fresh-data-dir
