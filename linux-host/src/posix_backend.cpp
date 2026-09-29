@@ -118,7 +118,7 @@ struct Backend::Impl {
     return next_request_id++;
   }
 
-  void resolve_request(std::uint64_t id, Value value) {
+  void resolve_request(std::uint64_t id, rivet::Value value) {
     CompletionHandler handler;
     {
       std::lock_guard lock(state_mutex);
@@ -214,14 +214,14 @@ struct Backend::Impl {
           break;
         }
         switch (frame->type) {
-          case MessageType::Hello:
+          case rivet::MessageType::Hello:
             running.store(true, std::memory_order_release);
             break;
-          case MessageType::Response:
-            resolve_request(frame->id, decode_value(frame->payload));
+          case rivet::MessageType::Response:
+            resolve_request(frame->id, rivet::decode_value(frame->payload));
             break;
-          case MessageType::Error: {
-            auto error_value = decode_value(frame->payload);
+          case rivet::MessageType::Error: {
+            auto error_value = rivet::decode_value(frame->payload);
             std::string message{"Rivet backend error"};
             if (auto* text = std::get_if<std::string>(&error_value.data)) {
               message = *text;
@@ -231,20 +231,20 @@ struct Backend::Impl {
                              std::runtime_error(std::move(message))));
             break;
           }
-          case MessageType::Event: {
-            auto event_value = decode_value(frame->payload);
+          case rivet::MessageType::Event: {
+            auto event_value = rivet::decode_value(frame->payload);
             EventHandler handler;
             {
               std::lock_guard lock(state_mutex);
               handler = event_handler;
             }
             if (handler) {
-              if (auto* list = std::get_if<Value::List>(&event_value.data);
+              if (auto* list = std::get_if<rivet::Value::List>(&event_value.data);
                   list != nullptr && !list->empty()) {
                 if (auto* name = std::get_if<std::string>(&(*list)[0].data)) {
-                  Value payload = list->size() > 1
+                  rivet::Value payload = list->size() > 1
                                       ? (*list)[1]
-                                      : Value(std::string{});
+                                      : rivet::Value(std::string{});
                   handler(*name, payload);
                 }
               }
@@ -256,7 +256,7 @@ struct Backend::Impl {
         }
       }
     } catch (...) {
-      // Transport dead: fall through to failure delivery.
+      // rivet::Transport dead: fall through to failure delivery.
     }
     running.store(false, std::memory_order_release);
     fail_all(std::make_exception_ptr(
@@ -302,7 +302,7 @@ void Backend::stop() {
   if (impl_->socket_fd >= 0) {
     try {
       FdTransport transport(impl_->socket_fd);
-      write_frame(transport, Frame{MessageType::Shutdown, 0, {}});
+      rivet::write_frame(transport, rivet::Frame{rivet::MessageType::Shutdown, 0, {}});
       transport.flush();
     } catch (...) {
     }
@@ -313,9 +313,9 @@ void Backend::stop() {
       std::runtime_error("Rivet backend stopped")));
 }
 
-std::future<Value> Backend::call(std::string rpc_name, Value::List arguments) {
+std::future<rivet::Value> Backend::call(std::string rpc_name, rivet::Value::List arguments) {
   auto const id = impl_->allocate_request_id();
-  auto promise = std::make_shared<std::promise<Value>>();
+  auto promise = std::make_shared<std::promise<rivet::Value>>();
   auto future = promise->get_future();
   {
     std::lock_guard lock(impl_->state_mutex);
@@ -327,16 +327,16 @@ std::future<Value> Backend::call(std::string rpc_name, Value::List arguments) {
       }
     };
   }
-  Value::List request;
+  rivet::Value::List request;
   request.emplace_back(std::move(rpc_name));
   for (auto& argument : arguments) {
     request.emplace_back(std::move(argument));
   }
   try {
     FdTransport transport(impl_->socket_fd);
-    write_frame(transport,
-                Frame{MessageType::Request, id,
-                      encode_value(Value(std::move(request)))});
+    rivet::write_frame(transport,
+                rivet::Frame{rivet::MessageType::Request, id,
+                      rivet::encode_value(rivet::Value(std::move(request)))});
     transport.flush();
   } catch (...) {
     impl_->fail_request(id, std::current_exception());
@@ -345,23 +345,23 @@ std::future<Value> Backend::call(std::string rpc_name, Value::List arguments) {
 }
 
 std::uint64_t Backend::request_async(std::string rpc_name,
-                                     Value::List arguments,
+                                     rivet::Value::List arguments,
                                      CompletionHandler completion) {
   auto const id = impl_->allocate_request_id();
   {
     std::lock_guard lock(impl_->state_mutex);
     impl_->pending[id] = std::move(completion);
   }
-  Value::List request;
+  rivet::Value::List request;
   request.emplace_back(std::move(rpc_name));
   for (auto& argument : arguments) {
     request.emplace_back(std::move(argument));
   }
   try {
     FdTransport transport(impl_->socket_fd);
-    write_frame(transport,
-                Frame{MessageType::Request, id,
-                      encode_value(Value(std::move(request)))});
+    rivet::write_frame(transport,
+                rivet::Frame{rivet::MessageType::Request, id,
+                      rivet::encode_value(rivet::Value(std::move(request)))});
     transport.flush();
   } catch (...) {
     impl_->fail_request(id, std::current_exception());
@@ -372,7 +372,7 @@ std::uint64_t Backend::request_async(std::string rpc_name,
 void Backend::cancel(std::uint64_t request_id) {
   try {
     FdTransport transport(impl_->socket_fd);
-    write_frame(transport, Frame{MessageType::Cancel, request_id, {}});
+    rivet::write_frame(transport, rivet::Frame{rivet::MessageType::Cancel, request_id, {}});
     transport.flush();
   } catch (...) {
   }
@@ -382,5 +382,6 @@ void Backend::set_event_handler(EventHandler handler) {
   std::lock_guard lock(impl_->state_mutex);
   impl_->event_handler = std::move(handler);
 }
+
 
 }  // namespace fulcrum::linux
