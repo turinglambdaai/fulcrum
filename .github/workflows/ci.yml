@@ -65,8 +65,12 @@ jobs:
       - name: Locate libracketcs
         run: |
           RACKET_ROOT="$(dirname "$(readlink -f "$(command -v racket)")")/.."
-          find "$RACKET_ROOT" -name 'libracketcs*' 2>/dev/null | head -3
-          echo "RIVET_RACKET_LIB_DIR=$(dirname "$(find "$RACKET_ROOT" -name 'libracketcs*' 2>/dev/null | head -1)")" >> "$GITHUB_ENV"
+          echo "RACKET_ROOT=$(realpath "$RACKET_ROOT")"
+          ls "$(realpath "$RACKET_ROOT")/lib" 2>/dev/null | head -20
+          HITS=$(find "$(realpath "$RACKET_ROOT")" -name 'libracketcs*' 2>/dev/null)
+          echo "$HITS"
+          FIRST=$(echo "$HITS" | head -1)
+          echo "RIVET_RACKET_LIB_DIR=$(dirname "$FIRST")" >> "$GITHUB_ENV"
       - name: Compile backend to bytecode
         run: |
           raco make app/core/*.rkt app/backend.rkt
