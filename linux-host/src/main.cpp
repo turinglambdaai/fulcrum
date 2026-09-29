@@ -67,7 +67,7 @@ ResultRow parse_row(rivet::Value const& value) {
 }
 
 std::filesystem::path executable_path() {
-  return std::filesystem::readlink("/proc/self/exe");
+  return std::filesystem::read_symlink("/proc/self/exe");
 }
 
 struct RacketLayout {
@@ -248,8 +248,8 @@ class Launcher {
       gtk_label_set_xalign(GTK_LABEL(subtitle), 0.0);
       gtk_widget_add_css_class(subtitle, "caption");
       gtk_widget_add_css_class(subtitle, "dim-label");
-      gtk_label_ellipsize(GTK_LABEL(title), PANGO_ELLIPSIZE_END);
-      gtk_label_ellipsize(GTK_LABEL(subtitle), PANGO_ELLIPSIZE_END);
+      gtk_label_set_ellipsize(GTK_LABEL(title), PANGO_ELLIPSIZE_END);
+      gtk_label_set_ellipsize(GTK_LABEL(subtitle), PANGO_ELLIPSIZE_END);
       gtk_box_append(GTK_BOX(box), title);
       gtk_box_append(GTK_BOX(box), subtitle);
       gtk_list_box_append(results, box);
@@ -308,7 +308,7 @@ class Launcher {
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
-    gtk_window_present(window);
+    gtk_window_present(GTK_WINDOW(window));
   }
 
   void hide() { gtk_widget_set_visible(GTK_WIDGET(window), FALSE); }
@@ -451,10 +451,10 @@ void on_activate(GtkApplication* app, gpointer) {
 
   auto* window = gtk_application_window_new(app);
   launcher.window = GTK_WINDOW(window);
-  gtk_window_set_title(window, "Fulcrum");
-  gtk_window_set_default_size(window, 680, 440);
-  gtk_window_set_resizable(window, FALSE);
-  gtk_window_set_hide_on_close(window, FALSE);
+  gtk_window_set_title(launcher.window, "Fulcrum");
+  gtk_window_set_default_size(launcher.window, 680, 440);
+  gtk_window_set_resizable(launcher.window, FALSE);
+  gtk_window_set_hide_on_close(launcher.window, FALSE);
   gtk_widget_add_css_class(window, "fulcrum-window");
 
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -493,7 +493,7 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_box_append(GTK_BOX(root), status);
   gtk_box_append(GTK_BOX(root), scrolled);
   gtk_box_append(GTK_BOX(root), hint);
-  gtk_window_set_child(window, root);
+  gtk_window_set_child(GTK_WINDOW(window), root);
 
   g_signal_connect(search, "search-changed",
                    G_CALLBACK(on_search_changed), nullptr);

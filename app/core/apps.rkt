@@ -254,9 +254,9 @@
     [(macosx)
      (spawn-command "open" (list (application-path app)))]
     [(windows)
-     ;; cmd start with an empty window title resolves .lnk/.url through the
-     ;; shell association, which is what the Start Menu entry would do.
-     (spawn-command "cmd.exe" (list "/c" "start" "" (application-path app)))]
+     ;; Explorer resolves .lnk/.url shortcuts exactly like the Start Menu
+     ;; entry would, without the empty-title argv hack cmd start needs.
+     (spawn-command "explorer.exe" (list (application-path app)))]
     [else
      (define id (application-id app))
      (if (string-prefix? id "d")

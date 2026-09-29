@@ -280,6 +280,10 @@ struct Backend::Impl {
   }
 };
 
+bool Backend::running() const noexcept {
+  return impl_->running.load(std::memory_order_acquire);
+}
+
 Backend::Backend(RacketRuntimeConfig config)
     : impl_(std::make_unique<Impl>(std::move(config))) {}
 

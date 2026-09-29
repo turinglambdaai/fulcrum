@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <memory>
 #include <optional>
 #include <string>
@@ -27,6 +28,8 @@ struct RacketRuntimeConfig {
   std::string collects_dir;
   std::string config_dir;
   std::string dll_dir;  // POSIX: plain path appended to the boot config
+  std::string module_name{"backend"};
+  std::string entry_symbol{"start"};
   std::size_t max_pending_requests{1024};
 };
 
@@ -51,7 +54,7 @@ class Backend final {
 
   void start();
   void stop();
-  bool running() const noexcept { return running_.load(std::memory_order_acquire); }
+  bool running() const noexcept;
 
   std::future<rivet::Value> call(std::string rpc_name,
                                  rivet::Value::List arguments = {});
