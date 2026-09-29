@@ -20,22 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Racket (CS)
-        uses: Bogdanp/setup-racket@v1.20
+        uses: Bogdanp/setup-racket@v1.15
         with:
           version: stable
           distribution: full
-      - name: Link Rivet
-        run: raco pkg install --auto --no-docs --link ${{ github.workspace }}/../rivet
-        shell: bash
-      # The fulcrum CI checkout expects Rivet next to the repository. When
-      # the sibling checkout is absent, fall back to the catalog version.
       - name: Checkout Rivet (sibling)
         uses: actions/checkout@v4
         with:
           repository: turinglambdaai/rivet
           path: rivet
-      - name: Link sibling Rivet
-        run: raco pkg update --auto --no-docs --link ${{ github.workspace }}/rivet || raco pkg install --auto --no-docs --link ${{ github.workspace }}/rivet
+      - name: Link Rivet
+        run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
       - name: Compile backend
         run: raco make app/core/*.rkt app/update.rkt app/backend.rkt
@@ -61,7 +56,7 @@ jobs:
             build-essential cmake pkg-config \
             libgtk-4-dev libpango1.0-dev libx11-dev
       - name: Install Racket (CS)
-        uses: Bogdanp/setup-racket@v1.20
+        uses: Bogdanp/setup-racket@v1.15
         with:
           version: stable
           distribution: full
@@ -87,7 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Racket (CS)
-        uses: Bogdanp/setup-racket@v1.20
+        uses: Bogdanp/setup-racket@v1.15
         with:
           version: stable
           distribution: full
@@ -124,7 +119,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Racket (CS)
-        uses: Bogdanp/setup-racket@v1.20
+        uses: Bogdanp/setup-racket@v1.15
         with:
           version: stable
           distribution: full
