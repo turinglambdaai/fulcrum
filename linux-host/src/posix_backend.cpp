@@ -43,7 +43,7 @@ void* Scar(void* pair);
 int Sscheme_deinit();
 }
 
-namespace fulcrum::linux {
+namespace fulcrum::linux_runtime {
 namespace {
 
 // 'module as a quoted symbol, the shape racket_dynamic_require expects.
@@ -384,4 +384,4 @@ void Backend::set_event_handler(EventHandler handler) {
 }
 
 
-}  // namespace fulcrum::linux
+}  // namespace fulcrum::linux_runtime

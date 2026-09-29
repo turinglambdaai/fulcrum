@@ -113,7 +113,7 @@ class Launcher {
   GtkLabel* status{nullptr};
   GtkStack* stack{nullptr};
 
-  std::unique_ptr<fulcrum::linux::Backend> backend;
+  std::unique_ptr<fulcrum::linux_runtime::Backend> backend;
   std::vector<ResultRow> rows;
   guint search_source{0};
 
@@ -134,7 +134,7 @@ class Launcher {
       return;
     }
 
-    fulcrum::linux::RacketRuntimeConfig config;
+    fulcrum::linux_runtime::RacketRuntimeConfig config;
     config.executable_path = executable_path().string();
     config.petite_boot = layout->petite_boot.string();
     config.scheme_boot = layout->scheme_boot.string();
@@ -145,7 +145,7 @@ class Launcher {
     config.entry_symbol = "start";
 
     try {
-      backend = std::make_unique<fulcrum::linux::Backend>(std::move(config));
+      backend = std::make_unique<fulcrum::linux_runtime::Backend>(std::move(config));
       backend->set_event_handler([](std::string const& name,
                                     rivet::Value const& value) {
         g_idle_add([](gpointer user_data) -> int {
@@ -197,18 +197,18 @@ class Launcher {
     backend_raw->request_async(
         "search",
         rivet::Value::List{rivet::Value(query)},
-        [](fulcrum::linux::CallResult result) {
-          auto* boxed = new fulcrum::linux::CallResult(std::move(result));
+        [](fulcrum::linux_runtime::CallResult result) {
+          auto* boxed = new fulcrum::linux_runtime::CallResult(std::move(result));
           g_idle_add([](gpointer user_data) -> int {
-            std::unique_ptr<fulcrum::linux::CallResult> job(
-                static_cast<fulcrum::linux::CallResult*>(user_data));
+            std::unique_ptr<fulcrum::linux_runtime::CallResult> job(
+                static_cast<fulcrum::linux_runtime::CallResult*>(user_data));
             Launcher::instance().apply_search(std::move(*job));
             return G_SOURCE_REMOVE;
           }, boxed);
         });
   }
 
-  void apply_search(fulcrum::linux::CallResult result) {
+  void apply_search(fulcrum::linux_runtime::CallResult result) {
     if (!result.succeeded()) {
       try {
         std::rethrow_exception(result.error);
@@ -274,7 +274,7 @@ class Launcher {
     backend->request_async(
         "run-action",
         rivet::Value::List{rivet::Value(row.id), rivet::Value(row.arg)},
-        [row](fulcrum::linux::CallResult result) {
+        [row](fulcrum::linux_runtime::CallResult result) {
           std::string status_text = row.id;
           bool success = false;
           if (result.succeeded()) {

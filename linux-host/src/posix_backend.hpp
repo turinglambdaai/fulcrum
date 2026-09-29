@@ -17,7 +17,7 @@
 
 #include "rivet/protocol.hpp"
 
-namespace fulcrum::linux {
+namespace fulcrum::linux_runtime {
 
 struct RacketRuntimeConfig {
   std::string executable_path;
@@ -71,4 +71,4 @@ class Backend final {
   std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace fulcrum::linux
+}  // namespace fulcrum::linux_runtime
