@@ -446,6 +446,15 @@ gboolean on_key_pressed(GtkEventControllerKey*, guint keyval, guint,
   }
 }
 
+void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
+  auto* gtk_window = GTK_WINDOW(obj);
+  // Hide on focus loss, matching the other platform hosts.
+  if (!gtk_window_is_active(gtk_window) &&
+      gtk_widget_get_visible(GTK_WIDGET(gtk_window))) {
+    Launcher::instance().hide();
+  }
+}
+
 void on_activate(GtkApplication* app, gpointer) {
   Launcher& launcher = Launcher::instance();
 
@@ -459,8 +468,8 @@ void on_activate(GtkApplication* app, gpointer) {
 
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
   auto* search = gtk_search_entry_new();
-  gtk_search_entry_set_placeholder_text(search,
-      "Search apps, clipboard, snippets, the web…");
+  gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(search),
+                                        "Search apps, clipboard, snippets, the web…");
   gtk_widget_set_margin_top(search, 10);
   gtk_widget_set_margin_start(search, 10);
   gtk_widget_set_margin_end(search, 10);
@@ -504,15 +513,8 @@ void on_activate(GtkApplication* app, gpointer) {
   g_signal_connect(controller, "key-pressed", G_CALLBACK(on_key_pressed), nullptr);
   gtk_widget_add_controller(window, controller);
 
-  g_signal_connect(window, "notify::is-active", G_CALLBACK(
-      [](GObject* obj, GParamSpec*, gpointer) {
-        auto* gtk_window = GTK_WINDOW(obj);
-        // Hide on focus loss, matching the other platform hosts.
-        if (!gtk_window_is_active(gtk_window) &&
-            gtk_widget_get_visible(GTK_WIDGET(gtk_window))) {
-          Launcher::instance().hide();
-        }
-      }), nullptr);
+  g_signal_connect(window, "notify::is-active",
+                   G_CALLBACK(on_window_active_changed), nullptr);
 
   // Realize once so the XID exists, then install the platform hotkey and
   // (X11 only) the overlay chrome via EWMH. Wayland compositors own these
