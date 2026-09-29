@@ -62,6 +62,11 @@ jobs:
           distribution: full
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
+      - name: Locate libracketcs
+        run: |
+          RACKET_ROOT="$(dirname "$(readlink -f "$(command -v racket)")")/.."
+          find "$RACKET_ROOT" -name 'libracketcs*' 2>/dev/null | head -3
+          echo "RIVET_RACKET_LIB_DIR=$(dirname "$(find "$RACKET_ROOT" -name 'libracketcs*' 2>/dev/null | head -1)")" >> "$GITHUB_ENV"
       - name: Compile backend to bytecode
         run: |
           raco make app/core/*.rkt app/backend.rkt
@@ -69,9 +74,8 @@ jobs:
       - name: Configure and compile host
         env:
           RIVET_ROOT: ${{ github.workspace }}/rivet
-          # Compile smoke only: libracketcs is staged by raco rivet build on
-          # a full Linux toolchain; CI links against the installed one.
-          RIVET_RACKET_LIB_DIR: ${{ env.RACKET_DIR }}/lib
+          # Compile smoke only: RIVET_RACKET_LIB_DIR is probed from the
+          # installed Racket distribution in the previous step.
         run: |
           cmake -S linux-host -B linux-host/build -DCMAKE_BUILD_TYPE=Release
           cmake --build linux-host/build --config Release
