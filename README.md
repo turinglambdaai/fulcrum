@@ -45,7 +45,7 @@ fulcrum/
 ├── windows/                # WinUI 3 overlay + RegisterHotKey
 ├── linux/                  # GTK4 panel + X11 grab (Rivet 0.3 Linux preview)
 ├── examples/plugins/epoch  # the FPP1 reference plugin
-├── tests/                  # 39 backend tests (raco test tests/)
+├── tests/                  # 43 backend tests (raco test tests/)
 ├── docs/                   # plugins.md, release-runbook.md, business plan
 ├── site/                   # fulcrum.jrtx.site (GitHub Pages)
 └── .github/workflows/      # CI matrix + tag-driven release pipeline
@@ -53,7 +53,7 @@ fulcrum/
 
 ## Status: v0.1.0 (developer preview)
 
-Developer preview. The backend is complete and tested (39/39). All three hosts are feature-complete against the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host now builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). `raco rivet doctor` / `dev` is the supported developer loop on every platform.
+Developer preview. The backend is complete and tested (43/43). All three hosts are feature-complete against the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host now builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). `raco rivet doctor` / `dev` is the supported developer loop on every platform.
 
 ## Development
 

@@ -45,7 +45,7 @@ fulcrum/
 ├── windows/                # WinUI 3 悬浮窗 + RegisterHotKey
 ├── linux/                  # GTK4 面板 + X11 grab（Rivet 0.3 Linux preview）
 ├── examples/plugins/epoch  # FPP1 参考插件
-├── tests/                  # 39 个后端测试（raco test tests/）
+├── tests/                  # 43 个后端测试（raco test tests/）
 ├── docs/                   # plugins.md、release-runbook.md、商业计划
 ├── site/                   # fulcrum.jrtx.site（GitHub Pages）
 └── .github/workflows/      # CI 矩阵 + tag 驱动的发布流水线
@@ -53,7 +53,7 @@ fulcrum/
 
 ## 状态：v0.1.0（开发者预览）
 
-开发者预览。后端已完成并通过全部测试（39/39）。三个宿主均针对后端契约功能完备：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主现已通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
+开发者预览。后端已完成并通过全部测试（43/43）。三个宿主均针对后端契约功能完备：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主现已通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
 
 ## 开发
 
