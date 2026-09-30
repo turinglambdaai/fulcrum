@@ -1,4 +1,5 @@
 import SwiftUI
+import RivetEmbedding
 import RivetRuntime
 
 /// Adapter over the generated `RivetAPI`: rows travel as `[[String]]` per
@@ -157,6 +158,10 @@ private struct KeyEventHandlingView: NSViewRepresentable {
             self.onEscape = onEscape
             self.onUp = onUp
             self.onDown = onDown
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("KeyEventHandlingView is created in code only")
         }
 
         override var acceptsFirstResponder: Bool { false }
