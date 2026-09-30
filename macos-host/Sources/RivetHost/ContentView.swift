@@ -188,6 +188,10 @@ private struct KeyEventHandlingView: NSViewRepresentable {
 /// never overwrite a newer result set.
 @MainActor
 final class LauncherModel: ObservableObject {
+    /// Backend events arrive on a @Sendable callback that cannot capture
+    /// actor state; the active model is registered at startup instead.
+    nonisolated(unsafe) static var active: LauncherModel?
+
     @Published var query = ""
     @Published var rows: [ResultRow] = []
     @Published var selection: String?
@@ -208,33 +212,34 @@ final class LauncherModel: ObservableObject {
 
     func start() {
         guard backend == nil else { return }
+        Self.active = self
 
         do {
             let config = try Self.runtimeConfiguration()
             let backend = EmbeddedRacketBackend(configuration: config)
             self.backend = backend
 
-            Task.detached { [backend, weak self] in
+            Task.detached { [backend] in
                 do {
                     try backend.start(onEvent: { name, value in
-                        Task { @MainActor [weak self] in
-                            self?.handleEvent(name: name, value: value)
+                        Task { @MainActor in
+                            LauncherModel.active?.handleEvent(name: name,
+                                                              value: value)
                         }
                     })
                     let api = FulcrumAPI(client: backend.client)
                     _ = try await api.health()
-                    await MainActor.run { [weak self] in
-                        guard let self else { return }
-                        self.api = api
-                        self.ready = true
-                        self.status = "Ready — press ⌥Space anywhere"
-                        self.beginSearch()
+                    await MainActor.run {
+                        guard let model = LauncherModel.active else { return }
+                        model.api = api
+                        model.ready = true
+                        model.status = "Ready — press ⌥Space anywhere"
+                        model.beginSearch()
                     }
                 } catch {
-                    await MainActor.run { [weak self] in
-                        guard let self else { return }
-                        self.ready = false
-                        self.status = "Backend error: \(error)"
+                    await MainActor.run {
+                        LauncherModel.active?.ready = false
+                        LauncherModel.active?.status = "Backend error: \(error)"
                     }
                 }
             }

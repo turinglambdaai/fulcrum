@@ -19,6 +19,9 @@ struct FulcrumApp: App {
 
 /// Owns the floating panel, the global hotkey, and the clipboard watcher.
 /// The SwiftUI scene graph stays inside the panel's content view.
+/// AppKit delegates run on the main thread; Swift 6 concurrency makes that
+/// explicit with @MainActor.
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
     private var hotkeyRef: EventHotKeyRef?
@@ -110,8 +113,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                       eventKind: UInt32(kEventHotKeyPressed))
         let status = InstallEventHandler(GetApplicationEventTarget(),
-                                         { _, event, _ -> OSStatus in
-                                             AppDelegate.shared?.hotkeyFired(event)
+                                         { _, _, _ -> OSStatus in
+                                             DispatchQueue.main.async {
+                                                 AppDelegate.shared?.hotkeyFired()
+                                             }
                                              return noErr
                                          },
                                          1, &eventType, nil, &eventHandler)
@@ -140,11 +145,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return status == noErr
     }
 
-    fileprivate func hotkeyFired(_ event: EventRef?) -> OSStatus {
-        DispatchQueue.main.async { [weak self] in
-            self?.togglePanel()
-        }
-        return noErr
+    fileprivate func hotkeyFired() {
+        togglePanel()
     }
 
     // MARK: clipboard watcher
@@ -152,22 +154,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installClipboardWatcher(model: LauncherModel) {
         lastPasteboardChange = NSPasteboard.general.changeCount
         clipboardTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self, let api = model.api else { return }
-            let changeCount = NSPasteboard.general.changeCount
-            guard changeCount != self.lastPasteboardChange else { return }
-            self.lastPasteboardChange = changeCount
-            guard let text = NSPasteboard.general.string(forType: .string),
-                  !text.isEmpty else { return }
-            let payload = String(text.prefix(100_000))
-            Task.detached {
-                _ = try? await api.clipboardRecord(payload)
+            // The timer fires on the main run loop; Swift 6 requires that to
+            // be stated when touching MainActor state.
+            MainActor.assumeIsolated {
+                guard let self, let api = model.api else { return }
+                let changeCount = NSPasteboard.general.changeCount
+                guard changeCount != self.lastPasteboardChange else { return }
+                self.lastPasteboardChange = changeCount
+                guard let text = NSPasteboard.general.string(forType: .string),
+                      !text.isEmpty else { return }
+                let payload = String(text.prefix(100_000))
+                Task.detached {
+                    _ = try? await api.clipboardRecord(payload)
+                }
             }
         }
     }
 }
 
-/// Bridge from LauncherModel's requests back to the AppDelegate on the main
-/// thread.
+/// The Carbon hotkey callback is a C function pointer and cannot capture
+/// context; it hops to the main actor through this shared reference.
 extension AppDelegate {
-    static var shared: AppDelegate?
+    nonisolated(unsafe) static var shared: AppDelegate?
 }
