@@ -36,7 +36,7 @@
 
 namespace {
 
-constexpr char kSingleInstancePathSuffix[] = "/fulcrum/host.pid";
+constexpr char kSingleInstancePathSuffix[] = "fulcrum/host.pid";
 
 struct ResultRow {
   std::string id;
