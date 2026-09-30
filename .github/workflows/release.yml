@@ -77,7 +77,9 @@ jobs:
         shell: bash
       - name: Development package (unsigned)
         if: env.HAS_PLATFORM_SIGNING != 'true'
-        run: raco rivet package --development
+        # Plain `raco rivet package` is the unsigned development path;
+        # --development is a release-only flag.
+        run: raco rivet package
         shell: bash
       - name: Upload artifact
         uses: actions/upload-artifact@v4
