@@ -47,6 +47,8 @@ jobs:
             platform: macos
           - os: windows-latest
             platform: windows
+          - os: ubuntu-latest
+            platform: linux
     steps:
       - uses: actions/checkout@v4
       - name: Checkout Rivet
@@ -54,11 +56,28 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
+          ref: v0.4.0
+      - name: Set up Racket CS 9.3
+        if: matrix.platform == 'linux'
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: x64
+          distribution: full
+          variant: CS
+          version: '9.3'
       - name: Install Racket
+        if: matrix.platform != 'linux'
         uses: Bogdanp/setup-racket@v1.15
         with:
           version: stable
           distribution: full
+      - name: Install Linux toolchain
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config \
+            libgtk-4-dev zlib1g-dev liblz4-dev libncurses-dev
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
