@@ -311,7 +311,7 @@ void MainWindow::OnClipboardUpdate() {
 
 void MainWindow::ShowLauncher() {
   QueryBox().Text(L"");
-  SearchAsync(L"");
+  SearchAsync(std::wstring(L""));
   this->Activate();
   QueryBox().Focus(winrt::Microsoft::UI::Xaml::FocusState::Programmatic);
 }
@@ -321,7 +321,7 @@ void MainWindow::HideLauncher() { this->AppWindow().Hide(); }
 void MainWindow::QueryBox_TextChanged(
     winrt::Windows::Foundation::IInspectable const&,
     Microsoft::UI::Xaml::Controls::TextChangedEventArgs const&) {
-  SearchAsync(QueryBox().Text());
+  SearchAsync(std::wstring(QueryBox().Text()));
 }
 
 void MainWindow::QueryBox_KeyDown(
