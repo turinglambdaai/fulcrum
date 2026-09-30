@@ -189,7 +189,8 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
 }
 
 void MainWindow::FinishNativeSetup() {
-  auto const hwnd = winrt::Microsoft::UI::GetWindowFromWindow(*this);
+  auto const hwnd = winrt::Microsoft::UI::Win32Interop::GetWindowFromWindowId(
+      this->AppWindow().Id());
 
   // Overlay chrome: topmost tool-style window without resize borders, not
   // shown in taskbar/alt-tab.
@@ -206,7 +207,7 @@ void MainWindow::FinishNativeSetup() {
     auto const area =
         Microsoft::UI::Windowing::DisplayArea::GetFromWindowId(
             appWindow.Id(),
-            Microsoft::UI::Windowing::GetAncestorWindowIdOptions::Default)
+            Microsoft::UI::Windowing::GetAncestorWindowIdOptions::None)
             .WorkArea();
     winrt::Windows::Graphics::RectInt32 const position{
         area.X + (area.Width - kWindowWidth) / 2,

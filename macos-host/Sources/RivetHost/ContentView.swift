@@ -158,6 +158,7 @@ private struct KeyEventHandlingView: NSViewRepresentable {
             self.onEscape = onEscape
             self.onUp = onUp
             self.onDown = onDown
+            super.init(frame: .zero)
         }
 
         required init?(coder: NSCoder) {
