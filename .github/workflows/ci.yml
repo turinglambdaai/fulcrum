@@ -124,10 +124,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          stage="$(find .rivet/build -type f -name Fulcrum -o -type f -name fulcrum | head -1)"
+          stage="$(find .rivet/build -type f \( -name RivetHost -o -name Fulcrum -o -name fulcrum \) -print -quit)"
           test -n "$stage" || { echo "staged host binary not found" >&2; find .rivet -maxdepth 4 -print >&2; exit 1; }
           echo "host binary: $stage"
           test -f "$(dirname "$stage")/runtime/petite.boot"
+          test -f "$(dirname "$stage")/runtime/scheme.boot"
+          test -f "$(dirname "$stage")/runtime/racket.boot"
           test -f "$(dirname "$stage")/res/core.zo"
 
   macos-host:
