@@ -125,12 +125,11 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
     // UI objects or OS clipboard state.
     backend->set_event_handler([dispatcher, weak](std::string const& name,
                                                   rivet::Value const& value) {
+      // Event values are bare strings per the backend contract: RVT1 event
+      // frames arrive as [name, value] and the runtime hands us value.
       std::string payload;
-      if (auto const cells = std::get_if<rivet::Value::List>(&value.data);
-          cells != nullptr && !cells->empty()) {
-        if (auto text = std::get_if<std::string>(&cells->back().data)) {
-          payload = *text;
-        }
+      if (auto const text = std::get_if<std::string>(&value.data)) {
+        payload = *text;
       }
       dispatcher.TryEnqueue([weak, name, payload]() mutable {
         if (auto window = weak.get()) {

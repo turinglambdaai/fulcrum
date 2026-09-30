@@ -33,6 +33,13 @@ independently per platform packaging run.
 - macOS host: the Esc/↑↓ key handler was a background view outside the
   field editor's responder chain and never fired; replaced with a window
   local `NSEvent` monitor.
+- Windows and Linux hosts: the same event-payload bug as the macOS host —
+  they parsed event values as lists, but the runtime delivers the bare
+  string after unwrapping the RVT1 `[name, value]` frame, so
+  copy-to-clipboard, open-url and update-available were silent no-ops.
+- Linux host: search completions carried no generation guard (both other
+  hosts have one), so two overlapping searches could let a stale result
+  set overwrite the newer one.
 - macOS (Rivet): `raco rivet build` staging invalidated the embedded
   framework's signature via `install_name_tool` and never re-signed it,
   so AMFI killed every `raco rivet dev` launch with "Code Signature

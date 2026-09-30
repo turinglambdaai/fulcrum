@@ -87,6 +87,9 @@ struct Launcher {
   std::unique_ptr<rivet_app::API> api;
   std::vector<ResultRow> rows;
   guint search_source{0};
+  // Matches the macOS/Windows hosts: only the newest query may paint, so a
+  // slow completion can never overwrite a newer result set.
+  std::atomic<int> search_generation{0};
 
   // Official scaffold startup handoff: the boot thread publishes either a
   // started backend or an error; the main loop adopts it exactly once.
@@ -106,11 +109,10 @@ struct Launcher {
   }
 
   static std::string event_payload(rivet::Value const& value) {
-    if (auto* list = std::get_if<rivet::Value::List>(&value.data);
-        list != nullptr && !list->empty()) {
-      if (auto const* text = std::get_if<std::string>(&list->back().data)) {
-        return *text;
-      }
+    // Event values are bare strings per the backend contract: RVT1 event
+    // frames arrive as [name, value] and the runtime hands us value.
+    if (auto const* text = std::get_if<std::string>(&value.data)) {
+      return *text;
     }
     return {};
   }
@@ -135,6 +137,7 @@ struct Launcher {
 
   struct SearchOutcome {
     bool ok{false};
+    int generation{0};
     std::vector<ResultRow> rows;
     std::string error;
   };
@@ -144,8 +147,9 @@ struct Launcher {
       return;
     }
     auto* api_raw = api.get();
-    std::thread([api_raw, query]() mutable {
-      auto* boxed = new SearchOutcome;
+    auto* boxed = new SearchOutcome;
+    boxed->generation = search_generation.fetch_add(1) + 1;
+    std::thread([api_raw, query, boxed]() mutable {
       try {
         for (auto const& cells : api_raw->search(query).get()) {
           boxed->rows.push_back(parse_row(cells));
@@ -157,7 +161,10 @@ struct Launcher {
       g_idle_add([](gpointer user_data) -> int {
         std::unique_ptr<SearchOutcome> job(
             static_cast<SearchOutcome*>(user_data));
-        Launcher::instance().apply_search(std::move(*job));
+        Launcher& launcher = Launcher::instance();
+        if (job->generation == launcher.search_generation.load()) {
+          launcher.apply_search(std::move(*job));
+        }
         return G_SOURCE_REMOVE;
       }, boxed);
     }).detach();
