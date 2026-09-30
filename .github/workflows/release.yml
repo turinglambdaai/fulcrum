@@ -134,9 +134,21 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      # One archive per platform: the WinUI self-contained layout contains
+      # hundreds of runtime files, and expanding them onto the release turns
+      # the download page into noise (and into API rate-limit territory).
+      - name: Package release archives
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          for dir in artifacts/fulcrum-macos artifacts/fulcrum-windows; do
+            name="$(basename "$dir")"
+            (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/release/${name}.zip" .)
+          done
+          ls -la release/
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
           files: |
-            artifacts/**/*
+            release/*.zip
