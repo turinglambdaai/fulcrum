@@ -40,7 +40,7 @@ jobs:
         shell: bash
 
   linux-host:
-    name: Linux host compile smoke
+    name: Linux host (official build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,28 +49,80 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-      - name: Install toolchain
+          ref: v0.3.0
+      - name: Set up Racket CS 9.3
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          architecture: x64
+          distribution: full
+          variant: CS
+          version: '9.3'
+      - name: Install Rivet
+        run: raco pkg install --auto --no-docs --name rivet --link "$GITHUB_WORKSPACE/rivet"
+      - name: Install Linux toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            g++ pkg-config libgtk-4-dev libpango1.0-dev
-      # Compile smoke: translate every host translation unit to objects.
-      # Linking needs libracketcs from a staged Racket CS distribution,
-      # which the hosted runners do not ship; the link path is exercised on
-      # machines with a real install (see linux-host/README.md).
-      - name: Compile host translation units
+            build-essential cmake pkg-config \
+            libgtk-4-dev zlib1g-dev liblz4-dev libncurses-dev
+      - name: Cache embeddable Racket CS
+        id: cache-racket-embed
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/racket-embed
+          key: racket-embed-9.3-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Build embeddable Racket CS
+        if: steps.cache-racket-embed.outputs.cache-hit != 'true'
+        shell: bash
         run: |
-          mkdir -p .rivet/objects
-          g++ -std=c++20 -Wall -Wextra -Wno-unused-parameter \
-            $(pkg-config --cflags gtk4) \
-            -I linux-host/src -I rivet/runtime/include \
-            -c linux-host/src/main.cpp -o .rivet/objects/main.o
-          g++ -std=c++20 -Wall -Wextra -Wno-unused-parameter \
-            -I linux-host/src -I rivet/runtime/include \
-            -c linux-host/src/posix_backend.cpp -o .rivet/objects/posix_backend.o
-          g++ -std=c++20 -Wall -Wextra -Wno-unused-parameter \
-            -I rivet/runtime/include \
-            -c rivet/runtime/src/protocol.cpp -o .rivet/objects/protocol.o
+          set -euo pipefail
+          archive="$RUNNER_TEMP/racket-minimal-9.3-src-builtpkgs.tgz"
+          source_root="$RUNNER_TEMP/racket-9.3"
+          build_root="$RUNNER_TEMP/racket-embed-build"
+          embed_prefix="$RUNNER_TEMP/racket-embed"
+
+          curl --fail --location --retry 3 \
+            --output "$archive" \
+            https://download.racket-lang.org/releases/9.3/installers/racket-minimal-9.3-src-builtpkgs.tgz
+          echo "3a01324d559a15e3f1f58b0c57a92bb344dce534e72e564e0d8b75e3b9c65295  $archive" |
+            sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          mkdir -p "$build_root"
+          cd "$build_root"
+          "$source_root/src/configure" --prefix="$embed_prefix"
+          make -j2
+          make install
+      - name: Save embeddable Racket CS cache
+        if: steps.cache-racket-embed.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.temp }}/racket-embed
+          key: racket-embed-9.3-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: raco rivet doctor
+        shell: bash
+        run: |
+          export RIVET_RACKET_BOOT_DIR="$RUNNER_TEMP/racket-embed/lib"
+          raco rivet doctor
+      - name: raco rivet build
+        shell: bash
+        run: |
+          set -euo pipefail
+          racket_include="$(racket -e '(require setup/dirs) (display (path->string (find-include-dir)))')"
+          racket_library="$(find "$RUNNER_TEMP/racket-embed" -maxdepth 6 -name 'libracketcs*.a' -print -quit)"
+          test -n "$racket_library" || { echo "libracketcs.a missing from the embed build" >&2; exit 1; }
+          export RIVET_ROOT="$GITHUB_WORKSPACE/rivet"
+          export RIVET_RACKET_INCLUDE="$racket_include"
+          export RIVET_RACKET_LIBRARY="$racket_library"
+          raco rivet build
+      - name: Verify staged artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage="$(find .rivet/build -type f -name Fulcrum -o -type f -name fulcrum | head -1)"
+          test -n "$stage" || { echo "staged host binary not found" >&2; find .rivet -maxdepth 4 -print >&2; exit 1; }
+          echo "host binary: $stage"
+          test -f "$(dirname "$stage")/runtime/petite.boot"
+          test -f "$(dirname "$stage")/res/core.zo"
 
   macos-host:
     name: macOS host compile smoke

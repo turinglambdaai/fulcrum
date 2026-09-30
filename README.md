@@ -43,7 +43,7 @@ fulcrum/
 │   └── core/               # search engine, providers, stores, FPP1 plugins
 ├── macos-host/             # SwiftUI panel + Carbon global hotkey
 ├── windows/                # WinUI 3 overlay + RegisterHotKey
-├── linux-host/             # GTK4 panel + X11 grab (experimental)
+├── linux/                  # GTK4 panel + X11 grab (Rivet 0.3 Linux preview)
 ├── examples/plugins/epoch  # the FPP1 reference plugin
 ├── tests/                  # 39 backend tests (raco test tests/)
 ├── docs/                   # plugins.md, release-runbook.md, business plan
@@ -53,11 +53,11 @@ fulcrum/
 
 ## Status: v0.1.0-dev
 
-This is the developer preview repository. The backend is complete and tested (39/39). The Windows and macOS hosts are feature-complete against the backend contract and compile on their platform CI jobs; the Linux host is experimental (see [linux-host/README.md](linux-host/README.md)). `raco rivet build` / `dev` on macOS and Windows is the supported developer loop today.
+Developer preview. The backend is complete and tested (39/39). All three hosts are feature-complete against the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host now builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). `raco rivet doctor` / `dev` is the supported developer loop on every platform.
 
 ## Development
 
-Prerequisites: [Racket CS](https://racket-lang.org/) (stable), a Rivet checkout linked as a package, and the platform toolchain (Xcode CLT on macOS, VS 2022 Build Tools on Windows).
+Prerequisites: [Racket CS](https://racket-lang.org/) 9.3 (stable), a Rivet checkout linked as a package (v0.3.0 or later), and the platform toolchain (Xcode CLT on macOS, VS 2022 Build Tools on Windows, `build-essential cmake pkg-config libgtk-4-dev zlib1g-dev liblz4-dev libncurses-dev` on Linux — `raco rivet doctor` prints the exact list when something is missing).
 
 ```bash
 raco pkg install --auto --no-docs --link /path/to/rivet

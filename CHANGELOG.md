@@ -6,6 +6,10 @@ independently per platform packaging run.
 
 ## Unreleased
 
+### Changed
+
+- Migrate the Linux host onto Rivet 0.3's official Linux support: the project now uses the standard `linux/` host directory, codegen emits the `rivet::linux_runtime` client for the Linux host, and CI builds through `raco rivet build` with an embeddable Racket CS 9.3 — replacing the hand-rolled CMake bridge. Launcher specifics (X11 global hotkey, EWMH overlay chrome, single-instance `--toggle`) ride on top of the official runtime and startup model.
+
 ### Added
 
 - Shared Racket backend (`app/backend.rkt`) over RVT1: `search`,

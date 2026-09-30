@@ -43,7 +43,7 @@ fulcrum/
 │   └── core/               # 搜索引擎、provider、存储、FPP1 插件
 ├── macos-host/             # SwiftUI 悬浮面板 + Carbon 全局热键
 ├── windows/                # WinUI 3 悬浮窗 + RegisterHotKey
-├── linux-host/             # GTK4 面板 + X11 grab（实验性）
+├── linux/                  # GTK4 面板 + X11 grab（Rivet 0.3 Linux preview）
 ├── examples/plugins/epoch  # FPP1 参考插件
 ├── tests/                  # 39 个后端测试（raco test tests/）
 ├── docs/                   # plugins.md、release-runbook.md、商业计划
@@ -53,11 +53,11 @@ fulcrum/
 
 ## 状态：v0.1.0-dev
 
-这是开发者预览仓库。后端已完成并通过全部测试（39/39）。Windows 与 macOS 宿主针对后端契约功能完备，并在各自平台的 CI 任务中编译；Linux 宿主为实验性（见 [linux-host/README.md](linux-host/README.md)）。当前受支持的开发循环是 macOS / Windows 上的 `raco rivet build` / `dev`。
+开发者预览。后端已完成并通过全部测试（39/39）。三个宿主均针对后端契约功能完备：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主现已通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
 
 ## 开发
 
-依赖：[Racket CS](https://racket-lang.org/)（stable）、以包形式链接的 Rivet checkout、以及平台工具链（macOS 需要 Xcode CLT，Windows 需要 VS 2022 Build Tools）。
+依赖：[Racket CS](https://racket-lang.org/) 9.3（stable）、以包形式链接的 Rivet checkout（v0.3.0 或更高）、以及平台工具链（macOS 需要 Xcode CLT，Windows 需要 VS 2022 Build Tools，Linux 需要 `build-essential cmake pkg-config libgtk-4-dev zlib1g-dev liblz4-dev libncurses-dev`——缺什么 `raco rivet doctor` 会给出精确清单）。
 
 ```bash
 raco pkg install --auto --no-docs --link /path/to/rivet

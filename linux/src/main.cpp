@@ -1,28 +1,38 @@
-// Fulcrum Linux host — GTK4 floating launcher.
+// Fulcrum Linux host — GTK4 floating launcher over one embedded Racket CS
+// backend, speaking RVT1 through Rivet's platform/linux runtime.
 //
-// Platform honesty: on X11 the global hotkey is grabbed with XGrabKey; on
-// Wayland, compositors do not allow clients to grab global keys, so the
-// status bar says so and the same toggle is exposed as
-// `fulcrum --toggle` for a compositor keybinding. This is the documented
-// gap, not a hidden fallback.
-#include "posix_backend.hpp"
-
-#include <gtk/gtk.h>
+// Mirrors the official Linux scaffold's threading model: boot the runtime
+// off the main loop behind a mutex-guarded startup handoff, dispatch every
+// completion to the main loop before touching widgets, and keep shutdown
+// idempotent. Launcher-specific parts (global hotkey, overlay chrome,
+// clipboard watcher, single-instance activation) are honest about their
+// platform reach: X11 grabs keys and sets EWMH state directly; Wayland
+// compositors own those decisions, and the status bar says so.
 #include <gdk/x11/gdkx.h>
+#include <gtk/gtk.h>
 #include <glib-unix.h>
 
-#include <X11/Xlib.h>
 #include <X11/Xatom.h>
+#include <X11/Xlib.h>
 #include <X11/keysym.h>
 
+#include <algorithm>
+#include <atomic>
 #include <csignal>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <mutex>
+#include <optional>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
+
+#include "GeneratedBackend.hpp"
 
 namespace {
 
@@ -39,29 +49,17 @@ struct ResultRow {
   std::string badge;
 };
 
-rivet::Value::List parse_rows(rivet::Value const& value) {
-  if (auto* list = std::get_if<rivet::Value::List>(&value.data)) {
-    return *list;
-  }
-  return {};
-}
-
-ResultRow parse_row(rivet::Value const& value) {
+ResultRow parse_row(std::vector<std::string> const& cells) {
   ResultRow row;
-  if (auto* cells = std::get_if<rivet::Value::List>(&value.data);
-      cells != nullptr && cells->size() == 8) {
-    auto text = [](rivet::Value const& v) -> std::string {
-      if (auto const* s = std::get_if<std::string>(&v.data)) return *s;
-      return {};
-    };
-    row.id = text((*cells)[0]);
-    row.title = text((*cells)[1]);
-    row.subtitle = text((*cells)[2]);
-    row.kind = text((*cells)[3]);
-    row.arg = text((*cells)[4]);
-    row.icon = text((*cells)[5]);
-    row.hint = text((*cells)[6]);
-    row.badge = text((*cells)[7]);
+  if (cells.size() >= 8) {
+    row.id = cells[0];
+    row.title = cells[1];
+    row.subtitle = cells[2];
+    row.kind = cells[3];
+    row.arg = cells[4];
+    row.icon = cells[5];
+    row.hint = cells[6];
+    row.badge = cells[7];
   }
   return row;
 }
@@ -70,52 +68,33 @@ std::filesystem::path executable_path() {
   return std::filesystem::read_symlink("/proc/self/exe");
 }
 
-struct RacketLayout {
-  std::filesystem::path petite_boot;
-  std::filesystem::path scheme_boot;
-  std::filesystem::path racket_boot;
-  std::filesystem::path core;
-  std::filesystem::path root;
+struct HotkeyGrab {
+  Display* display{nullptr};
+  Window window{None};
 };
 
-std::optional<RacketLayout> discover_runtime_layout() {
-  // Packaged layout: <prefix>/lib/fulcrum/{runtime,res}; dev layout:
-  // .rivet/build/linux/…/runtime next to the executable.
-  std::vector<std::filesystem::path> roots;
-  auto const exe = executable_path();
-  roots.push_back(exe.parent_path());
-  roots.push_back(exe.parent_path() / ".." / "lib" / "fulcrum");
-  for (auto const& root : roots) {
-    RacketLayout layout{
-        root / "runtime" / "petite.boot",
-        root / "runtime" / "scheme.boot",
-        root / "runtime" / "racket.boot",
-        root / "res" / "core.zo",
-        root,
-    };
-    if (std::filesystem::exists(layout.petite_boot) &&
-        std::filesystem::exists(layout.scheme_boot) &&
-        std::filesystem::exists(layout.racket_boot) &&
-        std::filesystem::exists(layout.core)) {
-      return layout;
-    }
-  }
-  return std::nullopt;
-}
+HotkeyGrab hotkey_grab;
 
 // ---- application state ---------------------------------------------------
 
-class Launcher {
- public:
+struct Launcher {
   GtkWindow* window{nullptr};
   GtkSearchEntry* search{nullptr};
   GtkListBox* results{nullptr};
   GtkLabel* status{nullptr};
-  GtkStack* stack{nullptr};
 
-  std::unique_ptr<fulcrum::linux_runtime::Backend> backend;
+  std::unique_ptr<rivet::linux_runtime::Backend> backend;
+  std::unique_ptr<rivet_app::API> api;
   std::vector<ResultRow> rows;
   guint search_source{0};
+
+  // Official scaffold startup handoff: the boot thread publishes either a
+  // started backend or an error; the main loop adopts it exactly once.
+  std::mutex startup_mutex;
+  std::thread startup_thread;
+  std::unique_ptr<rivet::linux_runtime::Backend> startup_backend;
+  std::string startup_error;
+  std::atomic<bool> shutting_down{false};
 
   static Launcher& instance() {
     static Launcher launcher;
@@ -124,44 +103,6 @@ class Launcher {
 
   void set_status(std::string const& message) {
     gtk_label_set_text(status, message.c_str());
-  }
-
-  void start_backend() {
-    auto layout = discover_runtime_layout();
-    if (!layout.has_value()) {
-      set_status("Fulcrum runtime files are missing next to the executable "
-                 "(runtime/*.boot and res/core.zo). Reinstall Fulcrum.");
-      return;
-    }
-
-    fulcrum::linux_runtime::RacketRuntimeConfig config;
-    config.executable_path = executable_path().string();
-    config.petite_boot = layout->petite_boot.string();
-    config.scheme_boot = layout->scheme_boot.string();
-    config.racket_boot = layout->racket_boot.string();
-    config.backend_bundle = layout->core.string();
-    config.dll_dir = (layout->root / "runtime").string();
-    config.module_name = "backend";
-    config.entry_symbol = "start";
-
-    try {
-      backend = std::make_unique<fulcrum::linux_runtime::Backend>(std::move(config));
-      backend->set_event_handler([](std::string const& name,
-                                    rivet::Value const& value) {
-        g_idle_add([](gpointer user_data) -> int {
-          auto* job = static_cast<std::pair<std::string, std::string>*>(user_data);
-          Launcher::instance().handle_event(job->first, job->second);
-          delete job;
-          return G_SOURCE_REMOVE;
-        }, new std::pair<std::string, std::string>(name, event_payload(value)));
-      });
-      backend->start();
-    } catch (std::exception const& e) {
-      set_status(std::string{"Fulcrum backend failed to start: "} + e.what());
-      return;
-    }
-    set_status("Ready — hotkey or `fulcrum --toggle`");
-    run_search("");
   }
 
   static std::string event_payload(rivet::Value const& value) {
@@ -189,44 +130,51 @@ class Launcher {
     }
   }
 
+  // All request/response traffic runs on short-lived worker threads; the
+  // callbacks only marshal (boxed) results back through g_idle_add.
+
+  struct SearchOutcome {
+    bool ok{false};
+    std::vector<ResultRow> rows;
+    std::string error;
+  };
+
   void run_search(std::string const& query) {
-    if (backend == nullptr) {
+    if (api == nullptr || shutting_down.load(std::memory_order_acquire)) {
       return;
     }
-    auto* backend_raw = backend.get();
-    backend_raw->request_async(
-        "search",
-        rivet::Value::List{rivet::Value(query)},
-        [](fulcrum::linux_runtime::CallResult result) {
-          auto* boxed = new fulcrum::linux_runtime::CallResult(std::move(result));
-          g_idle_add([](gpointer user_data) -> int {
-            std::unique_ptr<fulcrum::linux_runtime::CallResult> job(
-                static_cast<fulcrum::linux_runtime::CallResult*>(user_data));
-            Launcher::instance().apply_search(std::move(*job));
-            return G_SOURCE_REMOVE;
-          }, boxed);
-        });
+    auto* api_raw = api.get();
+    std::thread([api_raw, query]() mutable {
+      auto* boxed = new SearchOutcome;
+      try {
+        for (auto const& cells : api_raw->search(query).get()) {
+          boxed->rows.push_back(parse_row(cells));
+        }
+        boxed->ok = true;
+      } catch (std::exception const& e) {
+        boxed->error = e.what();
+      }
+      g_idle_add([](gpointer user_data) -> int {
+        std::unique_ptr<SearchOutcome> job(
+            static_cast<SearchOutcome*>(user_data));
+        Launcher::instance().apply_search(std::move(*job));
+        return G_SOURCE_REMOVE;
+      }, boxed);
+    }).detach();
   }
 
-  void apply_search(fulcrum::linux_runtime::CallResult result) {
-    if (!result.succeeded()) {
-      try {
-        std::rethrow_exception(result.error);
-      } catch (std::exception const& e) {
-        set_status(std::string{"Search failed: "} + e.what());
-      }
+  void apply_search(SearchOutcome result) {
+    if (!result.ok) {
+      set_status("Search failed: " + result.error);
       return;
     }
-    rows.clear();
-    for (auto const& cell : parse_rows(*result.value)) {
-      rows.push_back(parse_row(cell));
-    }
+    rows = std::move(result.rows);
     refresh_results();
   }
 
   void refresh_results() {
     // Rebuild the list; simple and correct beats incremental cleverness at
-    // this list size (≤ 12 rows).
+    // this list size (≤ max-results rows).
     for (GtkWidget* child = gtk_widget_get_first_child(GTK_WIDGET(results));
          child != nullptr;) {
       GtkWidget* next = gtk_widget_get_next_sibling(child);
@@ -241,15 +189,14 @@ class Launcher {
       gtk_widget_set_margin_end(box, 10);
       auto* title = gtk_label_new(row.title.c_str());
       gtk_label_set_xalign(GTK_LABEL(title), 0.0);
+      gtk_label_set_ellipsize(GTK_LABEL(title), PANGO_ELLIPSIZE_END);
       gtk_widget_add_css_class(title, "heading");
-      gtk_widget_add_css_class(title, "title-4");
       auto* subtitle = gtk_label_new(
           row.subtitle.empty() ? row.kind.c_str() : row.subtitle.c_str());
       gtk_label_set_xalign(GTK_LABEL(subtitle), 0.0);
+      gtk_label_set_ellipsize(GTK_LABEL(subtitle), PANGO_ELLIPSIZE_END);
       gtk_widget_add_css_class(subtitle, "caption");
       gtk_widget_add_css_class(subtitle, "dim-label");
-      gtk_label_set_ellipsize(GTK_LABEL(title), PANGO_ELLIPSIZE_END);
-      gtk_label_set_ellipsize(GTK_LABEL(subtitle), PANGO_ELLIPSIZE_END);
       gtk_box_append(GTK_BOX(box), title);
       gtk_box_append(GTK_BOX(box), subtitle);
       gtk_list_box_append(results, box);
@@ -260,8 +207,13 @@ class Launcher {
     }
   }
 
+  struct RunOutcome {
+    bool success{false};
+    std::string status;
+  };
+
   void run_selected() {
-    if (backend == nullptr || rows.empty()) {
+    if (api == nullptr || rows.empty()) {
       return;
     }
     GtkListBoxRow* selected = gtk_list_box_get_selected_row(results);
@@ -271,44 +223,35 @@ class Launcher {
     }
     ResultRow const row = rows[static_cast<std::size_t>(index)];
     set_status("Running…");
-    backend->request_async(
-        "run-action",
-        rivet::Value::List{rivet::Value(row.id), rivet::Value(row.arg)},
-        [row](fulcrum::linux_runtime::CallResult result) {
-          std::string status_text = row.id;
-          bool success = false;
-          if (result.succeeded()) {
-            if (auto const* text = std::get_if<std::string>(&result.value->data)) {
-              status_text = *text;
-              success = status_text == "ok" || status_text == "launched" ||
-                        status_text == "copied" || status_text == "opened";
-            }
-          } else {
-            try {
-              std::rethrow_exception(result.error);
-            } catch (std::exception const& e) {
-              status_text = e.what();
-            }
-          }
-          auto* boxed = new std::pair<std::string, bool>(status_text, success);
-          g_idle_add([](gpointer user_data) -> int {
-            std::unique_ptr<std::pair<std::string, bool>> job(
-                static_cast<std::pair<std::string, bool>*>(user_data));
-            if (job->second) {
-              Launcher::instance().hide();
-            } else {
-              Launcher::instance().set_status("Action failed: " + job->first);
-            }
-            return G_SOURCE_REMOVE;
-          }, boxed);
-        });
+    auto* api_raw = api.get();
+    std::thread([api_raw, row]() mutable {
+      auto* boxed = new RunOutcome;
+      try {
+        boxed->status = api_raw->run_action(row.id, row.arg).get();
+        boxed->success = boxed->status == "ok" ||
+                         boxed->status == "launched" ||
+                         boxed->status == "copied" ||
+                         boxed->status == "opened";
+      } catch (std::exception const& e) {
+        boxed->status = e.what();
+      }
+      g_idle_add([](gpointer user_data) -> int {
+        std::unique_ptr<RunOutcome> job(static_cast<RunOutcome*>(user_data));
+        if (job->success) {
+          Launcher::instance().hide();
+        } else {
+          Launcher::instance().set_status("Action failed: " + job->status);
+        }
+        return G_SOURCE_REMOVE;
+      }, boxed);
+    }).detach();
   }
 
   void show() {
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
-    gtk_window_present(GTK_WINDOW(window));
+    gtk_window_present(window);
   }
 
   void hide() { gtk_widget_set_visible(GTK_WIDGET(window), FALSE); }
@@ -320,17 +263,115 @@ class Launcher {
       show();
     }
   }
+
+  // ---- backend lifecycle -------------------------------------------------
+
+  void start_backend() {
+    // raco rivet build/dev stages runtime/*.boot and res/core.zo beside the
+    // executable; that is the only layout the official CLI produces.
+    std::filesystem::path const root = executable_path().parent_path();
+    std::filesystem::path const petite = root / "runtime" / "petite.boot";
+    std::filesystem::path const scheme = root / "runtime" / "scheme.boot";
+    std::filesystem::path const racket_boot = root / "runtime" / "racket.boot";
+    std::filesystem::path const core = root / "res" / "core.zo";
+    if (!std::filesystem::exists(petite) ||
+        !std::filesystem::exists(scheme) ||
+        !std::filesystem::exists(racket_boot) ||
+        !std::filesystem::exists(core)) {
+      set_status("Missing Rivet runtime layout (runtime/*.boot, res/core.zo) "
+                 "next to the executable. Build with raco rivet build/dev.");
+      return;
+    }
+
+    rivet::linux_runtime::RacketRuntimeConfig config;
+    config.executable_path = executable_path().string();
+    config.petite_boot = petite.string();
+    config.scheme_boot = scheme.string();
+    config.racket_boot = racket_boot.string();
+    config.backend_bundle = core.string();
+    config.module_name = rivet_app::kModuleName;
+    config.entry_symbol = rivet_app::kEntryName;
+
+    startup_thread = std::thread([config = std::move(config)]() mutable {
+      auto backend =
+          std::make_unique<rivet::linux_runtime::Backend>(std::move(config));
+      try {
+        backend->start();
+        std::lock_guard lock(Launcher::instance().startup_mutex);
+        Launcher::instance().startup_backend = std::move(backend);
+      } catch (std::exception const& e) {
+        std::lock_guard lock(Launcher::instance().startup_mutex);
+        Launcher::instance().startup_error = e.what();
+      }
+      g_idle_add([](gpointer) -> int {
+        Launcher::instance().on_backend_ready();
+        return G_SOURCE_REMOVE;
+      }, nullptr);
+    });
+  }
+
+  void on_backend_ready() {
+    if (startup_thread.joinable()) {
+      startup_thread.join();
+    }
+
+    std::unique_ptr<rivet::linux_runtime::Backend> backend;
+    std::string error;
+    {
+      std::lock_guard lock(startup_mutex);
+      backend = std::move(startup_backend);
+      error = std::move(startup_error);
+    }
+
+    if (shutting_down.load(std::memory_order_acquire)) {
+      if (backend != nullptr) {
+        backend->stop();
+      }
+      return;
+    }
+    if (!error.empty()) {
+      set_status("Fulcrum backend failed to start: " + error);
+      return;
+    }
+    if (backend == nullptr) {
+      set_status("Fulcrum backend error: startup completed without a backend");
+      return;
+    }
+
+    backend_ = std::move(backend);
+    api = std::make_unique<rivet_app::API>(*backend_);
+
+    backend_->set_event_handler(
+        [](std::string const& name, rivet::Value const& value) {
+          auto* job = new std::pair<std::string, std::string>(
+              name, event_payload(value));
+          g_idle_add([](gpointer user_data) -> int {
+            std::unique_ptr<std::pair<std::string, std::string>> payload(
+                static_cast<std::pair<std::string, std::string>*>(user_data));
+            Launcher::instance().handle_event(payload->first, payload->second);
+            return G_SOURCE_REMOVE;
+          }, job);
+        });
+
+    set_status("Ready — hotkey or `fulcrum --toggle`");
+    run_search("");
+  }
+
+  void stop_backend() {
+    shutting_down.store(true, std::memory_order_release);
+    if (startup_thread.joinable()) {
+      startup_thread.join();
+    }
+    if (backend_ != nullptr) {
+      backend_->stop();
+    }
+  }
+
+ private:
+  std::unique_ptr<rivet::linux_runtime::Backend> backend_;
 };
 
 // ---- X11 global hotkey ----------------------------------------------------
-
-struct HotkeyGrab {
-  Display* display{nullptr};
-  Window window{None};
-  bool grabbed{false};
-};
-
-HotkeyGrab hotkey_grab;
 
 gboolean on_x11_hotkey(GIOChannel*, GIOCondition, gpointer) {
   Launcher::instance().toggle();
@@ -348,9 +389,8 @@ std::string install_x11_hotkey(GdkDisplay* display, GtkWindow* window) {
            "Bind `fulcrum --toggle` to a key in your compositor settings.";
   }
   hotkey_grab.display = gdk_x11_display_get_xdisplay(display);
-  // GTK4: windows expose a GdkSurface; X11 surfaces carry the XID.
-  hotkey_grab.window = gdk_x11_surface_get_xid(
-      gtk_native_get_surface(GTK_NATIVE(window)));
+  hotkey_grab.window =
+      gdk_x11_surface_get_xid(gtk_native_get_surface(GTK_NATIVE(window)));
   Display* dpy = hotkey_grab.display;
 
   KeyCode code = XKeysymToKeycode(dpy, XK_space);
@@ -367,7 +407,6 @@ std::string install_x11_hotkey(GdkDisplay* display, GtkWindow* window) {
   GIOChannel* channel = g_io_channel_unix_new(x11_fd);
   g_io_add_watch(channel, G_IO_IN, on_x11_hotkey, nullptr);
   g_io_channel_unref(channel);
-  hotkey_grab.grabbed = true;
   return "";
 }
 
@@ -502,7 +541,7 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_box_append(GTK_BOX(root), status);
   gtk_box_append(GTK_BOX(root), scrolled);
   gtk_box_append(GTK_BOX(root), hint);
-  gtk_window_set_child(GTK_WINDOW(window), root);
+  gtk_window_set_child(launcher.window, root);
 
   g_signal_connect(search, "search-changed",
                    G_CALLBACK(on_search_changed), nullptr);
@@ -510,18 +549,20 @@ void on_activate(GtkApplication* app, gpointer) {
                    G_CALLBACK(on_row_activated), nullptr);
 
   auto* controller = gtk_event_controller_key_new();
-  g_signal_connect(controller, "key-pressed", G_CALLBACK(on_key_pressed), nullptr);
+  g_signal_connect(controller, "key-pressed", G_CALLBACK(on_key_pressed),
+                   nullptr);
   gtk_widget_add_controller(window, controller);
 
   g_signal_connect(window, "notify::is-active",
                    G_CALLBACK(on_window_active_changed), nullptr);
 
-  // Realize once so the XID exists, then install the platform hotkey and
-  // (X11 only) the overlay chrome via EWMH. Wayland compositors own these
-  // decisions; the status message already covers that honestly.
+  // Realize once so the XID exists, then install the overlay chrome (X11
+  // only, through EWMH) and the platform hotkey. Wayland compositors own
+  // those decisions; the status message covers that honestly.
   gtk_widget_realize(window);
   if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(window))) {
-    Display* dpy = gdk_x11_display_get_xdisplay(gtk_widget_get_display(window));
+    Display* dpy =
+        gdk_x11_display_get_xdisplay(gtk_widget_get_display(window));
     Window xid = gdk_x11_surface_get_xid(
         gtk_native_get_surface(GTK_NATIVE(window)));
     Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
@@ -537,7 +578,7 @@ void on_activate(GtkApplication* app, gpointer) {
                     reinterpret_cast<unsigned char*>(&skip_taskbar), 1);
   }
   std::string hotkey_note =
-      install_x11_hotkey(gtk_widget_get_display(window), GTK_WINDOW(window));
+      install_x11_hotkey(gtk_widget_get_display(window), launcher.window);
   if (!hotkey_note.empty()) {
     launcher.set_status(hotkey_note);
   }
@@ -546,7 +587,10 @@ void on_activate(GtkApplication* app, gpointer) {
   g_unix_signal_add(SIGUSR1, on_sigusr1, nullptr);
 
   launcher.start_backend();
-  launcher.run_search("");
+}
+
+void on_shutdown(GApplication*, gpointer) {
+  Launcher::instance().stop_backend();
 }
 
 }  // namespace
@@ -572,8 +616,10 @@ int main(int argc, char** argv) {
   }
 
   XInitThreads();
-  auto* app = gtk_application_new("site.jrtx.fulcrum", G_APPLICATION_DEFAULT_FLAGS);
+  auto* app =
+      gtk_application_new("site.jrtx.fulcrum", G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
+  g_signal_connect(app, "shutdown", G_CALLBACK(on_shutdown), nullptr);
   int const status = g_application_run(G_APPLICATION(app), argc, argv);
   g_object_unref(app);
   return status;
