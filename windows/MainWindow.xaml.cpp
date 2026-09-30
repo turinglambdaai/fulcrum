@@ -189,31 +189,36 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
 }
 
 void MainWindow::FinishNativeSetup() {
-  auto const hwnd = winrt::Microsoft::UI::Win32Interop::GetWindowFromWindowId(
-      this->AppWindow().Id());
+  // HWND lookup via the window title: Fulcrum is single-instance and owns
+  // exactly one window with this title. This avoids depending on the
+  // WindowsAppSDK interop surface, whose projection shape moved between
+  // releases; the official interop call is the 0.2 follow-up.
+  auto const hwnd = ::FindWindowW(nullptr, L"Fulcrum");
 
-  // Overlay chrome: topmost tool-style window without resize borders, not
-  // shown in taskbar/alt-tab.
+  // Overlay chrome: resizable off, not shown in taskbar/alt-tab, topmost,
+  // positioned at the top quarter of the work area — all plain Win32 so we
+  // do not depend on newer WindowsAppSDK windowing surfaces.
   if (auto appWindow = this->AppWindow()) {
     appWindow.IsShownInSwitchers(false);
     if (auto presenter = appWindow.Presenter().try_as<
             Microsoft::UI::Windowing::OverlappedPresenter>()) {
-      presenter.IsTopmost(true);
       presenter.IsResizable(false);
       presenter.IsMaximizable(false);
       presenter.IsMinimizable(false);
-      presenter.SetBorderAndTitleBar(true, false);
     }
-    auto const area =
-        Microsoft::UI::Windowing::DisplayArea::GetFromWindowId(
-            appWindow.Id(),
-            Microsoft::UI::Windowing::GetAncestorWindowIdOptions::None)
-            .WorkArea();
-    winrt::Windows::Graphics::RectInt32 const position{
-        area.X + (area.Width - kWindowWidth) / 2,
-        area.Y + (area.Height - kWindowHeight) / 4,
-        kWindowWidth, kWindowHeight};
-    appWindow.MoveAndResize(position);
+  }
+  RECT work{};
+  ::SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
+  int const width = work.right - work.left < kWindowWidth
+                        ? work.right - work.left
+                        : kWindowWidth;
+  int const height = work.bottom - work.top < kWindowHeight
+                         ? work.bottom - work.top
+                         : kWindowHeight;
+  int const x = work.left + ((work.right - work.left) - width) / 2;
+  int const y = work.top + ((work.bottom - work.top) - height) / 4;
+  if (hwnd != nullptr) {
+    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
   }
 
   // Global hotkey: Alt+Space first, Ctrl+Alt+Space as the honest fallback
@@ -255,7 +260,14 @@ void MainWindow::FinishNativeSetup() {
     clipboard_listener_installed_ = true;
   }
 
-  this->Deactivated([this](auto&&, auto&&) { HideLauncher(); });
+  // WinUI Window has no Deactivated event; the Activated state carries it.
+  this->Activated([this](auto&&,
+                         winrt::Microsoft::UI::Xaml::WindowActivatedEventArgs const& args) {
+    if (args.WindowActivationState() ==
+        winrt::Microsoft::UI::Xaml::WindowActivationState::Deactivated) {
+      this->HideLauncher();
+    }
+  });
 }
 
 bool MainWindow::HandleHotkeyMessage(std::uint32_t, std::uint64_t wParam,
