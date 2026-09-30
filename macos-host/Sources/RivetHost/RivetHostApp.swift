@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private var clipboardTimer: Timer?
+    private var keyMonitor: Any?
     private var lastPasteboardChange: Int = -1
     private(set) var model: LauncherModel?
 
@@ -36,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model = launcherModel
         installPanel(model: launcherModel)
         installHotkey()
+        installKeyMonitor()
         installClipboardWatcher(model: launcherModel)
         launcherModel.start()
     }
@@ -136,9 +138,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func registerHotkey(keyCode: UInt32, modifiers: UInt32) -> Bool {
-        var hotKeyID = EventHotKeyID(signature: OSType(0x46454C43) /* FULC */,
+        let hotKeyID = EventHotKeyID(signature: OSType(0x46454C43) /* FULC */,
                                      id: 1)
-        _ = hotKeyID
         let status = RegisterEventHotKey(keyCode, modifiers, hotKeyID,
                                          GetApplicationEventTarget(), 0,
                                          &hotkeyRef)
@@ -147,6 +148,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     fileprivate func hotkeyFired() {
         togglePanel()
+    }
+
+    // MARK: panel keys
+
+    /// Esc/↑↓ while the query field keeps focus. A local monitor is the only
+    /// reliable interception point: the field editor sits at the head of the
+    /// responder chain, so a key-handling background view never sees keyDown.
+    private func installKeyMonitor() {
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self,
+                  let panel = self.panel,
+                  panel.isVisible,
+                  event.window === panel else { return event }
+            switch event.keyCode {
+            case 53:  self.model?.hide()          // esc
+            case 125: self.model?.moveSelection(1)   // down
+            case 126: self.model?.moveSelection(-1)  // up
+            default:  return event
+            }
+            return nil
+        }
     }
 
     // MARK: clipboard watcher

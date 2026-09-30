@@ -38,8 +38,9 @@
 
 (define (application-id-from-path path)
   ;; Deterministic id: hash of the complete path, stable across rebuilds.
+  ;; number->string accepts only bases 2/8/10/16.
   (define s (path->string (path->complete-path path)))
-  (string-append "a" (number->string (equal-hash-code s) 36)))
+  (string-append "a" (number->string (equal-hash-code s) 16)))
 
 (define (dedupe apps)
   (define seen (make-hash))
@@ -87,10 +88,12 @@
     (append*
      (for/list ([dir (in-list dirs)])
        ;; Yield every directory but do not descend into .app bundles: a
-       ;; nested .app is not a user-facing application.
-       (for/list ([p (in-directory dir
-                                   #:stop (lambda (d)
-                                            (regexp-match? #rx"[.]app$" (path->string d))))]
+       ;; nested .app is not a user-facing application. in-directory takes
+       ;; the descend? predicate positionally — there is no #:stop keyword.
+       (for/list ([p (in-directory
+                      dir
+                      (lambda (d)
+                        (not (regexp-match? #rx"[.]app$" (path->string d)))))]
                   #:when (directory-exists? p)
                   #:when (regexp-match? #rx"[.]app$" (path->string p)))
          p))))

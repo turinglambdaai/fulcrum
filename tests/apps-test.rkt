@@ -2,10 +2,11 @@
 
 ;; Application discovery tests.
 ;;
-;; `parse-desktop-entry` is cross-platform and tested everywhere. Directory
-;; discovery is exercised through the Linux code path on every OS via
-;; `applications-from-dirs` with an explicit platform argument; the macOS and
-;; Windows paths run in their platform CI jobs against the real roots.
+;; `parse-desktop-entry` is cross-platform and tested everywhere. All three
+;; directory-discovery paths are exercised from fixture dirs with an explicit
+;; platform argument: the macOS plist probe degrades to the bundle directory
+;; name where plutil is missing, and Windows shortcut discovery reads file
+;; names only, so both run on every OS.
 
 (require racket/file
          racket/list
@@ -99,3 +100,64 @@
      (set! apps (applications-from-dirs (list dir) 'unix))))
   (define fulcrum (findf (lambda (a) (string=? (application-name a) "Fulcrum")) apps))
   (check-true (string? (application-exec fulcrum))))
+
+(define (call-with-fixture-bundles thunk)
+  (define dir (make-temporary-file "fulcrum-bundles-~a" 'directory))
+  ;; CFBundleName matches the bundle directory name, so the name assertion
+  ;; holds both where plutil resolves the plist and where discovery falls
+  ;; back to the directory name.
+  (make-directory* (build-path dir "Foo.app" "Contents"))
+  (write-file! (build-path dir "Foo.app" "Contents" "Info.plist")
+               (string-append
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n"
+                "<plist version=\"1.0\"><dict>\n"
+                "  <key>CFBundleName</key><string>Foo</string>\n"
+                "</dict></plist>\n"))
+  (make-directory* (build-path dir "Bar.app" "Contents" "MacOS"))
+  (write-file! (build-path dir "Bar.app" "Contents" "MacOS" "bar") "")
+  (make-directory* (build-path dir "Bar.app" "Contents" "Nested.app" "Contents"))
+  (write-file! (build-path dir "Bar.app" "Contents" "Nested.app" "Contents" "Info.plist") "")
+  (make-directory* (build-path dir "NotAnApp"))
+  (write-file! (build-path dir "NotAnApp" "readme.txt") "hi")
+  (dynamic-wind
+    void
+    (lambda () (thunk dir))
+    (lambda () (delete-directory/files dir))))
+
+(test-case "macos discovery from fixture dirs"
+  (call-with-fixture-bundles
+   (lambda (dir)
+     (define apps (applications-from-dirs (list dir) 'macosx))
+     (define names (map application-name apps))
+     (check-equal? (length apps) 2 "exactly Foo and Bar")
+     (check-true (and (member "Foo" names) #t) "plist name resolved or fallback matches")
+     (check-true (and (member "Bar" names) #t) "bundle without Info.plist falls back to name")
+     (check-false (member "Nested" names) "no descent into .app bundles")
+     (check-false (member "NotAnApp" names) "non-bundle directories excluded")
+     (check-equal? (map application-id apps)
+                   (map application-id (applications-from-dirs (list dir) 'macosx))
+                   "deterministic ids across rebuilds"))))
+
+(define (call-with-fixture-shortcuts thunk)
+  (define dir (make-temporary-file "fulcrum-shortcuts-~a" 'directory))
+  (write-file! (build-path dir "Editor.lnk") "")
+  (write-file! (build-path dir "Docs.url") "")
+  (make-directory* (build-path dir "Tools"))
+  (write-file! (build-path dir "Tools" "setup.exe") "")
+  (write-file! (build-path dir "notes.txt") "hi")
+  (dynamic-wind
+    void
+    (lambda () (thunk dir))
+    (lambda () (delete-directory/files dir))))
+
+(test-case "windows discovery from fixture dirs"
+  (call-with-fixture-shortcuts
+   (lambda (dir)
+     (define apps (applications-from-dirs (list dir) 'windows))
+     (define names (map application-name apps))
+     (check-true (and (member "Editor" names) #t))
+     (check-true (and (member "Docs" names) #t))
+     (check-true (and (member "setup" names) #t) "subdirs are traversed")
+     (check-false (member "notes" names) "non-shortcut files excluded")
+     (check-false (member "Tools" names) "directories excluded"))))

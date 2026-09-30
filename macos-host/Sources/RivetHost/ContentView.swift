@@ -4,7 +4,7 @@ import RivetRuntime
 
 /// Adapter over the generated `RivetAPI`: rows travel as `[[String]]` per
 /// the backend contract; the UI keeps a typed struct.
-struct ResultRow: Identifiable, Equatable {
+struct ResultRow: Equatable {
     let id: String
     let title: String
     let subtitle: String
@@ -13,6 +13,12 @@ struct ResultRow: Identifiable, Equatable {
     let icon: String
     let hint: String
     let badge: String
+
+    /// Column 0 (`id`) is the *action* id and repeats across rows of the
+    /// same provider ("app.launch" for every app). SwiftUI identity needs a
+    /// per-row key: (action id, arg) is unique — arg carries the app id,
+    /// snippet id, URL, or calculator answer.
+    var rowId: String { id + "\u{1F}" + arg }
 
     var displaySubtitle: String {
         subtitle.isEmpty ? kind : subtitle
@@ -77,7 +83,7 @@ struct LauncherView: View {
 
             if model.ready {
                 List(selection: $model.selection) {
-                    ForEach(model.rows) { row in
+                    ForEach(model.rows, id: \.rowId) { row in
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
                                 Text(row.title)
@@ -98,7 +104,7 @@ struct LauncherView: View {
                                 .lineLimit(1)
                                 .truncationMode(.tail)
                         }
-                        .tag(row.id)
+                        .tag(row.rowId)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .onTapGesture { model.select(row) }
@@ -133,55 +139,9 @@ struct LauncherView: View {
             .padding(.vertical, 8)
         }
         .frame(minWidth: 680, minHeight: 440)
-        .background(KeyEventHandlingView(onEscape: { model.hide() },
-                                         onUp: { model.moveSelection(-1) },
-                                         onDown: { model.moveSelection(1) }))
         .onAppear { queryFocused = true }
         .onChange(of: model.selection) { _, _ in queryFocused = true }
     }
-}
-
-/// Esc/arrow handling that works while the text field keeps focus.
-private struct KeyEventHandlingView: NSViewRepresentable {
-    let onEscape: () -> Void
-    let onUp: () -> Void
-    let onDown: () -> Void
-
-    final class KeyView: NSView {
-        let onEscape: () -> Void
-        let onUp: () -> Void
-        let onDown: () -> Void
-
-        init(onEscape: @escaping () -> Void,
-             onUp: @escaping () -> Void,
-             onDown: @escaping () -> Void) {
-            self.onEscape = onEscape
-            self.onUp = onUp
-            self.onDown = onDown
-            super.init(frame: .zero)
-        }
-
-        required init?(coder: NSCoder) {
-            fatalError("KeyEventHandlingView is created in code only")
-        }
-
-        override var acceptsFirstResponder: Bool { false }
-
-        override func keyDown(with event: NSEvent) {
-            switch event.keyCode {
-            case 53: onEscape()          // esc
-            case 125: onDown()           // down arrow
-            case 126: onUp()             // up arrow
-            default: super.keyDown(with: event)
-            }
-        }
-    }
-
-    func makeNSView(context: Context) -> KeyView {
-        KeyView(onEscape: onEscape, onUp: onUp, onDown: onDown)
-    }
-
-    func updateNSView(_ nsView: KeyView, context: Context) {}
 }
 
 /// Launcher state and backend plumbing. One embedded Racket CS instance,
@@ -264,7 +224,7 @@ final class LauncherModel: ObservableObject {
 
     func moveSelection(_ delta: Int) {
         guard !rows.isEmpty else { return }
-        let ids = rows.map(\.id)
+        let ids = rows.map(\.rowId)
         let current = selection.flatMap { ids.firstIndex(of: $0) } ?? 0
         let next = min(max(current + delta, 0), ids.count - 1)
         selection = ids[next]
@@ -272,7 +232,7 @@ final class LauncherModel: ObservableObject {
 
     func runSelected() {
         guard let selection,
-              let row = rows.first(where: { $0.id == selection }) else { return }
+              let row = rows.first(where: { $0.rowId == selection }) else { return }
         run(row)
     }
 
@@ -316,7 +276,7 @@ final class LauncherModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self, generation == self.searchGeneration else { return }
                     self.rows = result
-                    self.selection = result.first?.id
+                    self.selection = result.first?.rowId
                 }
             } catch {
                 await MainActor.run { [weak self] in
@@ -328,10 +288,13 @@ final class LauncherModel: ObservableObject {
     }
 
     private func handleEvent(name: String, value: RivetValue) {
-        var payload = ""
-        if case .list(let cells) = value, let last = cells.last,
-           case .string(let text) = last {
+        // Every backend event carries a bare String payload (RVT1 event
+        // frames are [name, value]; the runtime hands us value directly).
+        let payload: String
+        if case .string(let text) = value {
             payload = text
+        } else {
+            payload = ""
         }
         switch name {
         case "copy-to-clipboard":

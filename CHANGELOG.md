@@ -4,6 +4,49 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## Unreleased
+
+### Fixed
+
+- End-to-end verification on macOS surfaced launch-blocking backend bugs
+  that CI never reached, because every discovery-path test exercised only
+  the Linux branch:
+  - `macos-apps-from-dirs` passed a `#:stop` keyword to `in-directory`,
+    which takes its descend? predicate positionally — the backend died
+    during `engine-rebuild-index!` on every real launch.
+  - `application-id-from-path` formatted a hash in base 36;
+    `number->string` accepts only 2/8/10/16, so macOS and Windows
+    discovery crashed the same way.
+  - `spawn-command`/`run-command` passed bare program names to Racket's
+    `subprocess`, which performs no PATH lookup: the child forked, exec
+    failed, and the helper reported success. Launching applications
+    (`open`) and the `plutil` bundle-name probe never actually worked;
+    the probe was masked by the directory-name fallback. Program names
+    are now resolved on PATH (or rejected) in `app/core/proc.rkt`.
+- macOS host: result rows carried the *action* id (`app.launch`) as their
+  SwiftUI identity, so the panel rendered one row a dozen times. Row
+  identity is now `(action id, arg)`, unique per row; the action id still
+  drives `run-action`.
+- macOS host: backend events were parsed as lists, but RVT1 event frames
+  hand the host a bare string payload — copy-to-clipboard, open-url and
+  notify were silent no-ops. The calculator's ↵-to-copy now works.
+- macOS host: the Esc/↑↓ key handler was a background view outside the
+  field editor's responder chain and never fired; replaced with a window
+  local `NSEvent` monitor.
+- macOS (Rivet): `raco rivet build` staging invalidated the embedded
+  framework's signature via `install_name_tool` and never re-signed it,
+  so AMFI killed every `raco rivet dev` launch with "Code Signature
+  Invalid". Staging now ad-hoc re-signs the inner dylib and the wrapper;
+  `package` re-signs with the release identity as before.
+
+### Tests
+
+- 39 → 43 backend tests: macOS and Windows application discovery from
+  fixture directories (plist bundle name with graceful fallback, no
+  descent into nested `.app`, shortcut file filtering), and PATH
+  resolution plus missing-binary behavior for
+  `run-command`/`spawn-command`.
+
 ## 0.1.0
 
 ### Changed
