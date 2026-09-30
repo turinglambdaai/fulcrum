@@ -7,6 +7,7 @@
 
 #include <shellapi.h>
 #include <commctrl.h>
+#pragma comment(lib, "comctl32.lib")
 
 namespace winrt::RivetHost::implementation {
 namespace {
