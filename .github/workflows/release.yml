@@ -207,7 +207,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          for dir in artifacts/fulcrum-macos artifacts/fulcrum-windows; do
+          for dir in artifacts/fulcrum-macos artifacts/fulcrum-windows artifacts/fulcrum-linux; do
+            [ -d "$dir" ] || continue
             name="$(basename "$dir")"
             (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/release/${name}.zip" .)
           done
