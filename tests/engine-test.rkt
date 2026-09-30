@@ -50,7 +50,11 @@
 (define fixture-apps
   (list (application "a1" "Firefox" "/usr/bin/firefox" "app" '() "/usr/share/applications/firefox.desktop")
         (application "a2" "File Manager" "/usr/bin/files" "app" '() "/usr/share/applications/files.desktop")
-        (application "a3" "Terminal" "/bin/true" "app" '() "/usr/share/applications/terminal.desktop")))
+        ;; d-prefixed id: the unix launch path tries gtk-launch, then falls
+        ;; back to the Exec argv. /bin/true exists on every CI runner, so the
+        ;; launch is a real spawn rather than the old silent-success lie
+        ;; (bare gtk-launch forked a doomed child and reported victory).
+        (application "dterminal" "Terminal" "/bin/true" "app" '() "/usr/share/applications/terminal.desktop")))
 
 (test-case "empty query lists apps first"
   (with-fresh-data-dir
@@ -118,7 +122,7 @@
   (with-fresh-data-dir
    (lambda ()
      (define engine (fixture-engine #:apps fixture-apps))
-     (define outcome (engine-run engine "app.launch" "a3"))
+     (define outcome (engine-run engine "app.launch" "dterminal"))
      (check-equal? (car outcome) "launched")
      (define missing (engine-run engine "app.launch" "nope"))
      (check-true (string-prefix? (car missing) "application not indexed")))))
