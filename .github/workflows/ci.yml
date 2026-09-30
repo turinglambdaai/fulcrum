@@ -126,7 +126,6 @@ jobs:
           set -euo pipefail
           test -x .rivet/stage/RivetHost || { echo "staged RivetHost missing" >&2; find .rivet -maxdepth 3 -print >&2; exit 1; }
           echo "host binary: .rivet/stage/RivetHost"
-          find .rivet/stage -maxdepth 3 -print >&2
           test -f .rivet/stage/runtime/petite.boot
           test -f .rivet/stage/runtime/scheme.boot
           test -f .rivet/stage/runtime/racket.boot
