@@ -78,6 +78,53 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config \
             libgtk-4-dev zlib1g-dev liblz4-dev libncurses-dev
+      - name: Cache embeddable Racket CS (Linux)
+        if: matrix.platform == 'linux'
+        id: cache-racket-embed
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ runner.temp }}/racket-embed
+          key: racket-embed-9.3-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Build embeddable Racket CS (Linux)
+        if: matrix.platform == 'linux' && steps.cache-racket-embed.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/racket-minimal-9.3-src-builtpkgs.tgz"
+          source_root="$RUNNER_TEMP/racket-9.3"
+          build_root="$RUNNER_TEMP/racket-embed-build"
+          embed_prefix="$RUNNER_TEMP/racket-embed"
+
+          curl --fail --location --retry 3 \
+            --output "$archive" \
+            https://download.racket-lang.org/releases/9.3/installers/racket-minimal-9.3-src-builtpkgs.tgz
+          echo "3a01324d559a15e3f1f58b0c57a92bb344dce534e72e564e0d8b75e3b9c65295  $archive" |
+            sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP"
+          mkdir -p "$build_root"
+          cd "$build_root"
+          "$source_root/src/configure" --prefix="$embed_prefix"
+          make -j2
+          make install
+      - name: Save embeddable Racket CS cache (Linux)
+        if: matrix.platform == 'linux' && steps.cache-racket-embed.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ runner.temp }}/racket-embed
+          key: racket-embed-9.3-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Point Rivet at the embeddable runtime (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          boot_dir="$(dirname "$(find "$RUNNER_TEMP/racket-embed" -name petite.boot -print -quit)")"
+          test -n "$boot_dir" || { echo "petite.boot missing from the embed build" >&2; exit 1; }
+          racket_include="$(racket -e '(require setup/dirs) (display (path->string (find-include-dir)))')"
+          racket_library="$(find "$RUNNER_TEMP/racket-embed" -maxdepth 6 -name 'libracketcs*.a' -print -quit)"
+          test -n "$racket_library" || { echo "libracketcs.a missing from the embed build" >&2; exit 1; }
+          echo "RIVET_RACKET_BOOT_DIR=$boot_dir" >> "$GITHUB_ENV"
+          echo "RIVET_RACKET_INCLUDE=$racket_include" >> "$GITHUB_ENV"
+          echo "RIVET_RACKET_LIBRARY=$racket_library" >> "$GITHUB_ENV"
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
