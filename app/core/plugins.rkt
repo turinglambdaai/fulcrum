@@ -167,9 +167,12 @@
 
 (define (call-plugin! exec timeout-ms request)
   ;; Returns a jsexpr response or an error string. The process is always
-  ;; killed; a hung plugin costs at most its timeout.
+  ;; killed; a hung plugin costs at most its timeout. Interpreter names
+  ;; resolve on PATH like the shell would ("python3", not only
+  ;; "/usr/bin/python3").
+  (with-handlers ([exn:fail? (lambda (e) (format "plugin spawn failed: ~a" (exn-message e)))])
   (define-values (proc stdout stdin stderr)
-    (apply subprocess #f #f #f (car exec) (cdr exec)))
+    (apply subprocess #f #f #f (resolve-program (car exec)) (cdr exec)))
   (dynamic-wind
     (lambda () (void))
     (lambda ()
@@ -200,7 +203,7 @@
       (subprocess-kill proc #t)
       (close-output-port stdin)
       (close-input-port stdout)
-      (close-input-port stderr))))
+      (close-input-port stderr)))))
 
 ;; ---- public API ---------------------------------------------------------
 

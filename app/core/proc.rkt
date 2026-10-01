@@ -18,7 +18,8 @@
          racket/port)
 
 (provide run-command
-         spawn-command)
+         spawn-command
+         resolve-program)
 
 (define launcher-custodian (make-custodian))
 
