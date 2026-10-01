@@ -21,6 +21,11 @@ independently per platform packaging run.
   activation handler hops to the GTK main loop) and adding the previously
   missing guard on macOS and Windows, where a second launch silently grew
   a second panel.
+- Plugins: the FPP1 spawn path resolves interpreter names on PATH like a
+  shell would. A manifest entry of `"python3"` forked a doomed child
+  (Racket's `subprocess` does no PATH lookup), the failure vanished into
+  an empty result list, and the reference plugin never appeared in
+  searches. Spawn failures now surface as plugin errors instead.
 
 ### Fixed
 
