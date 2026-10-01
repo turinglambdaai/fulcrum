@@ -22,10 +22,14 @@
 (provide fulcrum-update-check
          fulcrum-update-configured?)
 
-;; Ed25519 public key (DER), hex-encoded. Replaced at release time; #f keeps
-;; developer builds honest about update availability.
-(define current-update-public-key-hex #f)
-(define current-update-key-id "none")
+;; Ed25519 public key (DER SPKI), hex-encoded — committed on purpose: the
+;; public half only enables verification. Rotation replaces this hex and the
+;; key id below (ship clients trusting the next key before signing with it).
+;; Key fingerprint: sha256(DER)[:16] = 60b7ce3b8a255465; private half lives in
+;; the keys vault and the RIVET_UPDATE_PRIVATE_KEY repository secret.
+(define current-update-public-key-hex
+  "302a300506032b65700321004797203e4e1fce109e45d41ba755e87eb7d261c082b5bf6728ae0eaaa58e55d7")
+(define current-update-key-id "fulcrum-2026-10")
 
 (define (hex->bytes s)
   (let ([n (string-length s)])

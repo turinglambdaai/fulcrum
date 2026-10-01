@@ -56,7 +56,7 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: v0.4.0
+          ref: v0.5.0
       - name: Set up Racket CS 9.3
         if: matrix.platform == 'linux'
         uses: Bogdanp/setup-racket@v1.15
@@ -183,7 +183,10 @@ jobs:
           # the Ed25519 update key, and emit it as a release artifact. The
           # downloads origin is updated by publishing this file to
           # $RIVET_UPDATE_BASE_URL/stable/manifest.json (see runbook §3).
-          raco rivet release --development
+          # The secret carries the PEM; raco rivet release wants a DER path.
+          printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY" > update-private.pem
+          openssl pkey -in update-private.pem -outform DER -out update-private.der
+          RIVET_UPDATE_PRIVATE_KEY=update-private.der raco rivet release --development
       - uses: actions/upload-artifact@v4
         if: env.HAS_UPDATE_KEY == 'true'
         with:
