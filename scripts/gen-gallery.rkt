@@ -30,6 +30,12 @@
 
 (struct entry (id files) #:transparent)
 
+;; Embed LF line endings regardless of the checkout's autocrlf setting —
+;; otherwise Windows working trees regenerate a different blob and the
+;; freshness check fails.
+(define (read-file-lf path)
+  (string-replace (file->string path) "\r\n" "\n"))
+
 ;; One file per plugin: the manifest and every non-hidden, non-build file.
 (define (plugin-files dir)
   (for/list ([f (in-list (sort (directory-list dir) string<? #:key path->string))]
@@ -53,7 +59,7 @@
     (entry manifest
            (for/hasheq ([f (in-list (plugin-files dir))])
              (values (string->symbol f)
-                     (file->string (build-path dir (string->path f))))))))
+                     (read-file-lf (build-path dir (string->path f))))))))
 
 (define (render entries)
   (define blob
