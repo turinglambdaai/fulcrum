@@ -19,6 +19,7 @@
          clipboard-path
          snippets-path
          quicklinks-path
+         ai-keys-path
          recents-path
          plugins-dir
          sync-root-override)
@@ -74,6 +75,11 @@
 
 (define (quicklinks-path)
   (build-path (data-dir) "quicklinks.json"))
+
+;; BYOK AI API keys. Deliberately NOT mirrored to the sync root: the sync
+;; directory is a cloud folder, and this file holds secrets.
+(define (ai-keys-path)
+  (build-path (data-dir) "ai-keys.json"))
 
 (define (recents-path)
   (build-path (data-dir) "recents.json"))

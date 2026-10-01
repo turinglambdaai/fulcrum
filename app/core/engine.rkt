@@ -21,6 +21,7 @@
          "apps.rkt"
          "calc.rkt"
          "clipboard.rkt"
+         "files.rkt"
          "fuzzy.rkt"
          "gallery.rkt"
          "paths.rkt"
@@ -329,6 +330,29 @@
     ("win.center" "Center" "window center move")
     ("win.restore" "Restore" "window restore undo")))
 
+(define find-file-prefix "find ")
+
+;; `find <query>` claims file search; on non-macOS platforms one honest
+;; row explains the gap instead of pretending to search.
+(define (files-provider engine)
+  (lambda (query)
+    (if (not (string-prefix? (string-downcase query) find-file-prefix))
+        '()
+        (let ([text (string-trim (substring query (string-length find-file-prefix)))])
+          (if (zero? (string-length text))
+              '()
+              (if (file-search-available?)
+                  (for/list ([hit (in-list (file-search text))])
+                    (result "file.open" (car hit)
+                            (cdr hit) "File"
+                            (cdr hit) "doc" "" ""
+                            (car hit)
+                            85))
+                  (list (result "noop"
+                                "File search needs Spotlight (macOS)"
+                                "the Linux and Windows providers arrive with their platform search indexes"
+                                "File" "" "doc" "" "" 85))))))))
+
 (define (window-provider engine)
   (lambda (query)
     (if (zero? (string-length query))
@@ -448,7 +472,8 @@
    ((system-provider engine) query)
    ((plugins-provider engine) query)
    ((gallery-provider engine) query)
-   ((window-provider engine) query)))
+   ((window-provider engine) query)
+   ((files-provider engine) query)))
 
 (define/contract (engine-search engine query)
   (-> engine? string? (listof (listof string?)))
@@ -558,6 +583,13 @@
     [(string=? id "link.save") (finish (link-save!-from-payload engine arg))]
     [(string=? id "link.delete") (finish (link-delete!-action engine arg))]
     [(string=? id "web.open") (finish (web-open! arg))]
+    [(string=? id "noop")
+     (finish (cons "not available on this platform" '()))]
+    [(string=? id "file.open")
+     (finish
+      (if (and (non-empty-string? arg) (file-open! arg))
+          (cons "opened" '())
+          (cons (format "failed to open: ~a" arg) '())))]
     [(string-prefix? id "win.") (finish (cons "delegated" '()))]
     [(string=? id "sys.run") (finish (sys-run! engine arg))]
     [(string=? id "gallery.install")

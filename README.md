@@ -17,6 +17,8 @@ Press one global hotkey and a floating command palette appears:
 - **Web-search bangs** — `!g`, `!gh`, `!so`, `!w`, `!yt`, `!m`, `!d`, `!t`
 - **Quicklinks** — your own URL templates claimed by a keyword (`yt nature`), created from the launcher itself
 - **Window management** — left/right half, maximize, almost-maximize, center, restore, natively on all three platforms
+- **File search** — `find <query>` over Spotlight (macOS today; other platforms honestly declined)
+- **BYOK AI** — bring your own OpenAI / Anthropic / Ollama key: `ai summarize`, `ai clean`, `ai translate <lang>`, `ai explain`, `ai <question>` — the answer copies to your clipboard; the key never leaves this machine (never synced)
 - **System commands** — lock, sleep, restart
 - **Plugins** — any language that speaks JSON over stdio ([FPP1](docs/plugins.md)), plus ten first-party plugins installed from the launcher itself (query `gallery`)
 - **Sync (beta)** — settings and snippets mirrored to any cloud-synced folder; a wiped machine restores from the mirror

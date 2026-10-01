@@ -44,12 +44,27 @@ independently per platform packaging run.
   `SetWindowPos` on Windows; EWMH `_NET_MOVERESIZE_WINDOW` on
   Linux/X11, compile-tested like the rest of that host). A new
   `delegated` action status carries the backend's verdict to the host.
+- **BYOK AI** (the roadmap's phase-1 shape: the user's key, our cost
+  zero): `ai summarize`, `ai clean`, `ai translate <lang>`, `ai explain`,
+  and bare `ai <question>` — with the clipboard attached as context where
+  it makes sense. Rows appear instantly in search; running one calls the
+  provider (OpenAI, Anthropic, or a local Ollama endpoint) and the answer
+  copies to the clipboard, so a slow model never traps the user in the
+  panel. The API key lives in `ai-keys.json` inside the data directory
+  and is deliberately excluded from sync; `ai key <secret>` saves it from
+  the launcher, `settings → ai-provider` (now a cycle in the settings
+  rows) picks openai / anthropic / ollama. Unconfigured installs show
+  honest setup rows instead of pretending.
+- **File search** — `find <query>` over Spotlight (`mdfind -name`,
+  deduped, capped at 8 rows); a result opens with the platform opener.
+  Linux and Windows get one honest row instead of a pretend search until
+  their index providers land.
 - **Settings in the launcher** — the hosts have no settings window, so
   the launcher is the settings UI: query `settings` lists theme,
   max-results and the clipboard/web/plugin toggles with their current
   values as badges; running a row cycles or toggles the value and
   notifies the new one.
-- Gallery and sync carry 12 new backend tests (55 total).
+- Gallery, sync, quicklinks, AI and file search carry 16 new backend tests (66 total).
 
 ### Changed
 

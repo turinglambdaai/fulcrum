@@ -18,6 +18,7 @@
          racket/string
          (prefix-in rivet-info: rivet/app-info)
          rivet/backend
+         "core/ai.rkt"
          "core/apps.rkt"
          "core/clipboard.rkt"
          "core/engine.rkt"
@@ -34,7 +35,9 @@
          current-settings
          app-version
          rows-for
-         settings-act!)
+         settings-act!
+         ai-rows
+         run-action)
 
 ;; Staged and packaged apps carry the true version in rivet-app-info.rktd
 ;; (written by `raco rivet build`). Headless tests have no stage, so fall
@@ -88,7 +91,7 @@
         rows
         (filter (lambda (row) (not (string=? (list-ref row 3) "Web Search")))
                 rows)))
-  (append filtered (settings-rows query)))
+  (append filtered (settings-rows query) (ai-rows query)))
 
 ;; ---- settings-as-rows ----------------------------------------------------
 ;;
@@ -98,7 +101,7 @@
 ;; cycles or toggles the value and notifies the new one.
 
 (define managed-setting-keys
-  '(theme max-results clipboard-enabled web-search-enabled plugins-enabled))
+  '(theme max-results clipboard-enabled web-search-enabled plugins-enabled ai-provider))
 
 (define max-results-cycle '(8 12 16 20 25))
 
@@ -112,7 +115,15 @@
      (let* ([cycle max-results-cycle]
             [pos (index-of cycle current)])
        (if pos (list-ref cycle (modulo (add1 pos) (length cycle))) 12))]
+    [(ai-provider)
+     (let* ([cycle ai-providers]
+            [pos (index-of cycle current)])
+       (if pos (list-ref cycle (modulo (add1 pos) (length cycle))) ""))]
     [else (not current)]))
+
+(define (setting-badge value)
+  (cond [(boolean? value) (if value "on" "off")]
+        [else (format "~a" value)]))
 
 (define (settings-rows query)
   (define s (settings!))
@@ -128,11 +139,12 @@
           (case key
             [(theme) "UI theme · select to cycle system → light → dark"]
             [(max-results) "Maximum results shown · select to cycle"]
+            [(ai-provider) "BYOK AI provider · select to cycle empty → openai → anthropic → ollama"]
             [else "Select to toggle"])
           "Setting"
           (symbol->string key)
           "setting" ""
-          (format "~a" value))))
+          (setting-badge value))))
 
 (define (settings-act! key)
   (define sym (string->symbol key))
@@ -144,6 +156,135 @@
         (cons "ok" (list (cons 'notify (format "~a = ~a" sym next)))))
       (cons (format "unknown setting: ~a" key) '())))
 
+;; ---- BYOK AI -------------------------------------------------------------
+;;
+;; Like the settings rows, AI lives at the backend level: it needs the
+;; settings manager and the key file, which the engine never sees. Rows
+;; appear instantly (no network in search); running one makes the
+;; provider call and copies the answer to the clipboard.
+
+(define (ai-effective-provider)
+  (settings-get (settings!) 'ai-provider))
+
+(define (ai-effective-model)
+  (define model (settings-get (settings!) 'ai-model))
+  (if (non-empty-string? model)
+      model
+      (default-ai-model (ai-effective-provider))))
+
+(define (ai-effective-base-url)
+  (define url (settings-get (settings!) 'ai-base-url))
+  (if (non-empty-string? url)
+      url
+      (default-ai-base-url (ai-effective-provider))))
+
+(define (ai-row id title subtitle arg badge)
+  (list id title subtitle "AI" arg "sparkles" "" badge))
+
+(define (ai-rows query)
+  (define trimmed (string-trim query))
+  (define lowered (string-downcase trimmed))
+  (if (not (or (string=? lowered "ai") (string-prefix? lowered "ai ")))
+      '()
+      (let* ([rest (if (string=? lowered "ai")
+                       ""
+                       (string-trim (substring trimmed 3)))]
+             [provider (ai-effective-provider)]
+             [status (ai-configured-status
+                      provider (ai-get-key (ai-keys-path) provider))])
+        (cond
+          ;; "ai key <secret>" — the one-line onboarding row.
+          [(string-prefix? lowered "ai key")
+           (define secret
+             (if (> (string-length trimmed) 7)
+                 (string-trim (substring trimmed 7))
+                 ""))
+           (if (non-empty-string? secret)
+               (list (ai-row "ai.key"
+                             "Save AI API key"
+                             "stored in ai-keys.json on this machine only · never synced"
+                             secret "Save"))
+               (list (ai-row "ai.key"
+                             "Save an AI API key"
+                             "ai key <your-secret> · get one from your provider"
+                             "" "")))]
+          ;; Bare "ai": setup status / verb cheatsheet.
+          [(string=? rest "")
+           (if (equal? status "ready")
+               (list (ai-row "ai.help"
+                             (format "AI ready — ~a · ~a" provider (ai-effective-model))
+                             "ai summarize · ai clean · ai translate <lang> · ai explain · ai <question>"
+                             "" "ready"))
+               (list (ai-row "ai.help"
+                             "AI needs setup"
+                             (format "~a · run: ai key <your-api-key>, then settings → ai-provider"
+                                     status)
+                             "" "setup")))]
+          ;; Everything else is a run row. No network during search.
+          [else
+           (define title
+             (cond
+               [(string-prefix? lowered "summarize") "Summarize the clipboard"]
+               [(string-prefix? lowered "clean") "Clean up the clipboard text"]
+               [(string-prefix? lowered "translate")
+                (define target (string-trim (substring trimmed 14)))
+                (format "Translate the clipboard → ~a"
+                        (if (non-empty-string? target) target "English"))]
+               [(string-prefix? lowered "explain") "Explain, with the clipboard as context"]
+               [else (format "Ask AI: ~a" rest)]))
+           (list (ai-row "ai.run" title
+                         (format "↵ runs on ~a · the answer copies to your clipboard"
+                                 (if (equal? status "ready")
+                                     (format "~a · ~a" provider (ai-effective-model))
+                                     status))
+                         rest "AI"))]))))
+
+(define (ai-newest-clipboard-text engine)
+  (define store (engine-clipboard engine))
+  (if store
+      (let ([items (clipboard-list store 1)])
+        (if (pair? items) (clipboard-item-text (car items)) ""))
+      ""))
+
+(define (ai-act! engine id arg)
+  (case (string->symbol id)
+    [(ai.key)
+     (if (non-empty-string? (string-trim arg))
+         (let ([provider (ai-effective-provider)])
+           (if (string=? provider "")
+               (cons "set ai-provider first (settings → ai-provider)" '())
+               (begin
+                 (ai-save-key! (ai-keys-path) provider (string-trim arg))
+                 (cons "ok" (list (cons 'notify
+                                        (format "AI key saved for ~a (local only)" provider)))))))
+         (cons "empty key" '()))]
+    [(ai.help)
+     (cons "ok" (list (cons 'notify "ai summarize · ai clean · ai translate <lang> · ai explain · ai <question>")))]
+    [(ai.run)
+     (define provider (ai-effective-provider))
+     (define status (ai-configured-status
+                     provider (ai-get-key (ai-keys-path) provider)))
+     (cond
+       [(not (equal? status "ready")) (cons status '())]
+       ;; Clipboard verbs need something on the clipboard; refusing here
+       ;; keeps a typo from firing a provider call with empty input.
+       [(and (for/or ([v (in-list '("summarize" "clean" "translate" "explain"))])
+               (string-prefix? arg v))
+             (string=? (string-trim (ai-newest-clipboard-text engine)) ""))
+        (cons "nothing on the clipboard to work on" '())]
+       [else
+        (let* ([prompt (build-ai-prompt arg (ai-newest-clipboard-text engine))]
+               [answer (ai-request provider
+                                   (ai-effective-base-url)
+                                   (ai-get-key (ai-keys-path) provider)
+                                   (ai-effective-model)
+                                   prompt)])
+          (if (string-prefix? answer "AI ")
+              ;; Error strings from ai-request all start with "AI ".
+              (cons answer '())
+              (cons "copied" (list (cons 'copy-to-clipboard answer)))))])]
+    [else (cons (format "unknown ai action: ~a" id) '())]))
+
 ;; ---- RPCs ---------------------------------------------------------------
 
 (define-rpc (health : String)
@@ -153,12 +294,13 @@
   (rows-for (engine!) query))
 
 (define-rpc (run-action [id String] [arg String] : String)
-  ;; Settings rows are backend-owned (the engine holds no settings), so
-  ;; they route here before the engine.
+  ;; Settings and AI rows are backend-owned (the engine holds no settings
+  ;; or keys), so they route here before the engine.
   (define outcome
-    (if (string-prefix? id "settings.")
-        (settings-act! arg)
-        (engine-run (engine!) id arg)))
+    (cond
+      [(string-prefix? id "settings.") (settings-act! arg)]
+      [(string-prefix? id "ai.") (ai-act! (engine!) id arg)]
+      [else (engine-run (engine!) id arg)]))
   (emit-events! (cdr outcome))
   (car outcome))
 

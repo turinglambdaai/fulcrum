@@ -80,6 +80,8 @@ enum RowIcon {
         case "System": return row.id == "sys.lock" ? "lock.fill" : "gearshape"
         case "Setting": return "switch.2"
         case "Window": return "rectangle.split.2x1"
+        case "AI": return "sparkles"
+        case "File": return "doc"
         default: return "circle.grid.2x2"
         }
     }

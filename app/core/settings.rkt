@@ -11,6 +11,7 @@
 (require racket/contract
          racket/list
          racket/string
+         "../core/ai.rkt"
          "../core/paths.rkt"
          "../core/store.rkt"
          "../core/sync.rkt"
@@ -63,7 +64,17 @@
          "Base URL the updater fetches the channel manifest from")
    'sync-root
    (list string? ""
-         "Sync beta: directory a file sync service replicates (iCloud Drive, Dropbox, Syncthing); settings and snippets mirror there. Empty disables sync")))
+         "Sync beta: directory a file sync service replicates (iCloud Drive, Dropbox, Syncthing); settings and snippets mirror there. Empty disables sync")
+   'ai-provider
+   (list (lambda (v) (member v ai-providers)) ""
+         "BYOK AI provider: empty (off), openai, anthropic, or ollama")
+   'ai-model
+   (list string? ""
+         "AI model; empty uses the provider default (gpt-4o-mini / claude-3-5-haiku / llama3.2)")
+   'ai-base-url
+   (list (lambda (v) (or (string=? v "") (string-prefix? v "http")))
+         ""
+         "AI base URL; empty uses the provider default (ollama defaults to http://localhost:11434)")))
 
 ;; The sync root has to be readable before the typed manager exists (the
 ;; restore decision precedes loading), so peek the raw file once. A file

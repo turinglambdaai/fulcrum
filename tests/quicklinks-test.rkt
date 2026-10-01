@@ -142,3 +142,33 @@
 
        ;; Unknown keys are loud.
        (check-true (string-contains? (car (settings-act! "nope")) "unknown"))))))
+
+(test-case "run-action routes settings.* rows in the live backend surface"
+  (with-fresh-data-dir
+   (lambda ()
+     (define manager (make-settings-manager (settings-path)))
+     (define engine (make-engine #:clipboard-store #f
+                                 #:snippet-store #f
+                                 #:plugin-manager #f))
+     (parameterize ([current-settings manager]
+                    [current-engine engine])
+       ;; Routing proof without a live RVT1 server: the engine would answer
+       ;; "unknown action: settings.set"; the settings route answers
+       ;; "unknown setting: nope".
+       (check-true (string-contains? (run-action "settings.set" "nope")
+                                     "unknown setting"))
+       ;; Event-bearing outcomes raise on emit (no server in tests) — but
+       ;; the settings write happens before emission, so catch and assert
+       ;; the state change through the real entry point.
+       (with-handlers ([exn:fail? (lambda (_) (void))])
+         (run-action "settings.set" "theme"))
+       (check-equal? (settings-get manager 'theme) "light")
+       (with-handlers ([exn:fail? (lambda (_) (void))])
+         (run-action "settings.set" "web-search-enabled"))
+       (check-false (settings-get manager 'web-search-enabled))
+       ;; Boolean badges read as on/off, never Racket's #t. (The
+       ;; clipboard toggle was never touched: still its default, on.)
+       (define rows (rows-for engine "settings"))
+       (define clip-row
+         (findf (lambda (r) (equal? (list-ref r 4) "clipboard-enabled")) rows))
+       (check-equal? (list-ref clip-row 7) "on")))))

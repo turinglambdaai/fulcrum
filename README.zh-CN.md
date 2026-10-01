@@ -17,6 +17,8 @@
 - **Web 搜索 bang** —— `!g`、`!gh`、`!so`、`!w`、`!yt`、`!m`、`!d`、`!t`
 - **Quicklinks** —— 自带关键词的 URL 模板（`yt nature` 直达搜索），在启动器内一行创建
 - **窗口管理** —— 左/右半屏、最大化、近最大化、居中、还原，三平台各自原生实现
+- **文件搜索** —— `find <query>` 走 Spotlight（当前为 macOS，其他平台诚实提示）
+- **BYOK AI** —— 自带 OpenAI / Anthropic / Ollama 密钥：`ai summarize`、`ai clean`、`ai translate <lang>`、`ai explain`、`ai <question>`——答案直接进剪贴板；密钥只存本机、绝不参与同步
 - **系统命令** —— 锁屏、睡眠、重启
 - **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)），附十个第一方插件，可在启动器内直接安装（查询 `gallery`）
 - **同步（beta）** —— 设置与片段镜像到任意云盘同步目录；机器数据被清空后可从镜像恢复
