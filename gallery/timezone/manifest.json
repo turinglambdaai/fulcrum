@@ -1,0 +1,12 @@
+{
+  "id": "timezone",
+  "name": "Timezone",
+  "version": "1.0.0",
+  "description": "Convert times across IANA zones. Type `tz` followed by a time and a zone: tz 14:30 Tokyo.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "timezone.py"]},
+  "commands": [
+    {"id": "convert", "name": "Convert timezone", "keyword": "tz", "description": "tz 14:30 Tokyo · tz 9am New York · tz for major zones"}
+  ],
+  "permissions": ["clipboard-write"]
+}

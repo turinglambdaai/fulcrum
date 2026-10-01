@@ -11,6 +11,9 @@
 (require racket/contract
          racket/list
          racket/string
+         "../core/paths.rkt"
+         "../core/store.rkt"
+         "../core/sync.rkt"
          (prefix-in rivet: rivet/system))
 
 (provide make-settings-manager
@@ -57,10 +60,27 @@
                           (or (string-prefix? v "https://")
                               (string-prefix? v "http://"))))
          "https://downloads.jrtx.site/fulcrum"
-         "Base URL the updater fetches the channel manifest from")))
+         "Base URL the updater fetches the channel manifest from")
+   'sync-root
+   (list string? ""
+         "Sync beta: directory a file sync service replicates (iCloud Drive, Dropbox, Syncthing); settings and snippets mirror there. Empty disables sync")))
 
-(define/contract (make-settings-manager path)
-  (-> path? settings-manager?)
+;; The sync root has to be readable before the typed manager exists (the
+;; restore decision precedes loading), so peek the raw file once. A file
+;; that does not parse simply means "no sync root yet".
+(define (peek-sync-root path)
+  (with-handlers ([exn:fail? (lambda (_) "")])
+    (define raw (read-json-file path (hash)))
+    (define value (if (hash? raw) (hash-ref raw 'sync-root #f) #f))
+    (if (string? value) value "")))
+
+(define/contract (make-settings-manager path #:sync-root [override #f])
+  (->* (path?) (#:sync-root (or/c string? #f)) settings-manager?)
+  ;; Restore from a newer mirror before the store reads the file, so a
+  ;; wiped machine comes back with its settings intact. FULCRUM_SYNC_DIR
+  ;; (or an explicit override) beats the stored setting: the setting lives
+  ;; in the file that restore would bring back.
+  (sync-restore! path (or override (sync-root-override) (peek-sync-root path)))
   (settings-manager (rivet:make-settings-store path) schema))
 
 (define/contract (settings-get manager key)
@@ -83,6 +103,11 @@
     (raise-argument-error 'settings-set!
                           (format "valid value for ~a" key) value))
   (rivet:settings-set! (settings-manager-store manager) key value)
+  ;; Mirror the whole file after every successful write. Reading the root
+  ;; back through the typed manager also means a mid-session sync-root
+  ;; change takes effect from the very next write.
+  (sync-mirror! (rivet:settings-store-path (settings-manager-store manager))
+                (or (sync-root-override) (settings-get manager 'sync-root)))
   #t)
 
 (define/contract (settings-list manager)

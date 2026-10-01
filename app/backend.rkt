@@ -15,6 +15,7 @@
 
 (require racket/format
          racket/string
+         (prefix-in rivet-info: rivet/app-info)
          rivet/backend
          "core/apps.rkt"
          "core/clipboard.rkt"
@@ -30,7 +31,14 @@
          current-settings
          app-version)
 
-(define app-version "0.1.0")
+;; Staged and packaged apps carry the true version in rivet-app-info.rktd
+;; (written by `raco rivet build`). Headless tests have no stage, so fall
+;; back to the literal — which must track rivet.rktd. This value feeds the
+;; update check: drift here means every install believes it is outdated
+;; (0.2.0 shipped believing it was 0.1.0).
+(define app-version
+  (with-handlers ([exn:fail? (lambda (_) "0.3.0")])
+    (string-append (rivet-info:app-version))))
 
 ;; ---- States -------------------------------------------------------------
 
@@ -216,7 +224,10 @@
     (and (settings-get manager 'clipboard-enabled)
          (make-clipboard-store (clipboard-path)
                                #:limit (settings-get manager 'clipboard-limit))))
-  (define snip-store (make-snippet-store (snippets-path)))
+  (define snip-store
+    (make-snippet-store (snippets-path)
+                        #:sync-root (or (sync-root-override)
+                                        (settings-get manager 'sync-root))))
   (define plug-mgr
     (and (settings-get manager 'plugins-enabled)
          (make-plugin-manager (plugins-dir)

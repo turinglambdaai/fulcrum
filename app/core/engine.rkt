@@ -22,6 +22,7 @@
          "calc.rkt"
          "clipboard.rkt"
          "fuzzy.rkt"
+         "gallery.rkt"
          "paths.rkt"
          "plugins.rkt"
          "store.rkt"
@@ -229,6 +230,61 @@
                   70)))
       (lambda (query) '())))
 
+;; The plugin gallery rides the same row contract as everything else:
+;; query "gallery"/"plugins" lists every first-party plugin (installed
+;; rows uninstall, the rest install); any other query fuzzy-suggests
+;; installs for the not-installed entries. Kind stays "Plugin" so hosts
+;; render the plugin icon without per-host gallery work.
+(define gallery-listing-words '("gallery" "plugins" "plugin"))
+
+(define (gallery-row-for entry installed?)
+  (if installed?
+      (result "gallery.uninstall" (gallery-entry-name entry)
+              (format "v~a · installed — select to uninstall"
+                      (gallery-entry-version entry))
+              "Plugin"
+              (gallery-entry-id entry) "plugin" "" "Installed"
+              (string-append (gallery-entry-name entry) " uninstall remove plugin gallery")
+              120)
+      (result "gallery.install" (format "Install ~a" (gallery-entry-name entry))
+              (format "v~a · ~a" (gallery-entry-version entry)
+                      (gallery-entry-description entry))
+              "Plugin"
+              (gallery-entry-id entry) "plugin" "" "Install"
+              (string-append (gallery-entry-name entry) " install plugin gallery "
+                             (gallery-entry-description entry))
+              120)))
+
+(define (gallery-provider engine)
+  (lambda (query)
+    (if (or (not (engine-plugins engine))
+            (zero? (string-length query)))
+        '()
+        (let ([catalog (gallery-catalog)])
+          (if (member (string-downcase query) gallery-listing-words)
+              (for/list ([entry (in-list catalog)])
+                (gallery-row-for
+                 entry
+                 (gallery-entry-installed? (plugins-dir) entry)))
+              (for/list ([entry (in-list catalog)]
+                         #:when (let ([installed?
+                                       (gallery-entry-installed?
+                                        (plugins-dir) entry)])
+                                  (and (not installed?)
+                                       (fuzzy-score-fields
+                                        query
+                                        (list (cons 1.0 (gallery-entry-name entry))
+                                              (cons 0.5 (gallery-entry-description entry)))))))
+                (define row (gallery-row-for entry #f))
+                (result (result-id row) (result-title row) (result-subtitle row)
+                        (result-kind row) (result-arg row) (result-icon row)
+                        (result-hint row) (result-badge row)
+                        (result-keywords row)
+                        (+ 20 (fuzzy-score-fields
+                               query
+                               (list (cons 1.0 (gallery-entry-name entry))
+                                     (cons 0.5 (gallery-entry-description entry))))))))))))
+
 ;; ---- engine -------------------------------------------------------------
 
 (define/contract (make-engine
@@ -271,7 +327,8 @@
    ((snippets-provider engine) query)
    ((web-provider engine) query)
    ((system-provider engine) query)
-   ((plugins-provider engine) query)))
+   ((plugins-provider engine) query)
+   ((gallery-provider engine) query)))
 
 (define/contract (engine-search engine query)
   (-> engine? string? (listof (listof string?)))
@@ -328,6 +385,21 @@
           (cons (format "failed to run system command: ~a" name) '()))
       (cons (format "unknown system command: ~a" name) '())))
 
+;; Shared body of the gallery install/uninstall actions: run the operation,
+;; reload the plugin manager so new commands are queryable immediately, and
+;; tell the host what happened.
+(define (gallery-act! engine op verb arg)
+  (define outcome (op (plugins-dir) arg))
+  (if outcome
+      (cons outcome '())
+      (let ([entry (findf (lambda (e)
+                            (string=? (gallery-entry-id e) arg))
+                          (gallery-catalog))])
+        (when (engine-plugins engine)
+          (plugin-manager-reload! (engine-plugins engine)))
+        (define label (if entry (gallery-entry-name entry) arg))
+        (cons "ok" (list (cons 'notify (format "~a ~a" verb label)))))))
+
 (define/contract (engine-run engine id arg)
   (-> engine? string? string? (cons/c string? (listof (cons/c symbol? string?))))
   (define (finish outcome)
@@ -342,6 +414,10 @@
     [(string=? id "snip.copy") (finish (snip-copy-event! engine arg))]
     [(string=? id "web.open") (finish (web-open! arg))]
     [(string=? id "sys.run") (finish (sys-run! engine arg))]
+    [(string=? id "gallery.install")
+     (finish (gallery-act! engine gallery-install! "Installed" arg))]
+    [(string=? id "gallery.uninstall")
+     (finish (gallery-act! engine gallery-uninstall! "Uninstalled" arg))]
     [(string-prefix? id "plugin:")
      (finish
       (let ([status (plugin-manager-run! (engine-plugins engine)

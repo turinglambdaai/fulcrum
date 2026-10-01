@@ -4,7 +4,7 @@ One keystroke. Everything within reach. A keyboard-first launcher for macOS, Win
 
 **English** · [中文](README.zh-CN.md)
 
-[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.1.0-C15F3C)
+[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.3.0-C15F3C)
 
 ## What is Fulcrum?
 
@@ -16,7 +16,8 @@ Press one global hotkey and a floating command palette appears:
 - **Snippets** — named text expansions with keywords
 - **Web-search bangs** — `!g`, `!gh`, `!so`, `!w`, `!yt`, `!m`, `!d`, `!t`
 - **System commands** — lock, sleep, restart
-- **Plugins** — any language that speaks JSON over stdio ([FPP1](docs/plugins.md))
+- **Plugins** — any language that speaks JSON over stdio ([FPP1](docs/plugins.md)), plus ten first-party plugins installed from the launcher itself (query `gallery`)
+- **Sync (beta)** — settings and snippets mirrored to any cloud-synced folder; a wiped machine restores from the mirror
 
 Search, history, and snippets never leave your device. There is no telemetry in 0.1.
 
@@ -44,16 +45,16 @@ fulcrum/
 ├── macos-host/             # SwiftUI panel + Carbon global hotkey
 ├── windows/                # WinUI 3 overlay + RegisterHotKey
 ├── linux/                  # GTK4 panel + X11 grab (Rivet 0.3 Linux preview)
-├── examples/plugins/epoch  # the FPP1 reference plugin
+├── gallery/                # 10 first-party FPP1 plugins (installable in-app)
 ├── tests/                  # 43 backend tests (raco test tests/)
 ├── docs/                   # plugins.md, release-runbook.md, business plan
 ├── site/                   # fulcrum.jrtx.site (GitHub Pages)
 └── .github/workflows/      # CI matrix + tag-driven release pipeline
 ```
 
-## Status: v0.1.0 (developer preview)
+## Status: v0.3.0 (developer preview)
 
-Developer preview. The backend is complete and tested (43/43). All three hosts are feature-complete against the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host now builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). `raco rivet doctor` / `dev` is the supported developer loop on every platform.
+Developer preview. The backend is complete and tested (55/55) and ships a ten-plugin first-party gallery (query `gallery` to install) plus a settings/snippets sync beta (`sync-root`). All three hosts are feature-complete against the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host now builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). `raco rivet doctor` / `dev` is the supported developer loop on every platform.
 
 ## Development
 
@@ -72,7 +73,7 @@ raco rivet doctor
 raco rivet dev
 ```
 
-Build a plugin instead? Start with [examples/plugins/epoch](examples/plugins/epoch) and [docs/plugins.md](docs/plugins.md) — Python is enough.
+Build a plugin instead? Start with [gallery/epoch](gallery/epoch) and [docs/plugins.md](docs/plugins.md) — Python is enough.
 
 ## License
 

@@ -1,0 +1,12 @@
+{
+  "id": "github",
+  "name": "GitHub Search",
+  "version": "1.0.0",
+  "description": "Search GitHub issues and pull requests. Type `gh` followed by a query: gh memory leak repo:rust-lang/rust.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "github.py"]},
+  "commands": [
+    {"id": "search", "name": "Search GitHub", "keyword": "gh", "description": "gh memory leak repo:rust-lang/rust"}
+  ],
+  "permissions": ["network", "open-url"]
+}

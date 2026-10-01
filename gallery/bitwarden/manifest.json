@@ -1,0 +1,12 @@
+{
+  "id": "bitwarden",
+  "name": "Bitwarden",
+  "version": "1.0.0",
+  "description": "Search a Bitwarden vault and copy item usernames. Type `bw` followed by a query.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "bitwarden.py"]},
+  "commands": [
+    {"id": "vault", "name": "Search vault", "keyword": "bw", "description": "bw github · ↵ copies the item username (never the password)"}
+  ],
+  "permissions": ["exec", "clipboard-write"]
+}

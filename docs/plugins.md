@@ -7,8 +7,42 @@ own timeout (default 2000 ms, configurable), never the launcher.
 
 Any language that can read stdin, write stdout, and parse JSON can be a
 plugin: Python, Go, Rust, Node, a shell script. See
-[`examples/plugins/epoch`](../examples/plugins/epoch) for a complete,
+[`gallery/epoch`](../gallery/epoch) for a complete,
 tested reference plugin.
+
+## The first-party gallery
+
+Fulcrum ships ten first-party plugins built into the app — query
+`gallery` or `plugins` in the launcher to list them; select a row to
+install, select an installed row to uninstall. Fuzzy queries also suggest
+installs (type `docker` and the install row appears next to your apps).
+Installed plugins are queryable immediately, no restart.
+
+| Plugin | Keyword | Needs |
+|---|---|---|
+| Epoch | `ts` | — |
+| Unit Converter | `u` | — |
+| Regex | `re` | — |
+| Timezone | `tz` | — |
+| GitHub | `gh` | network (optional `GITHUB_TOKEN`) |
+| Cargo | `crate` | network |
+| Homebrew | `brew` | network |
+| Docker | `dk` | the `docker` CLI |
+| winget | `winget` | Windows |
+| Bitwarden | `bw` | the `bw` CLI, unlocked (`BW_SESSION`) |
+
+Every plugin is also a second reference implementation — read
+[`gallery/unit/unit.py`](../gallery/unit/unit.py) for the graceful
+availability-probe pattern, or
+[`gallery/github/github.py`](../gallery/github/github.py) for the
+network + open-URL pattern. Their sources live in the repository
+[`gallery/`](../gallery) directory; the backend embeds them at build time
+via `scripts/gen-gallery.rkt` (CI regenerates the embedded data and fails
+on drift).
+
+The gallery can only uninstall plugins it installed: each install writes
+a `.fulcrum-gallery` marker, and uninstalling a directory without one is
+refused.
 
 ## Layout
 

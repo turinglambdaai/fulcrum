@@ -10,6 +10,7 @@
          racket/list
          racket/string
          "../core/fuzzy.rkt"
+         "../core/sync.rkt"
          "paths.rkt"
          "store.rkt")
 
@@ -26,7 +27,7 @@
 
 (struct snippet (id name keyword text ts) #:transparent)
 
-(struct snippet-store (path items lock) #:mutable)
+(struct snippet-store (path items lock sync-root) #:mutable)
 
 (define max-text-chars 100000)
 (define max-name-chars 200)
@@ -53,14 +54,18 @@
              'name (snippet-name s)
              'keyword (snippet-keyword s)
              'text (snippet-text s)
-             'ts (snippet-ts s)))))
+             'ts (snippet-ts s))))
+  (sync-mirror! (snippet-store-path store) (snippet-store-sync-root store)))
 
 (define (clip s limit)
   (if (> (string-length s) limit) (substring s 0 limit) s))
 
-(define/contract (make-snippet-store [path (snippets-path)])
-  (() (path?) . ->* . snippet-store?)
-  (snippet-store path (load-items path) (make-semaphore 1)))
+(define/contract (make-snippet-store [path (snippets-path)] #:sync-root [sync-root ""])
+  (->* () (path? #:sync-root string?) snippet-store?)
+  ;; Restore from a newer mirror before loading, so a wiped machine comes
+  ;; back with its snippets.
+  (sync-restore! path sync-root)
+  (snippet-store path (load-items path) (make-semaphore 1) sync-root))
 
 (define/contract (snippet-save! store
                                 name

@@ -4,7 +4,7 @@
 
 [English](README.md) · **中文**
 
-[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.1.0-C15F3C)
+[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.3.0-C15F3C)
 
 ## Fulcrum 是什么？
 
@@ -16,7 +16,8 @@
 - **片段** —— 带关键词的命名文本展开
 - **Web 搜索 bang** —— `!g`、`!gh`、`!so`、`!w`、`!yt`、`!m`、`!d`、`!t`
 - **系统命令** —— 锁屏、睡眠、重启
-- **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)）
+- **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)），附十个第一方插件，可在启动器内直接安装（查询 `gallery`）
+- **同步（beta）** —— 设置与片段镜像到任意云盘同步目录；机器数据被清空后可从镜像恢复
 
 搜索、历史、片段永远不离开你的设备。0.1 没有任何遥测。
 
@@ -44,16 +45,16 @@ fulcrum/
 ├── macos-host/             # SwiftUI 悬浮面板 + Carbon 全局热键
 ├── windows/                # WinUI 3 悬浮窗 + RegisterHotKey
 ├── linux/                  # GTK4 面板 + X11 grab（Rivet 0.3 Linux preview）
-├── examples/plugins/epoch  # FPP1 参考插件
+├── gallery/                # 10 个第一方 FPP1 插件（应用内可安装）
 ├── tests/                  # 43 个后端测试（raco test tests/）
 ├── docs/                   # plugins.md、release-runbook.md、商业计划
 ├── site/                   # fulcrum.jrtx.site（GitHub Pages）
 └── .github/workflows/      # CI 矩阵 + tag 驱动的发布流水线
 ```
 
-## 状态：v0.1.0（开发者预览）
+## 状态：v0.3.0（开发者预览）
 
-开发者预览。后端已完成并通过全部测试（43/43）。三个宿主均针对后端契约功能完备：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主现已通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
+开发者预览。后端已完成并通过全部测试（55/55），内置十个第一方插件的 gallery（查询 `gallery` 安装）与设置/片段同步 beta（`sync-root`）。三个宿主均针对后端契约功能完备：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主现已通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
 
 ## 开发
 
@@ -72,7 +73,7 @@ raco rivet doctor
 raco rivet dev
 ```
 
-想做插件？从 [examples/plugins/epoch](examples/plugins/epoch) 和 [docs/plugins.md](docs/plugins.md) 开始——Python 就够了。
+想做插件？从 [gallery/epoch](gallery/epoch) 和 [docs/plugins.md](docs/plugins.md) 开始——Python 就够了。
 
 ## 许可
 

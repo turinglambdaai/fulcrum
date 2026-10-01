@@ -1,0 +1,12 @@
+{
+  "id": "winget",
+  "name": "Winget",
+  "version": "1.0.0",
+  "description": "Search the Windows Package Manager catalog and copy install commands. Type `winget` followed by a query.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "winget.py"]},
+  "commands": [
+    {"id": "search", "name": "Search winget packages", "keyword": "winget", "description": "winget vscode · ↵ copies the `winget install` command"}
+  ],
+  "permissions": ["exec", "clipboard-write"]
+}

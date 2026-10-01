@@ -1,0 +1,12 @@
+{
+  "id": "cargo",
+  "name": "crates.io Search",
+  "version": "1.0.0",
+  "description": "Search Rust crates on crates.io. Type `crate` followed by a name: crate serde.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "cargo.py"]},
+  "commands": [
+    {"id": "search", "name": "Search crates.io", "keyword": "crate", "description": "crate serde"}
+  ],
+  "permissions": ["network", "open-url"]
+}

@@ -24,9 +24,11 @@ struct ResultRow: Equatable {
 
     /// Column 0 (`id`) is the *action* id and repeats across rows of the
     /// same provider ("app.launch" for every app). SwiftUI identity needs a
-    /// per-row key: (action id, arg) is unique — arg carries the app id,
-    /// snippet id, URL, or calculator answer.
-    var rowId: String { id + "\u{1F}" + arg }
+    /// per-row key. (action id, arg) is unique for engine providers, but
+    /// FPP1 plugins legitimately return several rows that share an arg
+    /// (Epoch's UTC and local render of one timestamp) — the row title
+    /// disambiguates those.
+    var rowId: String { id + "\u{1F}" + arg + "\u{1F}" + title }
 
     var displaySubtitle: String {
         subtitle.isEmpty ? kind : subtitle

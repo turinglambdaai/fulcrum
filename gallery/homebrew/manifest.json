@@ -1,0 +1,12 @@
+{
+  "id": "homebrew",
+  "name": "Homebrew Lookup",
+  "version": "1.0.0",
+  "description": "Look up Homebrew formulae and casks by exact name. Type `brew` followed by a name: brew wget.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "homebrew.py"]},
+  "commands": [
+    {"id": "search", "name": "Search Homebrew", "keyword": "brew", "description": "brew wget"}
+  ],
+  "permissions": ["network", "open-url"]
+}

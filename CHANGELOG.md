@@ -4,6 +4,52 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.3.0
+
+### Added
+
+- **First-party plugin gallery** — ten plugins built into the app, listed
+  by querying `gallery` or `plugins`, installed and uninstalled from the
+  launcher itself (each install row is an engine action; no new UI surface
+  on any host, and installed plugins are queryable without a restart).
+  Fuzzy queries suggest installs for missing plugins the way apps are
+  suggested. The gallery can only remove plugins it installed (a marker
+  file guards user-installed ones), and wire-supplied plugin ids are
+  validated against a strict pattern before touching the filesystem.
+  The opening roster: Epoch (`ts`), Unit Converter (`u`), Regex (`re`),
+  Timezone (`tz`), GitHub (`gh`), Cargo (`crate`), Homebrew (`brew`),
+  Docker (`dk`), winget (`winget`), Bitwarden (`bw`) — every tool-backed
+  plugin degrades to a single explanatory row when its CLI or network is
+  unavailable.
+- **Sync beta** for settings and snippets: point the new `sync-root`
+  setting (or the `FULCRUM_SYNC_DIR` environment variable, which also
+  bootstraps a wiped machine) at any directory a file sync service
+  replicates; every write mirrors there and a newer mirror restores the
+  local file at startup — that is the whole wipe-and-restore story.
+  Conflict policy is newest-file-wins by mtime; clipboard history and
+  recents are deliberately not synced.
+- Gallery and sync carry 12 new backend tests (55 total).
+
+### Changed
+
+- The epoch reference plugin moved from `examples/plugins/` to
+  `gallery/epoch` — the gallery is now the single home of first-party
+  plugins, and `scripts/gen-gallery.rkt` embeds their files into the
+  compiled backend (CI regenerates and fails on drift).
+- The backend now reads its version from the staged
+  `rivet-app-info.rktd` (`rivet/app-info`) instead of a hardcoded string,
+  with the rivet.rktd version as the headless fallback. 0.2.0 shipped
+  reporting "0.1.0", which would have made every install believe an
+  update was available once the channel manifest went live.
+
+### Fixed
+
+- macOS host: result row identity was `(action id, arg)` — unique for
+  engine providers, but FPP1 plugins legitimately return several rows
+  sharing one arg (Epoch renders a timestamp as UTC *and* local). SwiftUI
+  collapsed them to one row; the row title now participates in the
+  identity. Found on the first real-machine gallery smoke.
+
 ## 0.2.0
 
 ### Changed

@@ -1,0 +1,12 @@
+{
+  "id": "unit",
+  "name": "Unit Converter",
+  "version": "1.0.0",
+  "description": "Convert length, mass, temperature, volume, data, time, speed, and area. Type `u` followed by a quantity: u 5 km in mi.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "unit.py"]},
+  "commands": [
+    {"id": "convert", "name": "Convert units", "keyword": "u", "description": "u 5 km in mi · u 100 kg to lb · u 72 f"}
+  ],
+  "permissions": ["clipboard-write"]
+}

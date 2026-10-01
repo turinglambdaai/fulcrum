@@ -35,6 +35,9 @@ jobs:
       - name: Compile backend
         run: raco make app/core/*.rkt app/update.rkt app/backend.rkt
         shell: bash
+      - name: Gallery data is fresh
+        run: racket scripts/gen-gallery.rkt --check
+        shell: bash
       - name: Run tests
         run: raco test tests/
         shell: bash
@@ -187,7 +190,7 @@ jobs:
       - name: Install fixture plugin
         run: |
           mkdir -p /tmp/fulcrum-fixture/plugins
-          cp -r examples/plugins/epoch /tmp/fulcrum-fixture/plugins/epoch
+          cp -r gallery/epoch /tmp/fulcrum-fixture/plugins/epoch
       - name: Run plugin tests against the fixture layout
         run: raco test tests/plugins-test.rkt
         env:

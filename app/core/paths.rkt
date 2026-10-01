@@ -19,10 +19,19 @@
          clipboard-path
          snippets-path
          recents-path
-         plugins-dir)
+         plugins-dir
+         sync-root-override)
 
 (define (env-override)
   (let ([value (getenv "FULCRUM_DATA_DIR")])
+    (and (string? value) (not (string=? value "")) value)))
+
+;; FULCRUM_SYNC_DIR points sync at a directory regardless of the stored
+;; sync-root setting. It exists because the setting itself lives in the
+;; file sync would restore: on a wiped machine (or in tests) the
+;; environment is the only bootstrap that can precede the restore.
+(define (sync-root-override)
+  (let ([value (getenv "FULCRUM_SYNC_DIR")])
     (and (string? value) (not (string=? value "")) value)))
 
 (define (platform-data-dir)

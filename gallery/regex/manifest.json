@@ -1,0 +1,12 @@
+{
+  "id": "regex",
+  "name": "Regex",
+  "version": "1.0.0",
+  "description": "Test regular expressions with live matches and groups. Type `re` followed by a pattern and text: re \\w+@\\w+\\.com <text>.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "regex.py"]},
+  "commands": [
+    {"id": "match", "name": "Regex match", "keyword": "re", "description": "re <pattern> <text> · ↵ copies the match"}
+  ],
+  "permissions": ["clipboard-write"]
+}

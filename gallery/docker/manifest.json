@@ -1,0 +1,12 @@
+{
+  "id": "docker",
+  "name": "Docker",
+  "version": "1.0.0",
+  "description": "List and start/stop Docker containers. Type `dk` for running containers, type to filter.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "docker.py"]},
+  "commands": [
+    {"id": "containers", "name": "Docker containers", "keyword": "dk", "description": "dk · dk nginx · ↵ to start/stop the selected container"}
+  ],
+  "permissions": ["exec"]
+}
