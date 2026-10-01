@@ -157,48 +157,10 @@ jobs:
             .rivet/build/**/*.dmg
           if-no-files-found: warn
 
-  update-manifest:
-    name: Sign update manifest
+  release-archives:
+    name: Package release archives
     needs: package
     runs-on: ubuntu-latest
-    env:
-      HAS_UPDATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY != '' }}
-    steps:
-      - uses: actions/checkout@v4
-        if: env.HAS_UPDATE_KEY == 'true'
-      - name: Install Racket
-        if: env.HAS_UPDATE_KEY == 'true'
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          version: stable
-          distribution: full
-      - name: Build manifest from release artifacts
-        if: env.HAS_UPDATE_KEY == 'true'
-        env:
-          RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
-          RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
-          RIVET_UPDATE_BASE_URL: ${{ secrets.RIVET_UPDATE_BASE_URL }}
-        run: |
-          # Compose channel manifest from the packaged artifacts, sign it with
-          # the Ed25519 update key, and emit it as a release artifact. The
-          # downloads origin is updated by publishing this file to
-          # $RIVET_UPDATE_BASE_URL/stable/manifest.json (see runbook §3).
-          # The secret carries the PEM; raco rivet release wants a DER path.
-          printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY" > update-private.pem
-          openssl pkey -in update-private.pem -outform DER -out update-private.der
-          RIVET_UPDATE_PRIVATE_KEY=update-private.der raco rivet release --development
-      - uses: actions/upload-artifact@v4
-        if: env.HAS_UPDATE_KEY == 'true'
-        with:
-          name: update-manifest
-          path: dist/manifest.json
-          if-no-files-found: warn
-
-  github-release:
-    name: Draft GitHub release
-    needs: [package, update-manifest]
-    runs-on: ubuntu-latest
-    if: always()
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -206,6 +168,8 @@ jobs:
       # One archive per platform: the WinUI self-contained layout contains
       # hundreds of runtime files, and expanding them onto the release turns
       # the download page into noise (and into API rate-limit territory).
+      # These archives are the exact bytes the update manifest pins, so
+      # this step sits between packaging and manifest signing.
       - name: Package release archives
         run: |
           set -euo pipefail
@@ -216,9 +180,88 @@ jobs:
             (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/release/${name}.zip" .)
           done
           ls -la release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-archives
+          path: release/
+          if-no-files-found: error
+
+  update-manifest:
+    name: Sign update manifest
+    needs: release-archives
+    runs-on: ubuntu-latest
+    env:
+      HAS_UPDATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        if: env.HAS_UPDATE_KEY == 'true'
+      - name: Checkout Rivet
+        if: env.HAS_UPDATE_KEY == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: turinglambdaai/rivet
+          path: rivet
+          ref: v0.5.0
+      - name: Install Racket
+        if: env.HAS_UPDATE_KEY == 'true'
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          version: stable
+          distribution: full
+      - name: Link Rivet
+        if: env.HAS_UPDATE_KEY == 'true'
+        run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
+        shell: bash
+      - name: Download release archives
+        if: env.HAS_UPDATE_KEY == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: release-archives
+          path: release
+      - name: Compose and sign the channel manifest
+        if: env.HAS_UPDATE_KEY == 'true'
+        env:
+          RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
+          RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
+          RIVET_UPDATE_BASE_URL: ${{ secrets.RIVET_UPDATE_BASE_URL }}
+        run: |
+          # One channel manifest pins every platform archive (see
+          # .github/sign-manifest.rkt). The secret carries the PEM; the
+          # signer wants DER paths, and the signed output is verified
+          # against the public key before upload.
+          printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY" > update-private.pem
+          openssl pkey -in update-private.pem -outform DER -out update-private.der
+          openssl pkey -in update-private.pem -pubout -outform DER -out update-public.der
+          raco .github/sign-manifest.rkt
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_UPDATE_KEY == 'true'
+        with:
+          name: update-manifest
+          path: dist/manifest.json
+          if-no-files-found: error
+
+  github-release:
+    name: Draft GitHub release
+    needs: [release-archives, update-manifest]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect release files
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp -R artifacts/release-archives/. release/
+          if [ -d artifacts/update-manifest ]; then
+            cp artifacts/update-manifest/manifest.json release/
+          fi
+          ls -la release/
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
           files: |
             release/*.zip
+            release/manifest.json
