@@ -232,7 +232,7 @@ jobs:
           printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY" > update-private.pem
           openssl pkey -in update-private.pem -outform DER -out update-private.der
           openssl pkey -in update-private.pem -pubout -outform DER -out update-public.der
-          raco .github/sign-manifest.rkt
+          racket .github/sign-manifest.rkt
       - uses: actions/upload-artifact@v4
         if: env.HAS_UPDATE_KEY == 'true'
         with:
