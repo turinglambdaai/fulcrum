@@ -4,6 +4,7 @@
 #include "MainWindow.g.cpp"
 #endif
 #include "GeneratedBackend.hpp"
+#include "WindowCommands.h"
 
 #include <shellapi.h>
 #include <commctrl.h>
@@ -429,11 +430,19 @@ void MainWindow::RunSelected() {
   std::thread([weak, api, dispatcher, row]() mutable {
     try {
       auto const status = api->run_action(row.id, row.arg).get();
-      dispatcher.TryEnqueue([weak, status]() mutable {
+      dispatcher.TryEnqueue([weak, status, row]() mutable {
         if (auto window = weak.get()) {
           if (status == "ok" || status == "launched" || status == "copied" ||
               status == "opened") {
             window->HideLauncher();
+          } else if (status == "delegated") {
+            // Window commands execute natively: the backend cannot reach
+            // other apps' windows.
+            if (fulcrum::RunWindowCommand(row.id)) {
+              window->HideLauncher();
+            } else {
+              window->SetStatusError(L"No window found to manage.");
+            }
           } else {
             window->SetStatusError(to_wide(status));
           }

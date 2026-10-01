@@ -74,9 +74,12 @@ enum RowIcon {
         case "Calculator": return "equal.circle.fill"
         case "Clipboard": return "doc.on.clipboard"
         case "Snippet": return "text.quote"
+        case "Quicklink": return "link"
         case "Web Search": return "globe"
         case "Plugin": return "puzzlepiece.extension"
         case "System": return row.id == "sys.lock" ? "lock.fill" : "gearshape"
+        case "Setting": return "switch.2"
+        case "Window": return "rectangle.split.2x1"
         default: return "circle.grid.2x2"
         }
     }
@@ -388,6 +391,14 @@ final class LauncherModel: ObservableObject {
                     switch status {
                     case "ok", "launched", "copied", "opened":
                         self.hide()
+                    case "delegated":
+                        // Window commands execute natively: the backend
+                        // cannot reach other apps' windows.
+                        if WindowCommands.performAndRemember(id: row.id) {
+                            self.hide()
+                        } else {
+                            self.status = WindowCommands.permissionHint
+                        }
                     default:
                         self.status = status
                     }

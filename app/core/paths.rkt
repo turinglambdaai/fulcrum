@@ -18,6 +18,7 @@
          settings-path
          clipboard-path
          snippets-path
+         quicklinks-path
          recents-path
          plugins-dir
          sync-root-override)
@@ -70,6 +71,9 @@
 
 (define (snippets-path)
   (build-path (data-dir) "snippets.json"))
+
+(define (quicklinks-path)
+  (build-path (data-dir) "quicklinks.json"))
 
 (define (recents-path)
   (build-path (data-dir) "recents.json"))

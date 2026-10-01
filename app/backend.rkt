@@ -14,14 +14,17 @@
 ;; with an engine over fixture stores.
 
 (require racket/format
+         racket/list
          racket/string
          (prefix-in rivet-info: rivet/app-info)
          rivet/backend
          "core/apps.rkt"
          "core/clipboard.rkt"
          "core/engine.rkt"
+         "core/fuzzy.rkt"
          "core/paths.rkt"
          "core/plugins.rkt"
+         "core/quicklinks.rkt"
          "core/settings.rkt"
          "core/snippets.rkt"
          "update.rkt")
@@ -29,7 +32,9 @@
 (provide start
          current-engine
          current-settings
-         app-version)
+         app-version
+         rows-for
+         settings-act!)
 
 ;; Staged and packaged apps carry the true version in rivet-app-info.rktd
 ;; (written by `raco rivet build`). Headless tests have no stage, so fall
@@ -78,10 +83,66 @@
 
 (define (rows-for engine query)
   (define rows (engine-search engine query))
-  (if (settings-get (settings!) 'web-search-enabled)
-      rows
-      (filter (lambda (row) (not (string=? (list-ref row 3) "Web Search")))
-              rows)))
+  (define filtered
+    (if (settings-get (settings!) 'web-search-enabled)
+        rows
+        (filter (lambda (row) (not (string=? (list-ref row 3) "Web Search")))
+                rows)))
+  (append filtered (settings-rows query)))
+
+;; ---- settings-as-rows ----------------------------------------------------
+;;
+;; The hosts have no settings surface yet, so the launcher itself is the
+;; settings UI: query `settings` (or a key/description fuzzy match) lists
+;; every managed key with its current value as the badge; running a row
+;; cycles or toggles the value and notifies the new one.
+
+(define managed-setting-keys
+  '(theme max-results clipboard-enabled web-search-enabled plugins-enabled))
+
+(define max-results-cycle '(8 12 16 20 25))
+
+(define (next-setting-value key current)
+  (case key
+    [(theme)
+     (cond [(string=? current "system") "light"]
+           [(string=? current "light") "dark"]
+           [else "system"])]
+    [(max-results)
+     (let* ([cycle max-results-cycle]
+            [pos (index-of cycle current)])
+       (if pos (list-ref cycle (modulo (add1 pos) (length cycle))) 12))]
+    [else (not current)]))
+
+(define (settings-rows query)
+  (define s (settings!))
+  (for/list ([key (in-list managed-setting-keys)]
+             #:when (fuzzy-score-fields
+                     (string-trim query)
+                     (list (cons 1.0 (symbol->string key))
+                           (cons 0.7 "settings setting")
+                           (cons 0.3 (format "~a" (settings-get s key))))))
+    (define value (settings-get s key))
+    (list "settings.set"
+          (format "~a" key)
+          (case key
+            [(theme) "UI theme · select to cycle system → light → dark"]
+            [(max-results) "Maximum results shown · select to cycle"]
+            [else "Select to toggle"])
+          "Setting"
+          (symbol->string key)
+          "setting" ""
+          (format "~a" value))))
+
+(define (settings-act! key)
+  (define sym (string->symbol key))
+  (if (member sym managed-setting-keys)
+      (let ([next (next-setting-value sym (settings-get (settings!) sym))])
+        (settings-set! (settings!) sym next)
+        (case sym
+          [(theme) (state-set! theme (settings-get (settings!) 'theme))])
+        (cons "ok" (list (cons 'notify (format "~a = ~a" sym next)))))
+      (cons (format "unknown setting: ~a" key) '())))
 
 ;; ---- RPCs ---------------------------------------------------------------
 
@@ -92,7 +153,12 @@
   (rows-for (engine!) query))
 
 (define-rpc (run-action [id String] [arg String] : String)
-  (define outcome (engine-run (engine!) id arg))
+  ;; Settings rows are backend-owned (the engine holds no settings), so
+  ;; they route here before the engine.
+  (define outcome
+    (if (string-prefix? id "settings.")
+        (settings-act! arg)
+        (engine-run (engine!) id arg)))
   (emit-events! (cdr outcome))
   (car outcome))
 
@@ -228,6 +294,10 @@
     (make-snippet-store (snippets-path)
                         #:sync-root (or (sync-root-override)
                                         (settings-get manager 'sync-root))))
+  (define link-store
+    (make-quicklink-store (quicklinks-path)
+                          #:sync-root (or (sync-root-override)
+                                          (settings-get manager 'sync-root))))
   (define plug-mgr
     (and (settings-get manager 'plugins-enabled)
          (make-plugin-manager (plugins-dir)
@@ -235,6 +305,7 @@
   (define engine
     (make-engine #:clipboard-store clip-store
                  #:snippet-store snip-store
+                 #:quicklink-store link-store
                  #:plugin-manager plug-mgr
                  #:max-results (settings-get manager 'max-results)))
   (engine-rebuild-index! engine)

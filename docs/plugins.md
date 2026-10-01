@@ -30,6 +30,7 @@ Installed plugins are queryable immediately, no restart.
 | Docker | `dk` | the `docker` CLI |
 | winget | `winget` | Windows |
 | Bitwarden | `bw` | the `bw` CLI, unlocked (`BW_SESSION`) |
+| Currency | `cur` | network (keyless daily rates) |
 
 Every plugin is also a second reference implementation — read
 [`gallery/unit/unit.py`](../gallery/unit/unit.py) for the graceful

@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -71,6 +72,145 @@ struct HotkeyGrab {
 };
 
 HotkeyGrab hotkey_grab;
+
+// ---- native window management (win.* actions) -----------------------------
+//
+// The backend ranks the rows; the host performs the move, because only a
+// client with an X connection can reach other apps' windows. Targets the
+// active window, tiles relative to the monitor's _NET_WORKAREA, and asks
+// the window manager via _NET_MOVERESIZE_WINDOW (the EWMH-sanctioned
+// request that animates and respects constraints). Compile-tested like the
+// rest of the Linux host; runtime verification tracks the Linux beta.
+
+namespace wincmd {
+
+struct Geometry {
+  int x{0}, y{0}, w{0}, h{0};
+};
+
+std::map<unsigned long, Geometry>& saved() {
+  static std::map<unsigned long, Geometry> map;
+  return map;
+}
+
+bool send_moveresize(Display* dpy, Window target, int x, int y, int w, int h) {
+  XEvent xev{};
+  xev.xclient.type = ClientMessage;
+  xev.xclient.window = target;
+  xev.xclient.message_type =
+      XInternAtom(dpy, "_NET_MOVERESIZE_WINDOW", False);
+  xev.xclient.format = 32;
+  // Bits 8-10: gravity (0 = use window's), bit 12: source indication
+  // (1 = application).
+  xev.xclient.data.l[0] = (1 << 12);
+  xev.xclient.data.l[1] = x;
+  xev.xclient.data.l[2] = y;
+  xev.xclient.data.l[3] = w;
+  xev.xclient.data.l[4] = h;
+  return XSendEvent(dpy, DefaultRootWindow(dpy), False,
+                    SubstructureRedirectMask | SubstructureNotifyMask,
+                    &xev) != 0;
+}
+
+bool run_window_command(std::string const& id) {
+  Display* dpy = gdk_x11_get_default_xdisplay();
+  if (dpy == nullptr) {
+    return false;  // Wayland without XWayland: the honest failure path
+  }
+  Window root = DefaultRootWindow(dpy);
+  Atom active_atom = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", True);
+  if (active_atom == None) {
+    return false;
+  }
+  Atom actual_type = None;
+  int actual_format = 0;
+  unsigned long nitems = 0, bytes_after = 0;
+  unsigned char* data = nullptr;
+  if (XGetWindowProperty(dpy, root, active_atom, 0, 1, False, XA_WINDOW,
+                         &actual_type, &actual_format, &nitems, &bytes_after,
+                         &data) != Success ||
+      nitems < 1) {
+    return false;
+  }
+  Window target = reinterpret_cast<unsigned long*>(data)[0];
+  XFree(data);
+  if (target == None) {
+    return false;
+  }
+
+  // Work area of the monitor holding the window (root-relative).
+  int x{0}, y{0};
+  unsigned int w{0}, h{0}, bw{0}, depth{0};
+  Window child = None;
+  if (!XGetGeometry(dpy, target, &child, &x, &y, &w, &h, &bw, &depth)) {
+    return false;
+  }
+  Window monitor_root = child;
+  unsigned int ax = 0, ay = 0;
+  Window point_child = None;
+  XTranslateCoordinates(dpy, target, root, x + static_cast<int>(w / 2),
+                        y + static_cast<int>(h / 2), reinterpret_cast<int*>(&ax),
+                        reinterpret_cast<int*>(&ay), &point_child);
+  // Find the head whose geometry contains the window centre; without
+  // XRandR probing we use the root _NET_WORKAREA (single-head accurate).
+  Atom workarea_atom = XInternAtom(dpy, "_NET_WORKAREA", True);
+  long wx{0}, wy{0}, ww{0}, wh{0};
+  if (workarea_atom != None) {
+    unsigned char* wa = nullptr;
+    if (XGetWindowProperty(dpy, root, workarea_atom, 0, 4, False, XA_CARDINAL,
+                           &actual_type, &actual_format, &nitems,
+                           &bytes_after, &wa) == Success &&
+        nitems >= 4) {
+      long* values = reinterpret_cast<long*>(wa);
+      wx = values[0]; wy = values[1]; ww = values[2]; wh = values[3];
+      XFree(wa);
+    }
+  }
+  (void)monitor_root;
+
+  bool need_saved = id != "win.restore";
+  if (need_saved) {
+    saved()[target] = {x, y, static_cast<int>(w), static_cast<int>(h)};
+  }
+
+  if (id == "win.left") {
+    return send_moveresize(dpy, target, static_cast<int>(wx), static_cast<int>(wy),
+                           static_cast<int>(ww) / 2, static_cast<int>(wh));
+  }
+  if (id == "win.right") {
+    return send_moveresize(dpy, target, static_cast<int>(wx) + static_cast<int>(ww) / 2,
+                           static_cast<int>(wy), static_cast<int>(ww) / 2,
+                           static_cast<int>(wh));
+  }
+  if (id == "win.maximize") {
+    return send_moveresize(dpy, target, static_cast<int>(wx), static_cast<int>(wy),
+                           static_cast<int>(ww), static_cast<int>(wh));
+  }
+  if (id == "win.almost-max") {
+    int const mw = static_cast<int>(ww) * 9 / 10;
+    int const mh = static_cast<int>(wh) * 88 / 100;
+    return send_moveresize(dpy, target, static_cast<int>(wx) + (static_cast<int>(ww) - mw) / 2,
+                           static_cast<int>(wy) + (static_cast<int>(wh) - mh) / 2, mw, mh);
+  }
+  if (id == "win.center") {
+    return send_moveresize(dpy, target,
+                           static_cast<int>(wx) + (static_cast<int>(ww) - static_cast<int>(w)) / 2,
+                           static_cast<int>(wy) + (static_cast<int>(wh) - static_cast<int>(h)) / 2,
+                           static_cast<int>(w), static_cast<int>(h));
+  }
+  if (id == "win.restore") {
+    auto it = saved().find(target);
+    if (it == saved().end()) {
+      return false;
+    }
+    Geometry g = it->second;
+    saved().erase(it);
+    return send_moveresize(dpy, target, g.x, g.y, g.w, g.h);
+  }
+  return false;
+}
+
+}  // namespace wincmd
 
 // ---- application state ---------------------------------------------------
 
@@ -214,6 +354,7 @@ struct Launcher {
   struct RunOutcome {
     bool success{false};
     std::string status;
+    std::string action_id;
   };
 
   void run_selected() {
@@ -230,18 +371,30 @@ struct Launcher {
     auto* api_raw = api.get();
     std::thread([api_raw, row]() mutable {
       auto* boxed = new RunOutcome;
+      boxed->action_id = row.id;
       try {
         boxed->status = api_raw->run_action(row.id, row.arg).get();
         boxed->success = boxed->status == "ok" ||
                          boxed->status == "launched" ||
                          boxed->status == "copied" ||
-                         boxed->status == "opened";
+                         boxed->status == "opened" ||
+                         boxed->status == "delegated";
       } catch (std::exception const& e) {
         boxed->status = e.what();
       }
       g_idle_add([](gpointer user_data) -> int {
         std::unique_ptr<RunOutcome> job(static_cast<RunOutcome*>(user_data));
         if (job->success) {
+          // Window commands ride "delegated": the backend ranks the rows,
+          // the host performs the native window move on the frontmost
+          // X11 window (main thread: GDK owns the display here).
+          if (job->action_id.rfind("win.", 0) == 0) {
+            if (!wincmd::run_window_command(job->action_id)) {
+              Launcher::instance().set_status(
+                  "Window command failed (X11/Wayland window manager refused).");
+              return G_SOURCE_REMOVE;
+            }
+          }
           Launcher::instance().hide();
         } else {
           Launcher::instance().set_status("Action failed: " + job->status);

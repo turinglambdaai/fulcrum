@@ -1,0 +1,12 @@
+{
+  "id": "currency",
+  "name": "Currency",
+  "version": "1.0.0",
+  "description": "Live exchange-rate conversion across ~160 currencies. Type `cur` followed by an amount: cur 100 usd in eur.",
+  "icon": "plugin",
+  "entry": {"exec": ["python3", "currency.py"]},
+  "commands": [
+    {"id": "convert", "name": "Convert currency", "keyword": "cur", "description": "cur 100 usd in eur · daily rates, no API key"}
+  ],
+  "permissions": ["network", "clipboard-write"]
+}

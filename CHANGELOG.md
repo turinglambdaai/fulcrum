@@ -28,6 +28,27 @@ independently per platform packaging run.
   local file at startup — that is the whole wipe-and-restore story.
   Conflict policy is newest-file-wins by mtime; clipboard history and
   recents are deliberately not synced.
+- **Currency plugin** (the eleventh first-party) — `cur 100 usd in eur`
+  against the keyless open.er-api.com daily feed, with the usual
+  graceful-degradation row when the network is down.
+- **Quicklinks** — user-defined URL templates claimed by a keyword, the
+  cheap half of Raycast's quicklinks: `yt nature` opens the YouTube
+  search for "nature"; a URL without `{query}` is a plain bookmark.
+  Created from the launcher itself with a one-line grammar
+  (`add link yt https://youtube.com/?q={query} YouTube`), listed and
+  deleted under `quicklinks`, and synced with settings and snippets.
+- **Window management** — Left Half, Right Half, Maximize, Almost
+  Maximize, Center and Restore for the frontmost window. The engine
+  ranks the rows; each host executes natively (Accessibility API on
+  macOS, which honestly reports the missing permission until granted;
+  `SetWindowPos` on Windows; EWMH `_NET_MOVERESIZE_WINDOW` on
+  Linux/X11, compile-tested like the rest of that host). A new
+  `delegated` action status carries the backend's verdict to the host.
+- **Settings in the launcher** — the hosts have no settings window, so
+  the launcher is the settings UI: query `settings` lists theme,
+  max-results and the clipboard/web/plugin toggles with their current
+  values as badges; running a row cycles or toggles the value and
+  notifies the new one.
 - Gallery and sync carry 12 new backend tests (55 total).
 
 ### Changed

@@ -25,6 +25,7 @@
          "gallery.rkt"
          "paths.rkt"
          "plugins.rkt"
+         "quicklinks.rkt"
          "store.rkt"
          "snippets.rkt"
          "syscmd.rkt"
@@ -45,7 +46,7 @@
   #:transparent)
 
 (struct engine
-  (apps-index clipboard snippets plugins syscmds recents-path recents recents-lock max-results)
+  (apps-index clipboard snippets quicklinks plugins syscmds recents-path recents recents-lock max-results)
   #:mutable)
 
 (define (result->row r)
@@ -230,6 +231,119 @@
                   70)))
       (lambda (query) '())))
 
+;; ---- quicklinks ----------------------------------------------------------
+
+;; A keyword claim (`yt nature`) outranks everything but apps; a fuzzy
+;; match participates quietly like snippets do.
+(define (quicklinks-provider engine)
+  (define store (engine-quicklinks engine))
+  (if store
+      (lambda (query)
+        (define claimed (link-by-keyword store query))
+        (if claimed
+            (let* ([link (car claimed)]
+                   [text (cdr claimed)]
+                   [template? (string-contains? (quicklink-url link) "{query}")])
+              (list
+               (result "link.open"
+                       (if template?
+                           (format "Search ~a: ~a" (quicklink-name link) text)
+                           (format "Open ~a" (quicklink-name link)))
+                       (quicklink-url link)
+                       "Quicklink"
+                       (expand-link-url link text)
+                       "link" "" ""
+                       (string-append (quicklink-name link) " " (quicklink-keyword link))
+                       95)))
+            (if (member (string-downcase query) '("quicklinks" "links"))
+                (for/list ([l (in-list (link-list store))])
+                  (result "link.delete" (format "Delete ~a" (quicklink-name l))
+                          (quicklink-url l)
+                          "Quicklink"
+                          (quicklink-id l) "link" "" "Delete"
+                          (string-append (quicklink-name l) " delete quicklink")
+                          120))
+                (for/list ([l (in-list (link-search store query))]
+                           #:unless (zero? (string-length query)))
+                  (define template? (string-contains? (quicklink-url l) "{query}"))
+                  (result "link.open"
+                          (if template?
+                              (format "Search ~a: ~a" (quicklink-name l) query)
+                              (format "Open ~a" (quicklink-name l)))
+                          (quicklink-url l)
+                          "Quicklink"
+                          (expand-link-url l query)
+                          "link" "" ""
+                          (string-append (quicklink-name l) " " (quicklink-keyword l))
+                          45)))))
+      (lambda (query) '())))
+
+;; `add link <keyword> <url> <name…>` offers a one-line create row; the
+;; packed payload (keyword, url, name) travels in the arg.
+(define add-link-prefix "add link ")
+
+(define (add-link-provider engine)
+  (define store (engine-quicklinks engine))
+  (if store
+      (lambda (query)
+        (if (string-prefix? (string-downcase query) add-link-prefix)
+            (let ([parts (string-split (substring query (string-length add-link-prefix)) " "
+                                       #:trim? #f)])
+              (if (or (< (length parts) 2)
+                      (let ([kw (car parts)] [url (cadr parts)])
+                        (or (string=? (string-trim kw) "")
+                            (not (string-contains? url ".")))))
+                  (list (result "noop"
+                                "Add a quicklink"
+                                "add link <keyword> <url> [name] · {query} in the URL is the search text"
+                                "Quicklink" "" "link" "" "" "" 120))
+                  (let* ([kw (string-trim (car parts))]
+                         [url (string-trim (cadr parts))]
+                         [name (string-trim (string-join (cddr parts) " "))]
+                         [display (if (non-empty-string? name) name kw)])
+                    (list
+                     (result "link.save"
+                             (format "Create quicklink: ~a → ~a" display url)
+                             (if (non-empty-string? name)
+                                 (format "↵ saves; keyword ~a" kw)
+                                 "↵ saves")
+                             "Quicklink"
+                             (string-append kw "\u001F" url "\u001F" display)
+                             "link" "" "Create"
+                             (string-append "add quicklink " kw)
+                             120)))))
+            '()))
+      (lambda (query) '())))
+
+;; ---- window management ---------------------------------------------------
+;;
+;; Rows only rank; execution is the host's (it can see other apps'
+;; windows, the backend cannot). engine-run returns the "delegated" status
+;; and the host maps the action id to a native window command.
+
+(define window-commands
+  '(("win.left" "Left Half" "window left half tile")
+    ("win.right" "Right Half" "window right half tile")
+    ("win.maximize" "Maximize" "window maximize full")
+    ("win.almost-max" "Almost Maximize" "window almost maximize large")
+    ("win.center" "Center" "window center move")
+    ("win.restore" "Restore" "window restore undo")))
+
+(define (window-provider engine)
+  (lambda (query)
+    (if (zero? (string-length query))
+        '()
+        (for/list ([entry (in-list window-commands)]
+                   #:when (fuzzy-score-fields
+                           query
+                           (list (cons 1.0 (cadr entry))
+                                 (cons 0.6 (caddr entry)))))
+          (result (car entry) (cadr entry)
+                  "Tile the frontmost window" "Window"
+                  "" "window" "" ""
+                  (caddr entry)
+                  65)))))
+
 ;; The plugin gallery rides the same row contract as everything else:
 ;; query "gallery"/"plugins" lists every first-party plugin (installed
 ;; rows uninstall, the rest install); any other query fuzzy-suggests
@@ -290,16 +404,19 @@
 (define/contract (make-engine
                   #:clipboard-store [clipboard-store #f]
                   #:snippet-store [snippet-store #f]
+                  #:quicklink-store [quicklink-store #f]
                   #:plugin-manager [plugin-manager #f]
                   #:max-results [max-results 12])
   (->* (#:clipboard-store (or/c clipboard-store? #f)
         #:snippet-store (or/c snippet-store? #f)
         #:plugin-manager (or/c plugin-manager? #f))
-       (#:max-results (and/c exact-integer? (>=/c 1) (<=/c 50)))
+       (#:quicklink-store (or/c quicklink-store? #f)
+        #:max-results (and/c exact-integer? (>=/c 1) (<=/c 50)))
        engine?)
   (engine (make-hash)
           clipboard-store
           snippet-store
+          quicklink-store
           plugin-manager
           (system-commands)
           (recents-path)
@@ -325,10 +442,13 @@
    ((apps-provider engine) query)
    ((clipboard-provider engine) query)
    ((snippets-provider engine) query)
+   ((quicklinks-provider engine) query)
+   ((add-link-provider engine) query)
    ((web-provider engine) query)
    ((system-provider engine) query)
    ((plugins-provider engine) query)
-   ((gallery-provider engine) query)))
+   ((gallery-provider engine) query)
+   ((window-provider engine) query)))
 
 (define/contract (engine-search engine query)
   (-> engine? string? (listof (listof string?)))
@@ -400,10 +520,32 @@
         (define label (if entry (gallery-entry-name entry) arg))
         (cons "ok" (list (cons 'notify (format "~a ~a" verb label)))))))
 
+(define (link-open! engine url)
+  (define outcome (web-open! url))
+  outcome)
+
+(define link-save-separator "\u001F")
+
+(define (link-save!-from-payload engine payload)
+  (define parts (string-split payload link-save-separator))
+  (if (and (engine-quicklinks engine) (<= 2 (length parts) 3))
+      (let ([link (link-save! (engine-quicklinks engine)
+                              (list-ref parts 2)   ; name
+                              (list-ref parts 1)   ; url
+                              (list-ref parts 0))]) ; keyword
+        (cons "ok" (list (cons 'notify (format "Quicklink saved: ~a" (quicklink-name link))))))
+      (cons "invalid quicklink payload" '())))
+
+(define (link-delete!-action engine id)
+  (if (and (engine-quicklinks engine)
+           (link-delete! (engine-quicklinks engine) id))
+      (cons "ok" (list (cons 'notify "Quicklink deleted")))
+      (cons (format "quicklink not found: ~a" id) '())))
+
 (define/contract (engine-run engine id arg)
   (-> engine? string? string? (cons/c string? (listof (cons/c symbol? string?))))
   (define (finish outcome)
-    (when (member (car outcome) (list "ok" "launched" "copied" "opened"))
+    (when (member (car outcome) (list "ok" "launched" "copied" "opened" "delegated"))
       (engine-record-use! engine id arg))
     outcome)
   (cond
@@ -412,7 +554,11 @@
      (finish (cons "copied" (list (cons 'copy-to-clipboard arg))))]
     [(string=? id "clip.copy") (finish (clip-copy-event! engine arg))]
     [(string=? id "snip.copy") (finish (snip-copy-event! engine arg))]
+    [(string=? id "link.open") (finish (link-open! engine arg))]
+    [(string=? id "link.save") (finish (link-save!-from-payload engine arg))]
+    [(string=? id "link.delete") (finish (link-delete!-action engine arg))]
     [(string=? id "web.open") (finish (web-open! arg))]
+    [(string-prefix? id "win.") (finish (cons "delegated" '()))]
     [(string=? id "sys.run") (finish (sys-run! engine arg))]
     [(string=? id "gallery.install")
      (finish (gallery-act! engine gallery-install! "Installed" arg))]

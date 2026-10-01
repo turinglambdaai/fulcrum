@@ -41,7 +41,7 @@
 
 (test-case "catalog is complete, unique, and stable"
   (define catalog (gallery-catalog))
-  (check-equal? (length catalog) 10)
+  (check-equal? (length catalog) 11)
   (check-equal? (length (remove-duplicates (map gallery-entry-id catalog)))
                 (length catalog))
   (check-true (equal? catalog
@@ -64,7 +64,7 @@
      (define gallery-rows
        (filter (lambda (row) (member (row-id row) '("gallery.install" "gallery.uninstall")))
                rows))
-     (check-equal? (length gallery-rows) 10)
+     (check-equal? (length gallery-rows) 11)
      (check-true (andmap (lambda (row) (pair? (member (row-id row) '("gallery.install" "gallery.uninstall"))))
                          gallery-rows))
 
