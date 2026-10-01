@@ -113,9 +113,15 @@ bool send_moveresize(Display* dpy, Window target, int x, int y, int w, int h) {
 }
 
 bool run_window_command(std::string const& id) {
-  Display* dpy = gdk_x11_get_default_xdisplay();
+  // GTK4 owns the Display; borrow it (nullptr on pure Wayland: the honest
+  // failure path).
+  GdkDisplay* gdk_display = gdk_display_get_default();
+  if (gdk_display == nullptr || !GDK_IS_X11_DISPLAY(gdk_display)) {
+    return false;
+  }
+  Display* dpy = gdk_x11_display_get_xdisplay(GDK_X11_DISPLAY(gdk_display));
   if (dpy == nullptr) {
-    return false;  // Wayland without XWayland: the honest failure path
+    return false;
   }
   Window root = DefaultRootWindow(dpy);
   Atom active_atom = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", True);
@@ -145,14 +151,8 @@ bool run_window_command(std::string const& id) {
   if (!XGetGeometry(dpy, target, &child, &x, &y, &w, &h, &bw, &depth)) {
     return false;
   }
-  Window monitor_root = child;
-  unsigned int ax = 0, ay = 0;
-  Window point_child = None;
-  XTranslateCoordinates(dpy, target, root, x + static_cast<int>(w / 2),
-                        y + static_cast<int>(h / 2), reinterpret_cast<int*>(&ax),
-                        reinterpret_cast<int*>(&ay), &point_child);
-  // Find the head whose geometry contains the window centre; without
-  // XRandR probing we use the root _NET_WORKAREA (single-head accurate).
+  // Tiling area: the root _NET_WORKAREA (single-head accurate; per-head
+  // workareas need XRandR probing, a later refinement).
   Atom workarea_atom = XInternAtom(dpy, "_NET_WORKAREA", True);
   long wx{0}, wy{0}, ww{0}, wh{0};
   if (workarea_atom != None) {
@@ -166,7 +166,6 @@ bool run_window_command(std::string const& id) {
       XFree(wa);
     }
   }
-  (void)monitor_root;
 
   bool need_saved = id != "win.restore";
   if (need_saved) {
