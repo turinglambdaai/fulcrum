@@ -351,7 +351,9 @@
                   (list (result "noop"
                                 "File search needs Spotlight (macOS)"
                                 "the Linux and Windows providers arrive with their platform search indexes"
-                                "File" "" "doc" "" "" 85))))))))
+                                "File" "" "doc" "" ""
+                                "find file search"
+                                85))))))))
 
 (define (window-provider engine)
   (lambda (query)

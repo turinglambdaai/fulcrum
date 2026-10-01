@@ -29,8 +29,11 @@
       (for/list ([line (in-list (take-min
                                  (remove-duplicates
                                   (filter (lambda (s)
-                                            (and (non-empty-string? s)
-                                                 (complete-path? (string->path s))))
+                                            ;; mdfind emits POSIX absolute paths;
+                                            ;; complete-path? would be
+                                            ;; platform-relative (Windows wants
+                                            ;; a drive letter).
+                                            (string-prefix? s "/"))
                                           (string-split output "\n")))
                                  limit))])
         (cons (path->string (file-name-from-path (string->path line)))
