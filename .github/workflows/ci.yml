@@ -49,7 +49,7 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: v0.4.0
+          ref: v0.5.0
       - name: Set up Racket CS 9.3
         uses: Bogdanp/setup-racket@v1.15
         with:
