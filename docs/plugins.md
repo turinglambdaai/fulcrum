@@ -44,6 +44,12 @@ The gallery can only uninstall plugins it installed: each install writes
 a `.fulcrum-gallery` marker, and uninstalling a directory without one is
 refused.
 
+> **Windows note:** interpreters resolve on `PATH`, and Windows ships a
+> Microsoft Store `python3.exe` *alias stub* that exists but is not an
+> interpreter — spawns against it die silently. Install real Python (and
+> let its installer put `python3` on `PATH`, or edit the manifest's
+> `entry.exec` to `["python", ...]`).
+
 ## Layout
 
 A plugin is a directory under Fulcrum's plugins directory

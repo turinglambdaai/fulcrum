@@ -140,8 +140,12 @@
      (check-equal? (car (engine-run engine "gallery.install" "epoch")) "ok")
      ;; The installed plugin's manifest lists the ts command; the engine's
      ;; plugin provider claims "ts …" queries. Only meaningful with the
-     ;; interpreter present (CI runners all have python3).
-     (when (find-executable-path "python3")
+     ;; interpreter present (CI runners all have python3) — except Windows
+     ;; runners, where PATH carries the Microsoft Store python3.exe *alias
+     ;; stub*, which exists but is not an interpreter, so the spawn yields
+     ;; no rows.
+     (when (and (find-executable-path "python3")
+                (not (equal? (system-type 'os) 'windows)))
        (define rows (engine-search engine "ts 1700000000"))
        (check-true (pair? (findf (lambda (row) (equal? (row-id row) "plugin:epoch:convert"))
                                  rows))))))) 
