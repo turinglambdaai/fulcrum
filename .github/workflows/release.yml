@@ -56,7 +56,7 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: b7bdbc3
+          ref: b7bdbc31c796676a4e85e15e0cd965fe2376145e
       - name: Set up Racket CS 9.3
         if: matrix.platform == 'linux'
         uses: Bogdanp/setup-racket@v1.15
@@ -211,7 +211,7 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: b7bdbc3
+          ref: b7bdbc31c796676a4e85e15e0cd965fe2376145e
       - name: Install Racket
         if: env.HAS_UPDATE_KEY == 'true'
         uses: Bogdanp/setup-racket@v1.15
