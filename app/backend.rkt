@@ -84,6 +84,11 @@
       [(open-url) (open-url (cdr entry))]
       [else (notify (format "~a" entry))])))
 
+;; Queries that name a backend surface outright ("ai", "settings") put
+;; those rows first — twelve fuzzy app hits must not bury the settings
+;; list below the fold.
+(define backend-surface-words '("ai" "settings" "quicklinks" "links" "gallery" "plugins"))
+
 (define (rows-for engine query)
   (define rows (engine-search engine query))
   (define filtered
@@ -91,7 +96,10 @@
         rows
         (filter (lambda (row) (not (string=? (list-ref row 3) "Web Search")))
                 rows)))
-  (append filtered (settings-rows query) (ai-rows query)))
+  (define backend-rows (append (settings-rows query) (ai-rows query)))
+  (if (member (string-trim (string-downcase query)) backend-surface-words)
+      (append backend-rows filtered)
+      (append filtered backend-rows)))
 
 ;; ---- settings-as-rows ----------------------------------------------------
 ;;
