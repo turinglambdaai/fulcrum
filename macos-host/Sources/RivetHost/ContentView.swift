@@ -1,6 +1,14 @@
 import SwiftUI
+import AppKit
 import RivetEmbedding
 import RivetRuntime
+
+/// Product accent, mirroring the site palette (#D97706 amber).
+enum FulcrumTheme {
+    static let accent = Color(red: 217 / 255, green: 119 / 255, blue: 6 / 255)
+    static let cornerRadius: CGFloat = 12
+    static let rowHeight: CGFloat = 44
+}
 
 /// Adapter over the generated `RivetAPI`: rows travel as `[[String]]` per
 /// the backend contract; the UI keeps a typed struct.
@@ -32,6 +40,228 @@ struct ResultRow: Equatable {
     }
 }
 
+/// Icon provider. Application rows point at real .app bundles, so render
+/// the actual dock icon (Raycast-style recognition beats any glyph);
+/// everything else gets a tuned SF Symbol.
+enum RowIcon {
+    // NSCache is thread-safe at runtime; Swift just cannot see it.
+    fileprivate nonisolated(unsafe) static let cache = NSCache<NSString, NSImage>()
+
+    static func view(for row: ResultRow) -> some View {
+        let size: CGFloat = 28
+        // The row contract carries the app bundle path in the subtitle
+        // column (arg is the engine action id), so dock icons come from
+        // there.
+        if row.kind == "Application", row.subtitle.hasSuffix(".app") {
+            return AnyView(AppIconView(path: row.subtitle, size: size))
+        }
+        return AnyView(
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(FulcrumTheme.accent.opacity(0.12))
+                Image(systemName: symbol(for: row))
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(FulcrumTheme.accent)
+            }
+            .frame(width: size, height: size)
+        )
+    }
+
+    private static func symbol(for row: ResultRow) -> String {
+        switch row.kind {
+        case "Calculator": return "equal.circle.fill"
+        case "Clipboard": return "doc.on.clipboard"
+        case "Snippet": return "text.quote"
+        case "Web Search": return "globe"
+        case "Plugin": return "puzzlepiece.extension"
+        case "System": return row.id == "sys.lock" ? "lock.fill" : "gearshape"
+        default: return "circle.grid.2x2"
+        }
+    }
+}
+
+/// Resized dock icon for an .app bundle, cached by path.
+private struct AppIconView: View {
+    let path: String
+    let size: CGFloat
+
+    var body: some View {
+        Image(nsImage: icon)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+    }
+
+    private var icon: NSImage {
+        let key = path as NSString
+        if let cached = RowIcon.cache.object(forKey: key) {
+            return cached
+        }
+        let raw = NSWorkspace.shared.icon(forFile: path)
+        let resized = NSImage(size: NSSize(width: size * 2, height: size * 2))
+        resized.lockFocus()
+        raw.draw(in: NSRect(x: 0, y: 0, width: size * 2, height: size * 2))
+        resized.unlockFocus()
+        RowIcon.cache.setObject(resized, forKey: key)
+        return resized
+    }
+}
+
+/// Under-window vibrancy with rounded corners: the panel material Raycast
+/// made the standard for launchers. Hairline edge keeps it crisp on both
+/// appearance modes.
+struct VisualEffectBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.wantsLayer = true
+        view.layer?.cornerRadius = FulcrumTheme.cornerRadius
+        view.layer?.masksToBounds = true
+        view.layer?.borderWidth = 1
+        view.layer?.borderColor =
+            NSColor.separatorColor.withAlphaComponent(0.6).cgColor
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// One result row, Raycast-style: leading icon, title + muted subtitle,
+/// trailing badge, and — only on the selected row — the ↵ affordance chip.
+/// The selection highlight is an inset rounded rectangle, not the
+/// system full-width bar.
+struct ResultRowView: View {
+    let row: ResultRow
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RowIcon.view(for: row)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.title)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(row.displaySubtitle)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: 8)
+            if !row.badge.isEmpty {
+                Text(row.badge)
+                    .font(.system(size: 10, weight: .semibold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule().fill(FulcrumTheme.accent.opacity(0.14)))
+                    .foregroundStyle(FulcrumTheme.accent)
+            }
+            if isSelected {
+                Text("↵")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(FulcrumTheme.accent)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule().fill(FulcrumTheme.accent.opacity(0.14)))
+            }
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: FulcrumTheme.rowHeight)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isSelected
+                      ? FulcrumTheme.accent.opacity(0.14)
+                      : Color.clear)
+        )
+        .contentShape(Rectangle())
+    }
+}
+
+/// The launcher panel UI: one query field, one result list, one status line.
+/// All state lives in LauncherModel; this view is deliberately dumb.
+struct LauncherView: View {
+    @EnvironmentObject private var model: LauncherModel
+    @FocusState private var queryFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.secondary)
+                TextField("Search apps, clipboard, snippets, the web…",
+                          text: $model.query)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 19, weight: .medium))
+                    .focused($queryFocused)
+                    .onSubmit { model.runSelected() }
+                    .onChange(of: model.query) { _, newValue in
+                        model.queryChanged(newValue)
+                    }
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 15)
+
+            Divider().opacity(0.5)
+
+            if model.ready {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 2) {
+                            ForEach(model.rows, id: \.rowId) { row in
+                                ResultRowView(row: row,
+                                              isSelected: model.selection == row.rowId)
+                                    .id(row.rowId)
+                                    .onTapGesture { model.select(row) }
+                                    .onTapGesture(count: 2) { model.run(row) }
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
+                    }
+                    .onChange(of: model.selection) { _, newValue in
+                        if let newValue {
+                            proxy.scrollTo(newValue, anchor: .center)
+                        }
+                        queryFocused = true
+                    }
+                }
+            } else {
+                VStack(spacing: 10) {
+                    ProgressView()
+                    Text(model.status)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 480)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+
+            Divider().opacity(0.5)
+            HStack {
+                Text("↑↓ navigate · ↵ run · esc hide")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("Fulcrum")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 9)
+        }
+        .frame(minWidth: 680, minHeight: 460)
+        .background(VisualEffectBackground())
+        .onAppear { queryFocused = true }
+    }
+}
+
 /// Thin snake-case wrapper over the codegen client so LauncherModel reads
 /// naturally. The generated file is replaced by raco rivet build; this one
 /// is ours.
@@ -51,96 +281,6 @@ struct FulcrumAPI {
     }
     func clipboardRecord(_ text: String) async throws -> String {
         try await generated.clipboard_record(text: text)
-    }
-}
-
-
-/// The launcher panel UI: one query field, one result list, one status line.
-/// All state lives in LauncherModel; this view is deliberately dumb.
-struct LauncherView: View {
-    @EnvironmentObject private var model: LauncherModel
-    @FocusState private var queryFocused: Bool
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search apps, clipboard, snippets, the web…",
-                          text: $model.query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 19, weight: .medium))
-                    .focused($queryFocused)
-                    .onSubmit { model.runSelected() }
-                    .onChange(of: model.query) { _, newValue in
-                        model.queryChanged(newValue)
-                    }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-
-            Divider().opacity(0.5)
-
-            if model.ready {
-                List(selection: $model.selection) {
-                    ForEach(model.rows, id: \.rowId) { row in
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Text(row.title)
-                                    .fontWeight(.medium)
-                                    .lineLimit(1)
-                                    .truncationMode(.tail)
-                                if !row.badge.isEmpty {
-                                    Text(row.badge)
-                                        .font(.caption2)
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 1)
-                                        .background(Capsule().fill(Color.accentColor.opacity(0.18)))
-                                }
-                            }
-                            Text(row.displaySubtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
-                        .tag(row.rowId)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { model.select(row) }
-                        .onTapGesture(count: 2) { model.run(row) }
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-            } else {
-                VStack(spacing: 10) {
-                    ProgressView()
-                    Text(model.status)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 480)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            Divider().opacity(0.5)
-            HStack {
-                Text("↑↓ navigate · ↵ run · esc hide")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("Fulcrum")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-        }
-        .frame(minWidth: 680, minHeight: 440)
-        .onAppear { queryFocused = true }
-        .onChange(of: model.selection) { _, _ in queryFocused = true }
     }
 }
 

@@ -6,6 +6,22 @@ independently per platform packaging run.
 
 ## Unreleased
 
+### Changed
+
+- macOS host: Raycast-grade panel — under-window vibrancy with rounded
+  corners and a hairline edge, real dock icons for application rows (tuned
+  SF Symbols for calculator/clipboard/snippet/web/plugin/system rows),
+  inset amber selection highlight with a ↵ affordance chip on the selected
+  row, and tightened typography and spacing. The brand amber (#D97706)
+  matches the product site; both appearance modes verified on screen.
+- All hosts: single-instance activation now rides Rivet's first-party
+  system services — `RivetSingleInstance` on macOS, `SingleInstanceLease`
+  on Windows and Linux — replacing the hand-rolled pid-file + SIGUSR1
+  scheme on Linux (the `fulcrum --toggle` contract is unchanged; the
+  activation handler hops to the GTK main loop) and adding the previously
+  missing guard on macOS and Windows, where a second launch silently grew
+  a second panel.
+
 ### Fixed
 
 - End-to-end verification on macOS surfaced launch-blocking backend bugs

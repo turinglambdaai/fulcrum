@@ -11,6 +11,7 @@ struct App : AppT<App> {
 
  private:
   Microsoft::UI::Xaml::Window window_{nullptr};
+  std::unique_ptr<rivet::system::SingleInstanceLease> instance_lease_;
 };
 
 }  // namespace winrt::RivetHost::implementation

@@ -30,8 +30,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private var lastPasteboardChange: Int = -1
     private(set) var model: LauncherModel?
+    // Retained for the process lifetime: dropping it releases the lock file.
+    private var instanceLease: RivetSingleInstance?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // One instance owns the global hotkey; second launches exit here via
+        // the first-party rivet lease instead of growing a second panel. The
+        // lease is retained so the lock holds for the process lifetime.
+        if let lease = try? RivetSingleInstance(applicationID: "site.jrtx.fulcrum") {
+            guard lease.isPrimary else {
+                NSApp.terminate(nil)
+                return
+            }
+            instanceLease = lease
+        }
         Self.shared = self
         let launcherModel = LauncherModel()
         model = launcherModel
@@ -64,7 +76,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
         panel.standardWindowButton(.zoomButton)?.isHidden = true
-        panel.backgroundColor = NSColor.windowBackgroundColor
+        // The content view's vibrancy material owns the visuals; the panel
+        // itself is transparent so the rounded corners read cleanly.
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
 
         let hosting = NSHostingView(rootView: LauncherView().environmentObject(model))
         panel.contentView = hosting

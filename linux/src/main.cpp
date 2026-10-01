@@ -4,13 +4,13 @@
 // Mirrors the official Linux scaffold's threading model: boot the runtime
 // off the main loop behind a mutex-guarded startup handoff, dispatch every
 // completion to the main loop before touching widgets, and keep shutdown
-// idempotent. Launcher-specific parts (global hotkey, overlay chrome,
-// clipboard watcher, single-instance activation) are honest about their
-// platform reach: X11 grabs keys and sets EWMH state directly; Wayland
-// compositors own those decisions, and the status bar says so.
+// idempotent. Single-instance activation rides Rivet's first-party
+// SingleInstanceLease (`fulcrum --toggle` forwards to the primary). The
+// launcher-specific parts that have no rivet counterpart stay honest about
+// their platform reach: X11 grabs keys and sets EWMH state directly;
+// Wayland compositors own those decisions, and the status bar says so.
 #include <gdk/x11/gdkx.h>
 #include <gtk/gtk.h>
-#include <glib-unix.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -18,11 +18,9 @@
 
 #include <algorithm>
 #include <atomic>
-#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -33,10 +31,9 @@
 #include <vector>
 
 #include "GeneratedBackend.hpp"
+#include "system_services.hpp"
 
 namespace {
-
-constexpr char kSingleInstancePathSuffix[] = "fulcrum/host.pid";
 
 struct ResultRow {
   std::string id;
@@ -417,28 +414,19 @@ std::string install_x11_hotkey(GdkDisplay* display, GtkWindow* window) {
   return "";
 }
 
-// ---- single instance via pid file + SIGUSR1 -------------------------------
+// ---- single instance via the first-party rivet lease ----------------------
+// `fulcrum --toggle` forwards the argument to the running primary, whose
+// activation handler presents the panel on the GTK main loop (the handler
+// itself runs on the lease's watcher thread).
 
-std::filesystem::path pid_path() {
-  char const* data_dir = std::getenv("FULCRUM_DATA_DIR");
-  std::filesystem::path base =
-      data_dir != nullptr && *data_dir != '\0'
-          ? std::filesystem::path{data_dir}
-          : (std::getenv("XDG_RUNTIME_DIR") != nullptr
-                 ? std::filesystem::path{std::getenv("XDG_RUNTIME_DIR")}
-                 : std::filesystem::path{"/tmp"});
-  return base / kSingleInstancePathSuffix;
-}
-
-void write_pid() {
-  std::filesystem::create_directories(pid_path().parent_path());
-  std::ofstream out(pid_path());
-  out << getpid();
-}
-
-gboolean on_sigusr1(gpointer) {
+gboolean activate_on_main(gpointer) {
   Launcher::instance().show();
-  return G_SOURCE_CONTINUE;
+  return G_SOURCE_REMOVE;
+}
+
+void on_activation(std::vector<std::string> arguments) {
+  (void)arguments;  // fulcrum only ever forwards --toggle
+  g_idle_add(activate_on_main, nullptr);
 }
 
 // ---- GTK wiring -----------------------------------------------------------
@@ -590,9 +578,6 @@ void on_activate(GtkApplication* app, gpointer) {
     launcher.set_status(hotkey_note);
   }
 
-  write_pid();
-  g_unix_signal_add(SIGUSR1, on_sigusr1, nullptr);
-
   launcher.start_backend();
 }
 
@@ -603,24 +588,17 @@ void on_shutdown(GApplication*, gpointer) {
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::signal(SIGUSR1, SIG_IGN);  // handled through the GSource instead
-
-  for (int i = 1; i < argc; ++i) {
-    if (std::string{argv[i]} == "--toggle") {
-      std::ifstream pid_file(pid_path());
-      if (!pid_file) {
-        std::cerr << "fulcrum: no running instance\n";
-        return 1;
-      }
-      pid_t pid = 0;
-      pid_file >> pid;
-      if (pid <= 0 || kill(pid, SIGUSR1) != 0) {
-        std::cerr << "fulcrum: running instance not reachable\n";
-        return 1;
-      }
-      return 0;
+  // The first-party rivet lease replaces the old pid-file + SIGUSR1 scheme:
+  // second launches forward --toggle to the primary and exit.
+  rivet::system::SingleInstanceLease lease("site.jrtx.fulcrum");
+  if (!lease.is_primary()) {
+    if (!lease.forward_arguments({"--toggle"})) {
+      std::cerr << "fulcrum: running instance not reachable\n";
+      return 1;
     }
+    return 0;
   }
+  lease.set_activation_handler(on_activation);
 
   XInitThreads();
   auto* app =
