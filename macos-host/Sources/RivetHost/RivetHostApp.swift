@@ -178,7 +178,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   panel.isVisible,
                   event.window === panel else { return event }
             switch event.keyCode {
-            case 53:  self.model?.hide()          // esc
+            case 53:                              // esc
+              // Alfred/Raycast convention: clear the query first, hide
+              // only when it is already empty — a stray Esc never
+              // throws away typed text.
+              if self.model?.query.isEmpty == true {
+                  self.model?.hide()
+              } else {
+                  self.model?.clearQuery()
+              }
             case 125: self.model?.moveSelection(1)   // down
             case 126: self.model?.moveSelection(-1)  // up
             default:  return event

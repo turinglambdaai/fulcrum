@@ -342,7 +342,16 @@ void MainWindow::QueryBox_KeyDown(
       args.Handled(true);
       break;
     case winrt::Windows::System::VirtualKey::Escape:
-      HideLauncher();
+      // Alfred/Raycast convention: clear the query first, hide only when
+      // it is already empty.
+      if (QueryBox().Text().empty()) {
+        HideLauncher();
+      } else {
+        QueryBox().Text(L"");
+        SearchAsync(L"");
+        QueryBox().Focus(
+            winrt::Microsoft::UI::Xaml::FocusState::Programmatic);
+      }
       args.Handled(true);
       break;
     default:

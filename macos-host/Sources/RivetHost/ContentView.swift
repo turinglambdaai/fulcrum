@@ -361,6 +361,12 @@ final class LauncherModel: ObservableObject {
         searchChanged("")
     }
 
+    /// Esc with text on screen: wipe the query and stay open.
+    func clearQuery() {
+        query = ""
+        searchChanged("")
+    }
+
     func queryChanged(_ text: String) {
         searchChanged(text)
     }

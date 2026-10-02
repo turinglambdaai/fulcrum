@@ -103,6 +103,14 @@ independently per platform packaging run.
   reporting "0.1.0", which would have made every install believe an
   update was available once the channel manifest went live.
 
+### Changed
+
+- All hosts: **Esc follows the Alfred/Raycast convention** — it clears
+  the query first and hides the panel only when the query is already
+  empty, so a stray Esc never throws away typed text. The app itself
+  never quits: the panel hides, the single instance (and the clipboard
+  watcher) stay resident.
+
 ### Fixed
 
 - macOS host: result row identity was `(action id, arg)` — unique for

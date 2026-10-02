@@ -606,7 +606,16 @@ gboolean on_key_pressed(GtkEventControllerKey*, guint keyval, guint,
                         GdkModifierType, gpointer) {
   switch (keyval) {
     case GDK_KEY_Escape:
-      Launcher::instance().hide();
+      // Alfred/Raycast convention: clear the query first, hide only when
+      // it is already empty.
+      if (const gchar* text =
+              gtk_editable_get_text(GTK_EDITABLE(Launcher::instance().search));
+          text != nullptr && *text != '\0') {
+        gtk_editable_set_text(GTK_EDITABLE(Launcher::instance().search), "");
+        Launcher::instance().run_search("");
+      } else {
+        Launcher::instance().hide();
+      }
       return TRUE;
     case GDK_KEY_Down:
     case GDK_KEY_Up: {
