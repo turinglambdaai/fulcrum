@@ -39,6 +39,11 @@
          rows-for
          settings-act!
          ai-rows
+         ai-ask-row
+         ai-copy-last-answer
+         ai-effective-provider
+         current-ai-history
+         current-ai-last-answer
          plugins-disabled-ids
          run-action)
 
@@ -102,7 +107,7 @@
   (define backend-rows
     (let ([pc (plugin-center-rows query)]
           [sr (settings-rows query)]
-          [ar (ai-rows query)])
+          [ar (append (ai-rows query) (ai-ask-row query))])
       ;; The surface the query names leads its own rows.
       (case (string-trim (string-downcase query))
         [("plugins" "plugin") (append pc sr ar)]
@@ -210,6 +215,17 @@
 (define (ai-row id title subtitle arg badge)
   (list id title subtitle "AI" arg "sparkles" "" badge))
 
+;; Conversation memory and the last answer live for the backend session
+;; only — the clipboard answer is still the primary hand-off.
+(define current-ai-history (make-parameter '()))
+(define current-ai-last-answer (make-parameter ""))
+
+(define (ai-copy-last-answer)
+  (define answer (current-ai-last-answer))
+  (if (non-empty-string? answer)
+      (cons "copied" (list (cons 'copy-to-clipboard answer)))
+      (cons "no AI answer yet" '())))
+
 (define (ai-rows query)
   (define trimmed (string-trim query))
   (define lowered (string-downcase trimmed))
@@ -240,10 +256,20 @@
           ;; Bare "ai": setup status / verb cheatsheet.
           [(string=? rest "")
            (if (equal? status "ready")
-               (list (ai-row "ai.help"
-                             (format "AI ready — ~a · ~a" provider (ai-effective-model))
-                             "ai summarize · ai clean · ai translate <lang> · ai explain · ai <question>"
-                             "" "ready"))
+               (append
+                (if (non-empty-string? (current-ai-last-answer))
+                    (list (ai-row "ai.copy"
+                                  (format "Copy last answer: ~a…"
+                                          (substring (current-ai-last-answer)
+                                                     0 (min 60 (string-length
+                                                               (current-ai-last-answer)))))
+                                  "your previous AI answer"
+                                  (current-ai-last-answer) "Answer"))
+                    '())
+                (list (ai-row "ai.help"
+                              (format "AI ready — ~a · ~a" provider (ai-effective-model))
+                              "ai summarize · ai clean · ai translate <lang> · ai explain · ai chat <msg> · ai <question>"
+                              "" "ready")))
                (list (ai-row "ai.help"
                              "AI needs setup"
                              (format "~a · run: ai key <your-api-key>, then settings → ai-provider"
@@ -268,12 +294,68 @@
                                      status))
                          rest "AI"))]))))
 
+;; Natural questions (config "…?") deserve an AI row without the ai
+;; prefix — only when the user has AI configured, never otherwise.
+(define (ai-ask-row query)
+  (define trimmed (string-trim query))
+  (define lowered (string-downcase trimmed))
+  (define status
+    (ai-configured-status
+     (ai-effective-provider) (ai-get-key (ai-keys-path) (ai-effective-provider))))
+  (if (and (equal? status "ready")
+           (not (string-prefix? lowered "ai "))
+           (not (string=? lowered "ai"))
+           (>= (string-length trimmed) 8)
+           (string-suffix? trimmed "?"))
+      (list (ai-row "ai.run"
+                    (format "Ask AI: ~a" trimmed)
+                    "↵ asks; the answer copies to your clipboard"
+                    trimmed "AI"))
+      '()))
+
 (define (ai-newest-clipboard-text engine)
   (define store (engine-clipboard engine))
   (if store
       (let ([items (clipboard-list store 1)])
         (if (pair? items) (clipboard-item-text (car items)) ""))
       ""))
+
+;; The AI run action, flat on purpose: one provider call, the answer
+;; lands in the clipboard, chat mode threads the session history.
+(define (ai-run! engine arg)
+  (define provider (ai-effective-provider))
+  (define status
+    (ai-configured-status provider (ai-get-key (ai-keys-path) provider)))
+  (cond
+    [(not (equal? status "ready")) (cons status '())]
+    ;; Clipboard verbs need something on the clipboard; refusing here
+    ;; keeps a typo from firing a provider call with empty input.
+    [(and (for/or ([v (in-list '("summarize" "clean" "translate" "explain"))])
+            (string-prefix? arg v))
+          (string=? (string-trim (ai-newest-clipboard-text engine)) ""))
+     (cons "nothing on the clipboard to work on" '())]
+    [else
+     (define chat? (string-prefix? arg "chat"))
+     (define prompt
+       (if chat?
+           (string-trim (substring arg 4))
+           (build-ai-prompt arg (ai-newest-clipboard-text engine))))
+     (define history (if chat? (current-ai-history) '()))
+     (define answer
+       (ai-request provider (ai-effective-base-url)
+                   (ai-get-key (ai-keys-path) provider)
+                   (ai-effective-model) prompt #:history history))
+     (if (string-prefix? answer "AI ")
+         ;; Error strings from ai-request all start with "AI ".
+         (cons answer '())
+         (begin
+           (current-ai-last-answer answer)
+           (when chat?
+             (current-ai-history
+              (ai-history-append (current-ai-history)
+                                 (string-trim (substring arg 4))
+                                 answer)))
+           (cons "copied" (list (cons 'copy-to-clipboard answer)))))]))
 
 (define (ai-act! engine id arg)
   (case (string->symbol id)
@@ -289,29 +371,12 @@
          (cons "empty key" '()))]
     [(ai.help)
      (cons "ok" (list (cons 'notify "ai summarize · ai clean · ai translate <lang> · ai explain · ai <question>")))]
-    [(ai.run)
-     (define provider (ai-effective-provider))
-     (define status (ai-configured-status
-                     provider (ai-get-key (ai-keys-path) provider)))
-     (cond
-       [(not (equal? status "ready")) (cons status '())]
-       ;; Clipboard verbs need something on the clipboard; refusing here
-       ;; keeps a typo from firing a provider call with empty input.
-       [(and (for/or ([v (in-list '("summarize" "clean" "translate" "explain"))])
-               (string-prefix? arg v))
-             (string=? (string-trim (ai-newest-clipboard-text engine)) ""))
-        (cons "nothing on the clipboard to work on" '())]
-       [else
-        (let* ([prompt (build-ai-prompt arg (ai-newest-clipboard-text engine))]
-               [answer (ai-request provider
-                                   (ai-effective-base-url)
-                                   (ai-get-key (ai-keys-path) provider)
-                                   (ai-effective-model)
-                                   prompt)])
-          (if (string-prefix? answer "AI ")
-              ;; Error strings from ai-request all start with "AI ".
-              (cons answer '())
-              (cons "copied" (list (cons 'copy-to-clipboard answer)))))])]
+    [(ai.run) (ai-run! engine arg)]
+    [(ai.copy) (ai-copy-last-answer)]
+    [(ai.reset)
+     (current-ai-history '())
+     (current-ai-last-answer "")
+     (cons "ok" (list (cons 'notify "AI conversation reset")))]
     [else (cons (format "unknown ai action: ~a" id) '())]))
 
 ;; ---- plugin center actions ----------------------------------------------

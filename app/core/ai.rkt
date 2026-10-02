@@ -18,6 +18,7 @@
          racket/async-channel
          racket/contract
          racket/file
+         racket/list
          racket/port
          racket/string
          "store.rkt")
@@ -30,6 +31,7 @@
          build-ai-prompt
          parse-ai-response
          ai-request
+         ai-history-append
          ai-configured-status)
 
 ;; ---- configuration -------------------------------------------------------
@@ -117,20 +119,17 @@
 
 ;; ---- provider wire formats -------------------------------------------------
 
-(define (openai-body model prompt)
-  (jsexpr->string
-   (hasheq 'model model
-           'messages (list (hasheq 'role "user" 'content prompt)))))
+;; History entries are ready jsexpr messages ({role, content}); the new
+;; user prompt is appended by the caller.
+(define (openai-body model messages)
+  (jsexpr->string (hasheq 'model model 'messages messages)))
 
-(define (anthropic-body model prompt)
-  (jsexpr->string
-   (hasheq 'model model
-           'max_tokens 1024
-           'messages (list (hasheq 'role "user" 'content prompt)))))
+(define (anthropic-body model messages)
+  (jsexpr->string (hasheq 'model model 'max_tokens 1024 'messages messages)))
 
-(define (ollama-body model prompt)
-  (jsexpr->string
-   (hasheq 'model model 'prompt prompt 'stream #f)))
+;; Ollama's chat endpoint speaks the same messages shape.
+(define (ollama-body model messages)
+  (jsexpr->string (hasheq 'model model 'messages messages 'stream #f)))
 
 ;; Pure: provider + raw JSON response text → answer string or an error
 ;; string the host can show in its status line.
@@ -163,7 +162,11 @@
         (case provider
           [("openai") (content-or-hint (choices-content body))]
           [("anthropic") (content-or-hint (content-blocks-text body))]
-          [("ollama") (content-or-hint (hash-ref body 'response #f))]
+          [("ollama")
+           (content-or-hint
+            (or (hash-ref body 'response #f)
+                (let ([msg (hash-ref body 'message #f)])
+                  (and (hash? msg) (hash-ref msg 'content #f)))))]
           [else "unknown provider"]))))
 
 ;; Split "https://api.example.com/v1" into host + path prefix.
@@ -182,24 +185,30 @@
 ;; wedged provider cannot hang the backend RPC forever. Returns the
 ;; answer text or an error string.
 (define/contract (ai-request provider base-url key model prompt
+                             #:history [history '()]
                              #:timeout-ms [timeout-ms 45000])
   (->* (string? string? string? string? string?)
-       (#:timeout-ms exact-nonnegative-integer?)
+       (#:history (listof (cons/c string? string?))
+        #:timeout-ms exact-nonnegative-integer?)
        string?)
   (define host+prefix (split-base-url base-url))
   (define host (car host+prefix))
   (define prefix (cdr host+prefix))
   (define ssl? (string-prefix? base-url "https://"))
+  (define messages
+    (append (for/list ([pair (in-list history)])
+              (hasheq 'role (car pair) 'content (cdr pair)))
+            (list (hasheq 'role "user" 'content prompt))))
   (define path
     (case provider
       [("openai") (string-append prefix "/v1/chat/completions")]
       [("anthropic") (string-append prefix "/v1/messages")]
-      [else (string-append prefix "/api/generate")]))
+      [else (string-append prefix "/api/chat")]))
   (define body
     (case provider
-      [("openai") (openai-body model prompt)]
-      [("anthropic") (anthropic-body model prompt)]
-      [else (ollama-body model prompt)]))
+      [("openai") (openai-body model messages)]
+      [("anthropic") (anthropic-body model messages)]
+      [else (ollama-body model messages)]))
   (define headers
     (case provider
       [("openai")
@@ -248,6 +257,18 @@
   (for/first ([i (in-range (string-length s))]
               #:when (char=? (string-ref s i) ch))
     i))
+
+;; Conversation memory: append one exchange, bounded so a long chat
+;; cannot grow the request without limit.
+(define ai-history-max-exchanges 8)
+
+(define/contract (ai-history-append history user assistant)
+  (-> (listof (cons/c string? string?)) string? string?
+      (listof (cons/c string? string?)))
+  (define grown
+    (append history (list (cons "user" user) (cons "assistant" assistant))))
+  (define keep (* 2 ai-history-max-exchanges))
+  (if (> (length grown) keep) (take-right grown keep) grown))
 
 ;; ---- status ---------------------------------------------------------------
 

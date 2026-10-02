@@ -134,3 +134,56 @@
        ;; summarize) instead of calling the provider with an empty input.
        (check-equal? (run-action "ai.run" "summarize")
                      "nothing on the clipboard to work on")))))
+
+(test-case "chat history threading and the natural-question row"
+  (with-fresh-data-dir
+   (lambda ()
+     ;; History append bounds the transcript to 8 exchanges.
+     (define one (ai-history-append '() "q1" "a1"))
+     (check-equal? (length one) 2)
+     (define grown
+       (for/fold ([h '()] #:result h)
+                 ([i (in-range 12)])
+         (ai-history-append h (format "q~a" i) (format "a~a" i))))
+     (check-equal? (length grown) 16)
+     (check-equal? (cdr (car grown)) "q4") ; oldest kept exchange (user)
+
+     (define manager (make-settings-manager (settings-path)))
+     (define engine (make-engine #:clipboard-store #f
+                                 #:snippet-store #f
+                                 #:plugin-manager #f))
+     (parameterize ([current-settings manager]
+                    [current-engine engine])
+       ;; Unconfigured: a natural question gets NO AI row.
+       (check-equal? (ai-ask-row "what is entropy exactly?") '())
+
+       ;; Configure (provider cycle + key save through the routes).
+       (settings-act! "ai-provider")
+       (with-handlers ([exn:fail? void])
+         (run-action "ai.key" "sk-chat-test"))
+       ;; Now the question row appears, without any ai prefix.
+       (define ask (ai-ask-row "what is entropy exactly?"))
+       (check-equal? (length ask) 1)
+       (check-equal? (list-ref (car ask) 4) "what is entropy exactly?")
+       (check-equal? (list-ref (car ask) 0) "ai.run")
+
+       ;; ai.copy with no answer yet refuses honestly.
+       (check-true (string-prefix? (car (ai-copy-last-answer))
+                                   "no AI answer"))
+
+       ;; After a (simulated) answer the last-answer row offers the copy.
+       (current-ai-last-answer "entropy is a measure of disorder")
+       (define rows (rows-for engine "ai"))
+       (define last-row
+         (findf (lambda (r) (equal? (list-ref r 0) "ai.copy")) rows))
+       (check-true (and last-row #t))
+       (check-equal? (list-ref last-row 4)
+                     "entropy is a measure of disorder")
+       (check-equal? (car (ai-copy-last-answer)) "copied")
+
+       ;; Chat reset clears memory.
+       (current-ai-history (ai-history-append '() "q" "a"))
+       (with-handlers ([exn:fail? void])
+         (run-action "ai.reset" ""))
+       (check-equal? (current-ai-history) '())
+       (check-equal? (current-ai-last-answer) "")))))

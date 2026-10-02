@@ -55,6 +55,13 @@ independently per platform packaging run.
   the launcher, `settings → ai-provider` (now a cycle in the settings
   rows) picks openai / anthropic / ollama. Unconfigured installs show
   honest setup rows instead of pretending.
+  AI is a first-class citizen now: **`ai chat <msg>` holds a
+  conversation** (session history threaded into every request, capped at
+  eight exchanges, `ai chat reset` clears), **any typed question** —
+  `what is entropy?`-style, configured installs only — offers an
+  "Ask AI" row without the prefix, and the **last answer stays visible**
+  under `ai` as a one-keystroke copy instead of vanishing into the
+  clipboard.
 - **File search** — `find <query>` over Spotlight (`mdfind -name`,
   deduped, capped at 8 rows); a result opens with the platform opener.
   Linux and Windows get one honest row instead of a pretend search until
