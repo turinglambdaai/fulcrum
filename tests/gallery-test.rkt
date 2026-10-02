@@ -8,9 +8,12 @@
 
 (require racket/file
          racket/list
+         racket/path
          racket/string
          rackunit
+         "../app/backend.rkt"
          "../app/core/engine.rkt"
+         "../app/core/settings.rkt"
          "../app/core/gallery.rkt"
          "../app/core/paths.rkt"
          "../app/core/plugins.rkt")
@@ -35,9 +38,18 @@
 
 ;; An engine with a live plugin manager over the (env-pinned) plugins dir.
 (define (gallery-engine)
+  ;; Same disabled-thunk wiring the backend uses: consult the live
+  ;; settings manager at reload time so toggles take effect.
   (make-engine #:clipboard-store #f
                #:snippet-store #f
-               #:plugin-manager (make-plugin-manager (plugins-dir))))
+               #:plugin-manager
+               (make-plugin-manager
+                (plugins-dir)
+                #:disabled-thunk
+                (lambda ()
+                  (if (current-settings)
+                      (plugins-disabled-ids)
+                      '())))))
 
 (test-case "catalog is complete, unique, and stable"
   (define catalog (gallery-catalog))
@@ -149,3 +161,60 @@
        (define rows (engine-search engine "ts 1700000000"))
        (check-true (pair? (findf (lambda (row) (equal? (row-id row) "plugin:epoch:convert"))
                                  rows))))))) 
+
+(test-case "plugin center: toggle, third-party install, uninstall-any"
+  (with-fresh-data-dir
+   (lambda ()
+     (define engine (gallery-engine))
+     (define manager (make-settings-manager (settings-path)))
+     (parameterize ([current-settings manager]
+                    [current-engine engine])
+       ;; The center lists installed plugins with an Enabled toggle, and
+       ;; the plugins directory row first.
+       (check-equal? (car (engine-run engine "gallery.install" "epoch")) "ok")
+       (define rows (rows-for engine "plugins"))
+       (check-equal? (list-ref (car rows) 0) "file.open")
+       (define toggle-row
+         (findf (lambda (r) (equal? (list-ref r 0) "plugins.toggle")) rows))
+       (check-true (and toggle-row #t))
+       (check-equal? (list-ref toggle-row 4) "epoch")
+
+       ;; Toggling disables: the plugin disappears from the live manager
+       ;; and the disabled set persists into settings. (The notify event
+       ;; needs a live server, absent in tests — the state is the proof.)
+       (with-handlers ([exn:fail? void])
+         (run-action "plugins.toggle" "epoch"))
+       (check-equal? (settings-get manager 'plugins-disabled) "epoch")
+       (check-false (findf (lambda (p) (string=? (plugin-id p) "epoch"))
+                           (plugin-manager-plugins (engine-plugins engine))))
+
+       ;; Toggle again re-enables.
+       (with-handlers ([exn:fail? void])
+         (run-action "plugins.toggle" "epoch"))
+       (check-equal? (settings-get manager 'plugins-disabled) "")
+       (check-true (pair? (plugin-manager-plugins (engine-plugins engine))))
+
+       ;; Third-party install from a folder: the destination is the
+       ;; manifest id, not the folder name.
+       (define src (build-path (plugins-dir) ".." "third-party-src"))
+       (define src-dir (make-directory* (build-path src "mytool"))
+       )
+       (call-with-output-file (build-path src "mytool" "manifest.json")
+         (lambda (out)
+           (write-string "{\"id\":\"mytool\",\"name\":\"My Tool\",\"entry\":{\"exec\":[\"x\"]}}" out)))
+       ;; Success emits a notify (raised, no server); a failure would
+       ;; return an error string instead. The installed directory is the
+       ;; real assertion.
+       (with-handlers ([exn:fail? void])
+         (run-action "plugins.install"
+                     (path->string (simplify-path (build-path src "mytool") #t))))
+       (check-true (directory-exists? (build-path (plugins-dir) "mytool")))
+
+       ;; plugins.uninstall removes ANY plugin (gallery guard does not
+       ;; apply to explicit center intent).
+       (with-handlers ([exn:fail? void])
+         (run-action "plugins.uninstall" "mytool"))
+       (check-false (directory-exists? (build-path (plugins-dir) "mytool")))
+       ;; Unknown ids and escapes stay loud.
+       (check-true (string-contains? (run-action "plugins.uninstall" "../x")
+                                     "invalid"))))))

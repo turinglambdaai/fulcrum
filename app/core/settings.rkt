@@ -53,6 +53,9 @@
    'plugins-enabled
    (list boolean? #t
          "Load plugins from the plugins directory")
+   'plugins-disabled
+   (list string? ""
+         "Comma-separated plugin ids the user turned off in the plugin center")
    'plugins-timeout-ms
    (list (lambda (v) (and (exact-integer? v) (>= v 100) (<= v 10000))) 2000
          "Per-call plugin process timeout in milliseconds")

@@ -64,7 +64,16 @@ independently per platform packaging run.
   max-results and the clipboard/web/plugin toggles with their current
   values as badges; running a row cycles or toggles the value and
   notifies the new one.
-- Gallery, sync, quicklinks, AI and file search carry 16 new backend tests (66 total).
+- **Plugin center** — the launcher is the management surface: query
+  `plugins` for every installed plugin with an Enabled/Disabled toggle
+  (persisted, honored by the loader on reload), a row that reveals the
+  plugins directory, and the gallery's install/uninstall rows underneath.
+  `install plugin <path>` copies a third-party plugin folder into place —
+  the destination comes from the folder's manifest id (never the folder
+  name, so a spoofed name cannot escape the plugins directory) — and
+  `plugins.uninstall` removes any plugin, gallery-owned or user-installed.
+- Gallery, sync, quicklinks, AI, file search and the plugin center carry
+  19 new backend tests (67 total).
 
 ### Changed
 

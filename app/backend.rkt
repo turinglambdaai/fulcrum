@@ -13,7 +13,9 @@
 ;; every request worker through `current-engine`; tests can parameterize it
 ;; with an engine over fixture stores.
 
-(require racket/format
+(require json
+         racket/file
+         racket/format
          racket/list
          racket/string
          (prefix-in rivet-info: rivet/app-info)
@@ -37,6 +39,7 @@
          rows-for
          settings-act!
          ai-rows
+         plugins-disabled-ids
          run-action)
 
 ;; Staged and packaged apps carry the true version in rivet-app-info.rktd
@@ -96,7 +99,16 @@
         rows
         (filter (lambda (row) (not (string=? (list-ref row 3) "Web Search")))
                 rows)))
-  (define backend-rows (append (settings-rows query) (ai-rows query)))
+  (define backend-rows
+    (let ([pc (plugin-center-rows query)]
+          [sr (settings-rows query)]
+          [ar (ai-rows query)])
+      ;; The surface the query names leads its own rows.
+      (case (string-trim (string-downcase query))
+        [("plugins" "plugin") (append pc sr ar)]
+        [("ai") (append ar sr pc)]
+        [("settings") (append sr ar pc)]
+        [else (append sr ar pc)])))
   (if (member (string-trim (string-downcase query)) backend-surface-words)
       (append backend-rows filtered)
       (append filtered backend-rows)))
@@ -163,6 +175,15 @@
           [(theme) (state-set! theme (settings-get (settings!) 'theme))])
         (cons "ok" (list (cons 'notify (format "~a = ~a" sym next)))))
       (cons (format "unknown setting: ~a" key) '())))
+
+;; Comma-separated settings string ↔ the disabled-id set the loader wants.
+(define (plugins-disabled-ids)
+  (filter non-empty-string?
+          (map string-trim (string-split
+                            (settings-get (settings!) 'plugins-disabled) ","))))
+
+(define (set-plugins-disabled! ids)
+  (settings-set! (settings!) 'plugins-disabled (string-join ids ",")))
 
 ;; ---- BYOK AI -------------------------------------------------------------
 ;;
@@ -293,6 +314,127 @@
               (cons "copied" (list (cons 'copy-to-clipboard answer)))))])]
     [else (cons (format "unknown ai action: ~a" id) '())]))
 
+;; ---- plugin center actions ----------------------------------------------
+
+;; Third-party plugins come from an arbitrary source folder; the
+;; destination id is the folder's declared plugin id (never the folder
+;; name), so a spoofed folder name cannot escape the plugins directory.
+(define (plugins-install-from! source)
+  (define manifest-path (build-path source "manifest.json"))
+  (cond
+    [(not (directory-exists? source))
+     (cons (format "no such directory: ~a" source) '())]
+    [(not (file-exists? manifest-path))
+     (cons "source has no manifest.json" '())]
+    [else
+     (define id
+       (with-handlers ([exn:fail? (lambda (_) #f)])
+         (hash-ref (string->jsexpr (file->string manifest-path)) 'id #f)))
+     (cond
+       [(not (string? id))
+        (cons "manifest has no id" '())]
+       [(regexp-match? #px"^[a-z0-9][a-z0-9-]*$" id)
+        (define dest (build-path (plugins-dir) (string->path id)))
+        (cond
+          [(directory-exists? dest)
+           (cons (format "already installed: ~a" id) '())]
+          [else
+           (with-handlers ([exn:fail?
+                            (lambda (e)
+                              (cons (format "install failed: ~a" (exn-message e)) '()))])
+             (copy-directory/files source dest)
+             (when (engine-plugins (engine!))
+               (plugin-manager-reload! (engine-plugins (engine!))))
+             (cons "ok" (list (cons 'notify (format "Plugin installed: ~a" id)))))])]
+       [else (cons (format "manifest id is not installable: ~a" id) '())])]))
+
+(define (plugins-act! engine id arg)
+  (case (string->symbol id)
+    [(plugins.toggle)
+     (define ids (plugins-disabled-ids))
+     (define disabled? (member arg ids))
+     (define next
+       (if disabled?
+           (filter (lambda (x) (not (string=? x arg))) ids)
+           (append ids (list arg))))
+     (set-plugins-disabled! next)
+     (when (engine-plugins engine)
+       (plugin-manager-reload! (engine-plugins engine)))
+     (cons "ok" (list (cons 'notify
+                            (format "~a ~a"
+                                    (if disabled? "Enabled" "Disabled") arg))))]
+    [(plugins.install)
+     (if (non-empty-string? (string-trim arg))
+         (plugins-install-from! (string->path (string-trim arg)))
+         (cons "no path given" '()))]
+    [(plugins.uninstall)
+     ;; Explicit user intent from the center: any plugin directory goes,
+     ;; gallery-owned or user-installed.
+     (cond
+       [(not (regexp-match? #px"^[a-z0-9][a-z0-9-]*$" arg))
+        (cons (format "invalid plugin id: ~a" arg) '())]
+       [else
+        (define dir (build-path (plugins-dir) (string->path arg)))
+        (if (directory-exists? dir)
+            (with-handlers ([exn:fail?
+                             (lambda (e)
+                               (cons (format "uninstall failed: ~a" (exn-message e)) '()))])
+              (delete-directory/files dir)
+              (when (engine-plugins engine)
+                (plugin-manager-reload! (engine-plugins engine)))
+              (cons "ok" (list (cons 'notify (format "Uninstalled ~a" arg)))))
+            (cons (format "not installed: ~a" arg) '()))])]
+    [else (cons (format "unknown plugin action: ~a" id) '())]))
+
+;; ---- plugin center -------------------------------------------------------
+;;
+;; The launcher IS the plugin center: query `plugins` lists every
+;; installed plugin with an enable/disable toggle, a row that reveals the
+;; plugins directory, and — via the gallery rows underneath — one-click
+;; install for everything not yet installed. `install plugin <path>`
+;; copies a third-party plugin folder into place.
+
+(define (plugin-center-rows query)
+  (define trimmed (string-trim query))
+  (define lowered (string-downcase trimmed))
+  (cond
+    [(string-prefix? lowered "install plugin ")
+     (define path (string-trim (substring trimmed 15)))
+     (if (non-empty-string? path)
+         (list (list "plugins.install"
+                     "Install plugin from folder"
+                     (format "↵ copies ~a into Fulcrum's plugins directory" path)
+                     "Plugin" path "plugin" "" "Install"))
+         '())]
+    [(not (or (string=? lowered "plugins") (string=? lowered "plugin")))
+     '()]
+    [else
+     (define manager (engine-plugins (engine!)))
+     (if (not manager)
+         '()
+         (let* ([disabled (plugins-disabled-ids)]
+                [toggle-row
+                 (lambda (p)
+                   (define id (plugin-id p))
+                   (define on? (not (member id disabled)))
+                   (list "plugins.toggle"
+                         (if on?
+                             (format "Disable ~a" (plugin-name p))
+                             (format "Enable ~a" (plugin-name p)))
+                         (format "v~a · ~a"
+                                 (plugin-version p)
+                                 (string-join
+                                  (for/list ([c (in-list (plugin-commands p))])
+                                    (plugin-command-keyword c))
+                                  " · "))
+                         "Plugin" id "plugin" ""
+                         (if on? "Enabled" "Disabled")))])
+           (cons (list "file.open"
+                       "Open plugins directory"
+                       (path->string (plugins-dir))
+                       "Plugin" (path->string (plugins-dir)) "plugin" "" "Open")
+                 (map toggle-row (plugin-manager-plugins manager)))))]))
+
 ;; ---- RPCs ---------------------------------------------------------------
 
 (define-rpc (health : String)
@@ -308,6 +450,7 @@
     (cond
       [(string-prefix? id "settings.") (settings-act! arg)]
       [(string-prefix? id "ai.") (ai-act! (engine!) id arg)]
+      [(string-prefix? id "plugins.") (plugins-act! (engine!) id arg)]
       [else (engine-run (engine!) id arg)]))
   (emit-events! (cdr outcome))
   (car outcome))
@@ -451,7 +594,8 @@
   (define plug-mgr
     (and (settings-get manager 'plugins-enabled)
          (make-plugin-manager (plugins-dir)
-                              #:timeout-ms (settings-get manager 'plugins-timeout-ms))))
+                              #:timeout-ms (settings-get manager 'plugins-timeout-ms)
+                              #:disabled-thunk plugins-disabled-ids)))
   (define engine
     (make-engine #:clipboard-store clip-store
                  #:snippet-store snip-store

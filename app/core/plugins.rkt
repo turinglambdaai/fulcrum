@@ -58,7 +58,9 @@
 
 ;; The manager is a closure holder: dirs, timeout, loaded plugins, and load
 ;; errors, guarded by one lock. Plugins themselves are immutable snapshots.
-(struct plugin-manager (path timeout-ms state lock) #:mutable)
+;; `disabled-thunk` names the plugins the user turned off; it is consulted
+;; on every reload so a toggle takes effect without rebuilding anything.
+(struct plugin-manager (path timeout-ms state lock disabled-thunk) #:mutable)
 
 (define max-manifest-bytes 65536)
 (define max-commands-per-plugin 32)
@@ -128,40 +130,49 @@
 
 (define (load-plugins! mgr)
   (define dir (plugin-manager-path mgr))
+  (define disabled
+    (let ([thunk (plugin-manager-disabled-thunk mgr)])
+      (if thunk (thunk) '())))
   (make-directory* dir)
   (define plugins '())
   (define errors '())
   (for ([sub (in-list (sort (directory-list dir) string<? #:key path->string))])
     (define sub-dir (build-path dir sub))
     (when (directory-exists? sub-dir)
-      (define manifest-path (build-path sub-dir "manifest.json"))
-      (with-handlers ([exn:fail?
-                       (lambda (e)
-                         (set! errors
-                               (cons (format "~a: ~a"
-                                             (path->string sub-dir)
-                                             (exn-message e))
-                                     errors)))])
-        (if (file-exists? manifest-path)
-            (let ([manifest (safe-read-json-file manifest-path)])
-              (cond
-                [(not (hash? manifest))
-                 (set! errors
-                       (cons (format "~a: manifest is not a JSON object"
-                                     (path->string sub-dir))
-                             errors))]
-                [else
-                 (define loaded (manifest->plugin sub-dir manifest))
-                 (if loaded
-                     (set! plugins (cons loaded plugins))
-                     (set! errors
-                           (cons (format "~a: manifest missing id, name, or entry.exec"
-                                         (path->string sub-dir))
-                                 errors)))]))
-            (set! errors
-                  (cons (format "~a: missing manifest.json" (path->string sub-dir))
-                        errors))))))
-  (set-plugin-manager-state! mgr (cons (reverse plugins) (reverse errors))))
+      ;; Disabled plugins stay on disk; the loader just skips them.
+      (when (member (path->string sub) disabled)
+        (set! errors
+              (cons (format "~a: disabled" (path->string sub-dir))
+                    errors)))
+      (unless (member (path->string sub) disabled)
+        (define manifest-path (build-path sub-dir "manifest.json"))
+        (with-handlers ([exn:fail?
+                         (lambda (e)
+                           (set! errors
+                                 (cons (format "~a: ~a"
+                                               (path->string sub-dir)
+                                               (exn-message e))
+                                       errors)))])
+          (if (file-exists? manifest-path)
+              (let ([manifest (safe-read-json-file manifest-path)])
+                (cond
+                  [(not (hash? manifest))
+                   (set! errors
+                         (cons (format "~a: manifest is not a JSON object"
+                                       (path->string sub-dir))
+                               errors))]
+                  [else
+                   (define loaded (manifest->plugin sub-dir manifest))
+                   (if loaded
+                       (set! plugins (cons loaded plugins))
+                       (set! errors
+                             (cons (format "~a: manifest missing id, name, or entry.exec"
+                                           (path->string sub-dir))
+                                   errors)))]))
+              (set! errors
+                    (cons (format "~a: missing manifest.json" (path->string sub-dir))
+                          errors))))))
+  (set-plugin-manager-state! mgr (cons (reverse plugins) (reverse errors)))))
 
 ;; ---- subprocess call ----------------------------------------------------
 
@@ -207,10 +218,14 @@
 
 ;; ---- public API ---------------------------------------------------------
 
-(define/contract (make-plugin-manager path #:timeout-ms [timeout-ms 2000])
-  (->* (path?) (#:timeout-ms (and/c exact-integer? (>=/c 100) (<=/c 10000)))
+(define/contract (make-plugin-manager path
+                                      #:timeout-ms [timeout-ms 2000]
+                                      #:disabled-thunk [disabled-thunk #f])
+  (->* (path?)
+       (#:timeout-ms (and/c exact-integer? (>=/c 100) (<=/c 10000))
+        #:disabled-thunk (or/c (-> (listof string?)) #f))
        plugin-manager?)
-  (define mgr (plugin-manager path timeout-ms #f (make-semaphore 1)))
+  (define mgr (plugin-manager path timeout-ms #f (make-semaphore 1) disabled-thunk))
   (plugin-manager-reload! mgr)
   mgr)
 
