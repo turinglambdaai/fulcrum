@@ -378,22 +378,37 @@
 (define gallery-listing-words '("gallery" "plugins" "plugin"))
 
 (define (gallery-row-for entry installed?)
-  (if installed?
-      (result "gallery.uninstall" (gallery-entry-name entry)
-              (format "v~a · installed — select to uninstall"
-                      (gallery-entry-version entry))
-              "Plugin"
-              (gallery-entry-id entry) "plugin" "" "Installed"
-              (string-append (gallery-entry-name entry) " uninstall remove plugin gallery")
-              120)
-      (result "gallery.install" (format "Install ~a" (gallery-entry-name entry))
-              (format "v~a · ~a" (gallery-entry-version entry)
-                      (gallery-entry-description entry))
-              "Plugin"
-              (gallery-entry-id entry) "plugin" "" "Install"
-              (string-append (gallery-entry-name entry) " install plugin gallery "
-                             (gallery-entry-description entry))
-              120)))
+  (cond
+    [(and installed?
+          (equal? (gallery-update-state (plugins-dir) entry) "update"))
+     ;; The app ships newer plugin code than the installed copy.
+     (result "gallery.update" (format "Update ~a" (gallery-entry-name entry))
+             (format "v~a → v~a · select to overwrite the installed copy"
+                     (or (gallery-installed-version (plugins-dir)
+                                                    (gallery-entry-id entry))
+                         "?")
+                     (gallery-entry-version entry))
+             "Plugin"
+             (gallery-entry-id entry) "plugin" "" "Update"
+             (string-append (gallery-entry-name entry) " update plugin gallery")
+             125)]
+    [installed?
+     (result "gallery.uninstall" (gallery-entry-name entry)
+             (format "v~a · installed — select to uninstall"
+                     (gallery-entry-version entry))
+             "Plugin"
+             (gallery-entry-id entry) "plugin" "" "Installed"
+             (string-append (gallery-entry-name entry) " uninstall remove plugin gallery")
+             120)]
+    [else
+     (result "gallery.install" (format "Install ~a" (gallery-entry-name entry))
+             (format "v~a · ~a" (gallery-entry-version entry)
+                     (gallery-entry-description entry))
+             "Plugin"
+             (gallery-entry-id entry) "plugin" "" "Install"
+             (string-append (gallery-entry-name entry) " install plugin gallery "
+                            (gallery-entry-description entry))
+             120)]))
 
 (define (gallery-provider engine)
   (lambda (query)
@@ -598,6 +613,8 @@
      (finish (gallery-act! engine gallery-install! "Installed" arg))]
     [(string=? id "gallery.uninstall")
      (finish (gallery-act! engine gallery-uninstall! "Uninstalled" arg))]
+    [(string=? id "gallery.update")
+     (finish (gallery-act! engine gallery-update! "Updated" arg))]
     [(string-prefix? id "plugin:")
      (finish
       (let ([status (plugin-manager-run! (engine-plugins engine)

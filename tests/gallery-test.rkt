@@ -218,3 +218,61 @@
        ;; Unknown ids and escapes stay loud.
        (check-true (string-contains? (run-action "plugins.uninstall" "../x")
                                      "invalid"))))))
+
+(test-case "marketplace friendliness: update flow and detail view"
+  (with-fresh-data-dir
+   (lambda ()
+     (define engine (gallery-engine))
+     (define manager (make-settings-manager (settings-path)))
+     (parameterize ([current-settings manager]
+                    [current-engine engine])
+       ;; Install epoch, then simulate version drift: hand-edit the
+       ;; installed manifest to an older version, like an app update
+       ;; would leave behind.
+       (with-handlers ([exn:fail? void])
+         (run-action "gallery.install" "epoch"))
+       (define manifest-path (build-path (plugins-dir) "epoch" "manifest.json"))
+       (define original (file->string manifest-path))
+       (display-to-file
+        (string-replace original "\"version\": \"1.0.0\"" "\"version\": \"0.9.0\"")
+        manifest-path #:exists 'replace)
+       (plugin-manager-reload! (engine-plugins engine))
+
+       ;; The listing offers an Update row with the version pair.
+       (define rows (rows-for engine "gallery"))
+       (define update-row
+         (findf (lambda (r) (equal? (list-ref r 0) "gallery.update")) rows))
+       (check-true (and update-row #t))
+       (check-true (string-contains? (list-ref update-row 1) "Update"))
+
+       ;; Running it overwrites back to the embedded version.
+       (with-handlers ([exn:fail? void])
+         (run-action "gallery.update" "epoch"))
+       (check-true
+        (string-contains? (file->string manifest-path) "\"version\": \"1.0.0\""))
+
+       ;; Detail view: `plugins epoch` expands commands with copyable
+       ;; examples and the permission declarations.
+       (define detail (rows-for engine "plugins epoch"))
+       (define example-row
+         (findf (lambda (r) (equal? (list-ref r 0) "plugins.example")) detail))
+       (check-true (and example-row #t))
+       (check-equal? (list-ref example-row 4) "ts 1700000000")
+       ;; Epoch declares no permissions — the row says so honestly.
+       (check-true
+        (pair? (findf (lambda (r)
+                        (string-contains? (list-ref r 1) "Permissions: none"))
+                      detail))
+        "empty-permissions row present")
+       ;; A plugin WITH permissions shows them by name.
+       (define unit-detail (rows-for engine "plugins unit"))
+       (define perm-row
+         (findf (lambda (r) (string-contains? (list-ref r 1) "Permissions:"))
+                unit-detail))
+       (check-true (pair? perm-row))
+       (check-true (string-contains? (list-ref perm-row 1) "clipboard-write"))
+
+       ;; The example route copies — that is its whole job (the emit
+       ;; needs a live server; the route computed "copied" before that).
+       (with-handlers ([exn:fail? void])
+         (run-action "plugins.example" "ts 42"))))))

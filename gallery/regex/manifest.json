@@ -2,11 +2,26 @@
   "id": "regex",
   "name": "Regex",
   "version": "1.0.0",
+  "author": "Fulcrum",
+  "category": "Converters",
   "description": "Test regular expressions with live matches and groups. Type `re` followed by a pattern and text: re \\w+@\\w+\\.com <text>.",
   "icon": "plugin",
-  "entry": {"exec": ["python3", "regex.py"]},
+  "entry": {
+    "exec": [
+      "python3",
+      "regex.py"
+    ]
+  },
   "commands": [
-    {"id": "match", "name": "Regex match", "keyword": "re", "description": "re <pattern> <text> · ↵ copies the match"}
+    {
+      "id": "match",
+      "name": "Regex match",
+      "keyword": "re",
+      "description": "re <pattern> <text> · ↵ copies the match",
+      "example": "re \\w+@\\w+\\.com mail alice@example.com now"
+    }
   ],
-  "permissions": ["clipboard-write"]
+  "permissions": [
+    "clipboard-write"
+  ]
 }

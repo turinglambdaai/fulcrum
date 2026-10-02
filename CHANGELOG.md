@@ -79,8 +79,17 @@ independently per platform packaging run.
   the destination comes from the folder's manifest id (never the folder
   name, so a spoofed name cannot escape the plugins directory) — and
   `plugins.uninstall` removes any plugin, gallery-owned or user-installed.
+- **Marketplace-grade plugin center** — first-party manifests now carry
+  author, category, and per-command usage examples. `plugins <name>`
+  expands a detail view: every command with a **copyable example**
+  (select → the example sits on the clipboard, paste into a fresh query
+  to try it), the declared permissions by name (or an honest "none
+  declared"), and the category. The **update flow** exists at last: when
+  the app ships newer plugin code than an installed copy, the listing
+  offers "Update <name> → v<new>" and overwrites in place (gallery-owned
+  plugins only; user data never lives in plugin directories).
 - Gallery, sync, quicklinks, AI, file search and the plugin center carry
-  19 new backend tests (67 total).
+  21 new backend tests (69 total).
 
 ### Changed
 

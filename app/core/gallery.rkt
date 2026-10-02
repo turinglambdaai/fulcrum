@@ -24,9 +24,12 @@
          gallery-catalog
          gallery-entry-installed?
          gallery-install!
-         gallery-uninstall!)
+         gallery-uninstall!
+         gallery-update!
+         gallery-update-state
+         gallery-installed-version)
 
-(struct gallery-entry (id name version description commands permissions) #:transparent)
+(struct gallery-entry (id name version description commands permissions raw) #:transparent)
 
 (define marker-file ".fulcrum-gallery")
 
@@ -51,19 +54,24 @@
     (define manifest
       (with-handlers ([exn:fail? (lambda (_) (hash))])
         (string->jsexpr (hash-ref files 'manifest.json ""))))
+    (define manifest-hash (if (hash? manifest) manifest (hash)))
+    (define commands-list
+      (hash-ref manifest-hash 'commands '()))
+    (define keyword-list
+      (for/list ([c (in-list (if (list? commands-list) commands-list '()))]
+                 #:when (and (hash? c) (string? (hash-ref c 'keyword #f))))
+        (hash-ref c 'keyword)))
+    (define perms-list
+      (let ([perms (hash-ref manifest-hash 'permissions #f)])
+        (if (list? perms) (filter string? perms) '())))
     (gallery-entry (symbol->string id)
-                   (or (and (hash? manifest) (hash-ref manifest 'name #f)) (symbol->string id))
-                   (or (and (hash? manifest) (hash-ref manifest 'version #f)) "0.0.0")
-                   (or (and (hash? manifest) (hash-ref manifest 'description #f)) "")
-                   (let ([commands (and (hash? manifest) (hash-ref manifest 'commands #f))])
-                     (if (list? commands)
-                         (for/list ([c (in-list commands)]
-                                    #:when (hash? c)
-                                    #:when (string? (hash-ref c 'keyword #f)))
-                           (hash-ref c 'keyword))
-                         '()))
-                   (let ([perms (and (hash? manifest) (hash-ref manifest 'permissions #f))])
-                     (if (list? perms) (filter string? perms) '())))))
+                   (or (hash-ref manifest-hash 'name #f) (symbol->string id))
+                   (or (hash-ref manifest-hash 'version #f) "0.0.0")
+                   (or (hash-ref manifest-hash 'description #f) "")
+                   keyword-list
+                   perms-list
+                   manifest-hash)))
+
 
 ;; Sorted by name so hosts and tests see a stable order.
 (define (gallery-catalog)
@@ -124,3 +132,57 @@
                       (lambda (e) (format "uninstall failed: ~a" (exn-message e)))])
        (delete-directory/files (plugin-dir plugins-dir id))
        #f)]))
+
+;; ---- updates -------------------------------------------------------------
+
+;; "1.2.3" → (1 2 3); anything unparseable becomes 0s, so a weird version
+;; never crashes the comparison.
+(define (version-parts v)
+  (define nums
+    (for/list ([piece (in-list (string-split (string-trim v) "."))])
+      (or (string->number piece) 0)))
+  (if (null? nums) (list 0 0 0) nums))
+
+(define (version>=? a b)
+  (let loop ([pa (version-parts a)] [pb (version-parts b)])
+    (cond
+      [(null? pa) #t]
+      [(> (car pa) (car pb)) #t]
+      [(< (car pa) (car pb)) #f]
+      [else (loop (cdr pa) (cdr pb))])))
+
+;; The installed copy's manifest version, or #f when absent/unreadable.
+(define (gallery-installed-version plugins-dir id)
+  (define manifest-path
+    (build-path (plugin-dir plugins-dir id) "manifest.json"))
+  (with-handlers ([exn:fail? (lambda (_) #f)])
+    (define manifest (string->jsexpr (file->string manifest-path)))
+    (define v (and (hash? manifest) (hash-ref manifest 'version #f)))
+    (and (string? v) v)))
+
+;; #f | "update" | "downgrade" — whether the embedded payload differs from
+;; the installed copy (the app shipped newer plugin code, say).
+(define (gallery-update-state plugins-dir entry)
+  (define installed
+    (gallery-installed-version plugins-dir (gallery-entry-id entry)))
+  (cond
+    [(not (gallery-entry-installed? plugins-dir entry)) #f]
+    [(not installed) "update"]
+    [(version>=? installed (gallery-entry-version entry)) #f]
+    [else "update"]))
+
+;; Overwrite install for gallery-owned plugins: the embedded payload is
+;; the source of truth, and plugin directories carry no user data.
+(define/contract (gallery-update! plugins-dir id)
+  (-> path? string? (or/c string? #f))
+  (cond
+    [(not (safe-plugin-id? id)) (format "invalid plugin id: ~a" id)]
+    [(not (file-exists? (build-path (plugin-dir plugins-dir id) marker-file)))
+     (format "refusing to update non-gallery plugin: ~a" id)]
+    [else
+     (define removed (gallery-uninstall! plugins-dir id))
+     ;; gallery-uninstall! returns #f on success, #f being the "no error"
+     ;; value — test it explicitly or the reinstall never runs.
+     (if (not removed)
+         (gallery-install! plugins-dir id)
+         removed)]))

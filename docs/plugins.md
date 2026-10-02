@@ -84,12 +84,14 @@ epoch/
 |---|---|---|
 | `id` | yes | Stable identifier, unique, no colons. Never change it after release. |
 | `name` | yes | Display name in Settings. |
-| `version` | no | SemVer string shown in Settings. |
+| `version` | no | SemVer string shown in Settings and compared for updates. |
+| `author` | no | Shown in the plugin center detail view. |
+| `category` | no | Free-form grouping ("Converters", "Developer", …). |
 | `description` | no | One-line description. |
 | `icon` | no | Icon hint for hosts (`"plugin"` by default). |
 | `entry.exec` | yes | argv array. Relative paths resolve against the plugin directory; a bare program name is looked up on `PATH`. |
-| `commands` | yes (≤32) | The commands this plugin exposes. |
-| `permissions` | no | Advisory metadata in v1. Not enforced yet — the README and this doc both say so; do not treat it as a sandbox. |
+| `commands` | yes (≤32) | The commands this plugin exposes. Each may carry an `example` — a full usage string the plugin center offers to copy for the user. |
+| `permissions` | no | Advisory metadata in v1. Not enforced yet — the README and this doc both say so; do not treat it as a sandbox. The plugin center displays them verbatim. |
 
 ### Command keywords
 

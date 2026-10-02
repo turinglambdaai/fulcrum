@@ -25,6 +25,7 @@
          "core/clipboard.rkt"
          "core/engine.rkt"
          "core/fuzzy.rkt"
+         "core/gallery.rkt"
          "core/paths.rkt"
          "core/plugins.rkt"
          "core/quicklinks.rkt"
@@ -45,6 +46,7 @@
          current-ai-history
          current-ai-last-answer
          plugins-disabled-ids
+         plugin-detail-rows
          run-action)
 
 ;; Staged and packaged apps carry the true version in rivet-app-info.rktd
@@ -459,6 +461,76 @@
 ;; install for everything not yet installed. `install plugin <path>`
 ;; copies a third-party plugin folder into place.
 
+;; Detail view: `plugins <name>` where the text names one installed
+;; plugin (or one catalog entry) expands what a marketplace page would
+;; show — every command with a copyable usage example, the permission
+;; declarations, and the category. Transparency is the trust story.
+(define (plugin-detail-rows text)
+  (define manager (engine-plugins (engine!)))
+  (define installed
+    (if manager
+        (for/list ([p (in-list (plugin-manager-plugins manager))]
+                   #:when (string-contains?
+                           (string-downcase (plugin-name p))
+                           (string-downcase text)))
+          p)
+        '()))
+  (define catalog-hit
+    (findf (lambda (e)
+             (or (string-ci=? (gallery-entry-name e) text)
+                 (string-ci=? (gallery-entry-id e) text)))
+           (gallery-catalog)))
+  (define entry
+    (or (and (= (length installed) 1)
+             (findf (lambda (e)
+                      (string-ci=? (gallery-entry-id e)
+                                   (plugin-id (car installed))))
+                    (gallery-catalog)))
+        catalog-hit))
+  (if (not entry)
+      '()
+      (let* ([raw (gallery-entry-raw entry)]
+             [detail
+              (list (list "noop"
+                          (format "~a v~a" (gallery-entry-name entry)
+                                  (gallery-entry-version entry))
+                          (format "~a · by ~a"
+                                  (gallery-entry-description entry)
+                                  (hash-ref raw 'author "unknown"))
+                          "Plugin" (gallery-entry-id entry) "plugin" ""
+                          (hash-ref raw 'category "plugin")))]
+             [commands-raw
+              (let ([cs (hash-ref raw 'commands #f)])
+                (if (list? cs) cs '()))]
+             [command-rows
+              (for/list ([c (in-list commands-raw)]
+                         #:when (and (hash? c) (string? (hash-ref c 'keyword #f))))
+                (define example (hash-ref c 'example #f))
+                (if (string? example)
+                    (list "plugins.example"
+                          (format "~a · ~a" (hash-ref c 'keyword)
+                                  (hash-ref c 'name "command"))
+                          (format "~a · ↵ copies the example, paste to run"
+                                  (hash-ref c 'description ""))
+                          "Plugin" example "plugin" "" "Try it")
+                    (list "noop"
+                          (format "~a · ~a" (hash-ref c 'keyword)
+                                  (hash-ref c 'name "command"))
+                          (hash-ref c 'description "")
+                          "Plugin" "" "plugin" "" "")))]
+             [perms (gallery-entry-permissions entry)]
+             [permission-row
+              (if (null? perms)
+                  (list (list "noop"
+                              "Permissions: none declared"
+                              "this plugin declares no capabilities"
+                              "Plugin" "" "plugin" "" ""))
+                  (list (list "noop"
+                              (format "Permissions: ~a" (string-join perms ", "))
+                              "declared by the plugin's manifest"
+                              "Plugin" "" "plugin" "" "")))])
+        (append detail command-rows permission-row))))
+
 (define (plugin-center-rows query)
   (define trimmed (string-trim query))
   (define lowered (string-downcase trimmed))
@@ -471,8 +543,30 @@
                      (format "↵ copies ~a into Fulcrum's plugins directory" path)
                      "Plugin" path "plugin" "" "Install"))
          '())]
-    [(not (or (string=? lowered "plugins") (string=? lowered "plugin")))
-     '()]
+    [(and (or (string-prefix? lowered "plugins ")
+              (string-prefix? lowered "plugin "))
+          (>= (string-length trimmed) 8))
+     ;; Text after "plugins": the detail view when it names one plugin,
+     ;; otherwise filter the installed toggles by name.
+     (define text (string-trim (substring trimmed 8)))
+     (define detail (plugin-detail-rows text))
+     (if (not (null? detail))
+         detail
+         (let ([manager (engine-plugins (engine!))])
+           (if (not manager)
+               '()
+               (for/list ([p (in-list (plugin-manager-plugins manager))]
+                          #:when (string-contains?
+                                  (string-downcase (plugin-name p))
+                                  (string-downcase text)))
+                 (define id (plugin-id p))
+                 (define on? (not (member id (plugins-disabled-ids))))
+                 (list "plugins.toggle"
+                       (if on? (format "Disable ~a" (plugin-name p))
+                           (format "Enable ~a" (plugin-name p)))
+                       (format "v~a" (plugin-version p))
+                       "Plugin" id "plugin" ""
+                       (if on? "Enabled" "Disabled"))))))]
     [else
      (define manager (engine-plugins (engine!)))
      (if (not manager)
@@ -515,6 +609,10 @@
     (cond
       [(string-prefix? id "settings.") (settings-act! arg)]
       [(string-prefix? id "ai.") (ai-act! (engine!) id arg)]
+      [(string=? id "plugins.example")
+       ;; Copying a usage example: the panel hides and the example sits
+       ;; on the clipboard, ready to paste into a fresh query.
+       (cons "copied" (list (cons 'copy-to-clipboard arg)))]
       [(string-prefix? id "plugins.") (plugins-act! (engine!) id arg)]
       [else (engine-run (engine!) id arg)]))
   (emit-events! (cdr outcome))

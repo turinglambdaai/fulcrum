@@ -2,11 +2,27 @@
   "id": "bitwarden",
   "name": "Bitwarden",
   "version": "1.0.0",
+  "author": "Fulcrum",
+  "category": "Developer",
   "description": "Search a Bitwarden vault and copy item usernames. Type `bw` followed by a query.",
   "icon": "plugin",
-  "entry": {"exec": ["python3", "bitwarden.py"]},
+  "entry": {
+    "exec": [
+      "python3",
+      "bitwarden.py"
+    ]
+  },
   "commands": [
-    {"id": "vault", "name": "Search vault", "keyword": "bw", "description": "bw github · ↵ copies the item username (never the password)"}
+    {
+      "id": "vault",
+      "name": "Search vault",
+      "keyword": "bw",
+      "description": "bw github · ↵ copies the item username (never the password)",
+      "example": "bw github"
+    }
   ],
-  "permissions": ["exec", "clipboard-write"]
+  "permissions": [
+    "exec",
+    "clipboard-write"
+  ]
 }

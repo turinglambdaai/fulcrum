@@ -2,11 +2,24 @@
   "id": "epoch",
   "name": "Epoch",
   "version": "1.0.0",
+  "author": "Fulcrum",
+  "category": "Converters",
   "description": "Unix timestamp ↔ date conversions. Type `ts` followed by a timestamp or a date.",
   "icon": "plugin",
-  "entry": {"exec": ["python3", "epoch.py"]},
+  "entry": {
+    "exec": [
+      "python3",
+      "epoch.py"
+    ]
+  },
   "commands": [
-    {"id": "convert", "name": "Convert timestamp", "keyword": "ts", "description": "ts 1700000000 or ts 2026-09-28"}
+    {
+      "id": "convert",
+      "name": "Convert timestamp",
+      "keyword": "ts",
+      "description": "ts 1700000000 or ts 2026-09-28",
+      "example": "ts 1700000000"
+    }
   ],
   "permissions": []
 }
