@@ -29,8 +29,8 @@
          "core/paths.rkt"
          "core/plugins.rkt"
          "core/quicklinks.rkt"
-         "core/settings.rkt"
-         "core/snippets.rkt"
+         (rename-in "core/settings.rkt" [settings-list core:settings-list])
+         (rename-in "core/snippets.rkt" [snippet-list core:snippet-list])
          "update.rkt")
 
 (provide start
@@ -660,7 +660,7 @@
 (define-rpc (snippet-list : (List (List String)))
   (define store (engine-snippets (engine!)))
   (if store
-      (for/list ([s (in-list (snippet-list store))])
+      (for/list ([s (in-list (core:snippet-list store))])
         (list (snippet-id s) (snippet-name s) (snippet-keyword s)
               (snippet-text s) "snippet" (snippet-id s) "" ""))
       '()))
@@ -691,7 +691,7 @@
     [else value]))
 
 (define-rpc (settings-list : (List (List String)))
-  (for/list ([entry (in-list (settings-list (settings!)))])
+  (for/list ([entry (in-list (core:settings-list (settings!)))])
     (list (settings-entry-key entry)
           (settings-entry-value entry)
           (settings-entry-description entry)
