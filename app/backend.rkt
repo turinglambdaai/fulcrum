@@ -402,6 +402,7 @@
         (cons "manifest has no id" '())]
        [(regexp-match? #px"^[a-z0-9][a-z0-9-]*$" id)
         (define dest (build-path (plugins-dir) (string->path id)))
+        (make-directory* (plugins-dir))
         (cond
           [(directory-exists? dest)
            (cons (format "already installed: ~a" id) '())]
@@ -447,6 +448,8 @@
                              (lambda (e)
                                (cons (format "uninstall failed: ~a" (exn-message e)) '()))])
               (delete-directory/files dir)
+              (when (directory-exists? dir)
+                (error 'plugins-uninstall "directory survived deletion: ~a" dir))
               (when (engine-plugins engine)
                 (plugin-manager-reload! (engine-plugins engine)))
               (cons "ok" (list (cons 'notify (format "Uninstalled ~a" arg)))))

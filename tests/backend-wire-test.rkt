@@ -22,6 +22,16 @@
   (if (directory-exists? (build-path test-dir "app"))
       (simplify-path test-dir)
       (simplify-path (build-path test-dir ".."))))
+(define plugins-mod
+  (build-path fulcrum-root "app" "core" "plugins.rkt"))
+(define plugin-manager-path*
+  (dynamic-require plugins-mod 'plugin-manager-path))
+(define plugin-id* (dynamic-require plugins-mod 'plugin-id))
+(define engine-plugins*
+  (dynamic-require (build-path fulcrum-root "app" "core" "engine.rkt")
+                   'engine-plugins))
+(define make-plugin-manager*
+  (dynamic-require plugins-mod 'make-plugin-manager))
 (define (get rel sym)
   (dynamic-require (build-path fulcrum-root rel) sym))
 
@@ -50,7 +60,8 @@
 (define eng (make-engine
              #:clipboard-store (make-clipboard (clipboard-path))
              #:snippet-store (make-snippets (snippets-path))
-             #:plugin-manager #f))
+             #:plugin-manager (make-plugin-manager*
+                               (build-path root "plugins"))))
 (rebuild eng)
 (current-settings manager)
 (current-engine eng)
@@ -227,6 +238,65 @@
         (or (string-prefix? puv "unknown") (string-prefix? puv "no such")
             (string-contains? puv "unknown"))
         #t)
+
+
+;; ---- plugin center end-to-end (unix: the fixture spawns /bin/sh) ---------
+
+(when (eq? (system-type 'os) 'unix)
+  (define fixture-dir
+    (make-temporary-file "fulcrum-wire-plugin-~a" 'directory))
+  (define plugin-dir (build-path fixture-dir "echo"))
+  (make-directory* plugin-dir)
+  (call-with-output-file (build-path plugin-dir "manifest.json")
+    (lambda (out)
+      (displayln
+       (string-append
+        "{\"id\":\"echo\",\"name\":\"Echo\",\"version\":\"1.0.0\","
+        "\"entry\":{\"exec\":[\"/bin/sh\",\"plugin.sh\"]},"
+        "\"commands\":[{\"id\":\"find\",\"name\":\"Find\",\"keyword\":\"echo\"}]}")
+       out))
+    #:exists 'truncate)
+  (call-with-output-file (build-path plugin-dir "plugin.sh")
+    (lambda (out)
+      (displayln
+       "#!/bin/sh\nwhile IFS= read -r line; do\n  case \"$line\" in\n    *'\"op\":\"run\"'*) printf '%s\\n' '{\"request_id\":2,\"status\":\"ok\"}';;\n    *) printf '%s\\n' '{\"request_id\":1,\"results\":[{\"title\":\"Echo result\",\"arg\":\"42\"}]}';;\n  esac\ndone"
+       out))
+    #:exists 'truncate)
+
+  (define-values (insv _i1 _i2)
+    (call-rpc 30 (list "run-action" "plugins.install"
+                       (path->string plugin-dir))))
+  (check! "plugins.install ok" insv "ok")
+
+  (define mgr (engine-plugins* (current-engine)))
+  (define-values (plv2 _p1 _p2) (call-rpc 31 (list "plugins-list")))
+  (check! "installed plugin listed"
+          (and (member "echo" (for/list ([row (in-list plv2)])
+                                (list-ref row 0)))
+               #t)
+          #t)
+
+  (define-values (ech-rows _e1 _e2) (call-rpc 32 (list "search" "echo 7")))
+  (check! "search surfaces the plugin row"
+          (and (findf (lambda (row)
+                        (string=? (list-ref row 0) "plugin:echo:find"))
+                      ech-rows)
+               #t)
+          #t)
+
+  (define-values (ech-run _e3 _e4)
+    (call-rpc 33 (list "run-action" "plugin:echo:find" "42")))
+  (check! "plugin action runs" ech-run "ok")
+
+  (define-values (unv _u1 _u2)
+    (call-rpc 34 (list "run-action" "plugins.uninstall" "echo")))
+  (check! "plugins.uninstall ok" unv "ok")
+  (check! "uninstalled plugin gone from disk"
+          (not (directory-exists?
+                (build-path (plugin-manager-path* mgr) "echo")))
+          #t)
+
+  (delete-directory/files fixture-dir))
 
 (kill-thread srv)
 (delete-directory/files root)
