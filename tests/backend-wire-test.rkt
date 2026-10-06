@@ -59,10 +59,19 @@
 (define-values (client-in server-out) (make-pipe))
 (define srv (thread (lambda () (serve server-in server-out))))
 
+(define last-raw (box #""))
 (define (call-rpc id payload)
   (write-frame (frame message:request id (encode-value payload)) client-out)
   (let loop ([events '()])
-    (define f (read-frame client-in))
+    (define f
+      (if (sync/timeout 5 client-in)
+          (let ([f (read-frame client-in)])
+            (set-box! last-raw (frame-payload f))
+            f)
+          (begin
+            (printf "TIMEOUT waiting for frame (rpc ~a), server alive: ~s~n"
+                    id (thread-dead? srv))
+            (exit 1))))
     (match (frame-type f)
       [(== message:hello) (loop events)]
       [(== message:event)
@@ -142,6 +151,67 @@
 (define-values (evil _ee _eev)
   (call-rpc 10 (list "run-action" "web.open" "file:///etc/passwd")))
 (check! "file:// refused" (string-prefix? evil "refused") #t)
+
+;; ---- the remaining RPC surface, end to end -------------------------------
+
+;; clipboard-history returns the seeded row with preview columns
+(define-values (chv _che _chev) (call-rpc 11 (list "clipboard-history" "fulcrum-release")))
+(check! "clipboard-history no error" _che #f)
+(check! "clipboard-history has the row"
+        (and (pair? chv) (string-contains? (list-ref (car chv) 1) "fulcrum-release"))
+        #t)
+
+;; clipboard-clear removes it and reports the count
+(define-values (_ccv cce _ccev) (call-rpc 12 (list "clipboard-clear")))
+(check! "clipboard-clear no error" cce #f)
+(define-values (chv2 _che2 _che2v) (call-rpc 13 (list "clipboard-history" "fulcrum-release")))
+(check! "clipboard cleared" (null? chv2) #t)
+
+;; snippet-delete removes the seeded snippet
+(define-values (sidv _side _sidev) (call-rpc 14 (list "snippet-list")))
+(define seeded-id (for/first ([row (in-list sidv)]
+                              #:when (string=? (list-ref row 1) "Verify snippet"))
+                    (list-ref row 0)))
+(check! "snippet-list row id present" (and seeded-id #t) #t)
+(define-values (sdel _sdle _sdlev) (call-rpc 15 (list "snippet-delete" seeded-id)))
+(check! "snippet-delete true" sdel #t)
+(define-values (snl2 _snl2 _snl2v) (call-rpc 16 (list "snippet-list")))
+(check! "snippet gone from list"
+        (and (not (member "Verify snippet" (for/list ([row (in-list snl2)])
+                                             (list-ref row 1))))
+             #t)
+        #t)
+
+;; settings round trip already covered; exercise index-rebuild
+(define-values (irv ire _irev) (call-rpc 17 (list "index-rebuild")))
+(check! "index-rebuild no error" ire #f)
+(check! "index-rebuild returns a count" (exact-integer? irv) #t)
+
+;; plugins-reload is void and harmless with an empty gallery
+(define-values (prv pre _prev) (call-rpc 18 (list "plugins-reload")))
+(check! "plugins-reload no error" pre #f)
+
+;; update-check on a developer build reports honestly (no network)
+(define-values (ucv uce _ucev) (call-rpc 19 (list "update-check")))
+(check! "update-check no error" uce #f)
+(check! "update-check honest on dev build"
+        (or (string-prefix? ucv "updates unavailable")
+            (string-prefix? ucv "update check failed")
+            (string-prefix? ucv "update available")
+            (string-prefix? ucv "Fulcrum is up to date"))
+        #t)
+
+;; error paths: unknown RPC, unknown action, bad arity
+(define-values (_xv xe _xeve) (call-rpc 20 (list "no-such-rpc" "x")))
+(printf "DBG20 xe=~s\n" xe)
+(check! "unknown RPC yields error frame" (string-contains? xe "unknown RPC") #t)
+(define-values (yv _ye _yev) (call-rpc 21 (list "run-action" "no-such-action" "x")))
+(check! "unknown action reported"
+        (and (string? yv) (string-prefix? yv "unknown action") #t)
+        #t)
+(define-values (_zv ze _zev) (call-rpc 22 (list "health" "extra-arg")))
+(printf "DBG22 ze=~s\n" ze)
+(check! "bad arity yields error frame" (string-contains? ze "expected 0 arguments") #t)
 
 (kill-thread srv)
 (delete-directory/files root)
