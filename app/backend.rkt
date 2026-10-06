@@ -622,7 +622,13 @@
   (car outcome))
 
 (define-rpc (index-rebuild : Int64)
-  (engine-rebuild-index! (engine!)))
+  ;; Discovery touches the platform application roots; a platform-specific
+  ;; failure must degrade to an error result, never kill the request worker.
+  (with-handlers ([exn?
+                   (lambda (e)
+                     (notify (format "index rebuild failed: ~a" (exn-message e)))
+                     -1)])
+    (engine-rebuild-index! (engine!))))
 
 ;; ---- clipboard ----------------------------------------------------------
 
