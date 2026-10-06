@@ -210,8 +210,23 @@
         (and (string? yv) (string-prefix? yv "unknown action") #t)
         #t)
 (define-values (_zv ze _zev) (call-rpc 22 (list "health" "extra-arg")))
-(printf "DBG22 ze=~s\n" ze)
 (check! "bad arity yields error frame" (string-contains? ze "expected 0 arguments") #t)
+
+;; backend-owned action routers (settings/AI/plugins), all offline paths
+(define-values (ahv _ahe _ahev) (call-rpc 23 (list "run-action" "ai.help" "")))
+(check! "ai.help ok" ahv "ok")
+(define-values (arv _are _arev) (call-rpc 24 (list "run-action" "ai.reset" "")))
+(check! "ai.reset ok" arv "ok")
+(define-values (akv _ake _akev) (call-rpc 25 (list "run-action" "ai.key" "   ")))
+(check! "ai.key empty rejected" akv "empty key")
+(define-values (auv _aue _auev) (call-rpc 26 (list "run-action" "ai.unknown" "")))
+(check! "unknown ai action reported"
+        (string-prefix? auv "unknown ai action") #t)
+(define-values (puv _pue _puev) (call-rpc 27 (list "run-action" "plugins.unknown" "")))
+(check! "unknown plugins action reported"
+        (or (string-prefix? puv "unknown") (string-prefix? puv "no such")
+            (string-contains? puv "unknown"))
+        #t)
 
 (kill-thread srv)
 (delete-directory/files root)
