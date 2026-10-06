@@ -7,7 +7,7 @@
 ;; fixture directories:
 ;;
 ;;   - macOS: .app bundles under the standard Applications roots; names from
-;;     CFBundleName via `plutil` when available, bundle directory otherwise.
+;;     bundle directory name (the `.app` suffix stripped).
 ;;   - Linux: .desktop entries under XDG application roots; NoDisplay/Hidden
 ;;     and non-Application types are skipped.
 ;;   - Windows: Start Menu .lnk/.url/.exe shortcuts; the file name (without
@@ -60,24 +60,15 @@
                 (build-path "/" "System" "Applications" "Utilities")
                 (build-path "/" "Applications" "Utilities"))))
 
-(define (bundle-name-from-plist app-dir)
-  (define plist (build-path app-dir "Contents" "Info.plist"))
-  (if (file-exists? plist)
-      (let ([output (run-command "plutil"
-                                 (list "-convert" "json" "-o" "-" (path->string plist))
-                                 #:timeout-ms 1500)])
-        (and output
-             (with-handlers ([exn:fail? (lambda (_) #f)])
-               (define parsed (string->jsexpr output))
-               (and (hash? parsed)
-                    (let ([name (hash-ref parsed 'CFBundleName #f)])
-                      (and (string? name) (non-empty-string? name) name))))))
-      #f))
-
 (define (macos-bundle->application app-dir)
+  ;; The bundle directory name (`.app` stripped) is what the Finder shows
+  ;; and matches CFBundleName for the overwhelming majority of bundles.
+  ;; Reading CFBundleName out of Info.plist would cost one plutil subprocess
+  ;; per bundle per rebuild — seconds of first-launch latency on a real
+  ;; machine — for a difference that only shows up in a handful of apps.
   (application (application-id-from-path app-dir)
-               (or (bundle-name-from-plist app-dir)
-                   (path->string (path-replace-extension (file-name-from-path app-dir) "")))
+               (path->string (path-replace-extension
+                              (file-name-from-path app-dir) ""))
                (path->string app-dir)
                "app"
                '()
