@@ -764,6 +764,15 @@ int main(int argc, char** argv) {
     }
     return 0;
   }
+  // A --toggle that arrives when no primary is running would otherwise fall
+  // through to GApplication, which rejects the unknown option. There is
+  // nothing to toggle yet.
+  for (int i = 1; i < argc; ++i) {
+    if (std::string{argv[i]} == "--toggle") {
+      std::cerr << "fulcrum: no running instance to toggle\n";
+      return 1;
+    }
+  }
   lease.set_activation_handler(on_activation);
 
   XInitThreads();
