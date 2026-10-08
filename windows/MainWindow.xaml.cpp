@@ -13,6 +13,11 @@
 namespace winrt::RivetHost::implementation {
 namespace {
 
+constexpr UINT kTrayCallbackMessage = WM_APP + 1;
+constexpr UINT kTrayIconId = 0xF11D;
+constexpr int kTrayMenuOpen = 1;
+constexpr int kTrayMenuQuit = 2;
+
 constexpr int kHotkeyIdPrimary = 0xF11C;  // Alt+Space
 constexpr int kHotkeyIdFallback = 0xF11D; // Ctrl+Alt+Space
 constexpr int kWindowWidth = 680;
@@ -252,6 +257,10 @@ void MainWindow::FinishNativeSetup() {
                       if (msg == WM_CLIPBOARDUPDATE && self != nullptr) {
                         self->OnClipboardUpdate();
                       }
+                      if (msg == kTrayCallbackMessage && self != nullptr) {
+                        self->HandleTrayMessage(msg, static_cast<std::int64_t>(lParam),
+                                                hWnd);
+                      }
                       return DefSubclassProc(hWnd, msg, wParam, lParam);
                     },
                     1,
@@ -261,6 +270,17 @@ void MainWindow::FinishNativeSetup() {
     clipboard_listener_installed_ = true;
   }
 
+  // Menu bar presence via the first-party tray surface: left click opens
+  // the launcher, right click offers Open/Quit — the discoverable way in
+  // when the hotkey is forgotten, and the only quit affordance.
+  HICON tray_hicon = ::LoadIconW(::GetModuleHandleW(nullptr),
+                                 MAKEINTRESOURCEW(1));
+  if (tray_hicon == nullptr) {
+    tray_hicon = ::LoadIconW(nullptr, IDI_APPLICATION);
+  }
+  tray_icon_ = std::make_unique<rivet::system::TrayIcon>(
+      hwnd, kTrayIconId, kTrayCallbackMessage, L"Fulcrum", tray_hicon);
+
   // WinUI Window has no Deactivated event; the Activated state carries it.
   this->Activated([this](auto&&,
                          winrt::Microsoft::UI::Xaml::WindowActivatedEventArgs const& args) {
@@ -269,6 +289,41 @@ void MainWindow::FinishNativeSetup() {
       this->HideLauncher();
     }
   });
+}
+
+void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
+                                   HWND hwnd) {
+  if (message != kTrayCallbackMessage) {
+    return;
+  }
+  switch (LOWORD(lParam)) {
+    case WM_LBUTTONUP:
+      if (AppWindow().Visible()) {
+        HideLauncher();
+      } else {
+        ShowLauncher();
+      }
+      break;
+    case WM_RBUTTONUP: {
+      HMENU menu = ::CreatePopupMenu();
+      if (menu != nullptr) {
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuOpen, L"Open Fulcrum");
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuQuit, L"Quit Fulcrum");
+        ::SetForegroundWindow(hwnd);  // so outside clicks dismiss the menu
+        int const choice = ::TrackPopupMenu(
+            menu, TPM_RETURNCMD | TPM_NONOTIFY, 0, 0, 0, hwnd, nullptr);
+        ::DestroyMenu(menu);
+        if (choice == kTrayMenuOpen) {
+          ShowLauncher();
+        } else if (choice == kTrayMenuQuit) {
+          this->AppWindow().Close();
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 bool MainWindow::HandleHotkeyMessage(std::uint32_t, std::uint64_t wParam,

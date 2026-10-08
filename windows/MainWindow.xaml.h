@@ -62,6 +62,10 @@ struct MainWindow : MainWindowT<MainWindow> {
   // Fulcrum hotkey.
   bool HandleHotkeyMessage(std::uint32_t message, std::uint64_t wParam, std::int64_t lParam);
 
+  // Tray callback: left click opens the launcher, right click opens the
+  // Open/Quit menu.
+  void HandleTrayMessage(std::uint32_t message, std::int64_t lParam, HWND hwnd);
+
  private:
   void OnClipboardUpdate();
   winrt::fire_and_forget InitializeBackendAsync();
@@ -81,6 +85,7 @@ struct MainWindow : MainWindowT<MainWindow> {
   std::uint64_t hotkey_atom_{0};
   std::atomic<bool> clipboard_listener_installed_{false};
   std::wstring last_recorded_clipboard_;
+  std::unique_ptr<rivet::system::TrayIcon> tray_icon_;
 };
 
 }  // namespace winrt::RivetHost::implementation

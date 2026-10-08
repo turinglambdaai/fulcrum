@@ -32,6 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var model: LauncherModel?
     // Retained for the process lifetime: dropping it releases the lock file.
     private var instanceLease: RivetSingleInstance?
+    // Menu bar presence: the discoverable way in when the hotkey is
+    // forgotten, and the only quit affordance (Esc just hides).
+    private var menuBar: RivetMenuBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // One instance owns the global hotkey; second launches exit here via
@@ -50,6 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installPanel(model: launcherModel)
         installHotkey()
         installKeyMonitor()
+        installMenuBar(model: launcherModel)
         installClipboardWatcher(model: launcherModel)
         launcherModel.start()
     }
@@ -193,6 +197,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return nil
         }
+    }
+
+    // MARK: menu bar
+
+    /// First-party rivet menu bar: Open runs the same toggle as the
+    /// hotkey; Quit is the only way out of the resident process.
+    private func installMenuBar(model: LauncherModel) {
+        let controller = RivetMenuBarController()
+        controller.install(
+            title: "Fulcrum",
+            menuItems: [
+                ("Open Fulcrum ⌥Space", "open", { [weak self] in
+                    self?.showPanel()
+                }),
+                ("Quit Fulcrum", "quit", {
+                    NSApp.terminate(nil)
+                })
+            ])
+        menuBar = controller
     }
 
     // MARK: clipboard watcher

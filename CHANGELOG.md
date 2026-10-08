@@ -105,6 +105,13 @@ independently per platform packaging run.
 
 ### Changed
 
+- **Menu bar / tray presence** (the discoverable way in, and the only
+  quit affordance since Esc just hides): macOS installs the first-party
+  rivet menu bar with "Open Fulcrum" and "Quit Fulcrum"; Windows rides
+  the first-party Shell_NotifyIcon tray surface with the same two
+  actions (left click toggles the launcher, right click opens the
+  menu). Linux is deferred honestly — the rivet tray contract is
+  deliberately absent there (StatusNotifierItem, upstream #118).
 - All hosts: **Esc follows the Alfred/Raycast convention** — it clears
   the query first and hides the panel only when the query is already
   empty, so a stray Esc never throws away typed text. The app itself
