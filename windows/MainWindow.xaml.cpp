@@ -510,6 +510,7 @@ void MainWindow::ShowActionsForSelection() {
   auto const row = rows_[static_cast<std::size_t>(index)];
   search_rows_ = rows_;
   auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
   auto* api = api_.get();
 
   std::thread([weak, api, dispatcher, row]() mutable {
