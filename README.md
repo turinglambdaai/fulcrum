@@ -3,25 +3,8 @@
 One keystroke. Everything within reach. A keyboard-first launcher for macOS, Windows, and Linux — one Racket brain, three first-party native UIs, no WebView anywhere.
 
 [![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.3.0-C15F3C)
+
 **English** · [中文](README.zh-CN.md)
-
-
-## What is Fulcrum?
-
-Press one global hotkey and a floating command palette appears:
-
-- **Fuzzy-search everything** — apps, clipboard history, snippets, each with weighted multi-field ranking
-- **Calculate inline** — exact arithmetic, functions, constants; ↵ copies the answer
-- **Clipboard history** — every copy recorded on-device, searchable, pinnable
-- **Snippets** — named text expansions with keywords
-- **Web-search bangs** — `!g`, `!gh`, `!so`, `!w`, `!yt`, `!m`, `!d`, `!t`
-- **Quicklinks** — your own URL templates claimed by a keyword (`yt nature`), created from the launcher itself
-- **Window management** — left/right half, maximize, almost-maximize, center, restore, natively on all three platforms
-- **File search** — `find <query>` over Spotlight (macOS today; other platforms honestly declined)
-- **BYOK AI** — bring your own OpenAI / Anthropic / Ollama key: `ai summarize`, `ai clean`, `ai translate <lang>`, `ai explain`, `ai <question>` — the answer copies to your clipboard; the key never leaves this machine (never synced)
-- **System commands** — lock, sleep, restart
-- **Plugins** — any language that speaks JSON over stdio ([FPP1](docs/plugins.md)), plus ten first-party plugins installed from the launcher itself (query `gallery`)
-- **Sync (beta)** — settings and snippets mirrored to any cloud-synced folder; a wiped machine restores from the mirror
 
 Search, history, and snippets never leave your device. There is no telemetry in 0.1.
 
