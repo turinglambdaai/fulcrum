@@ -236,7 +236,6 @@ First-party plugins planned for the 0.2 gallery — each one is also a protocol 
 |---|---|
 | GitHub (issues/PR search) | developer beachhead |
 | Docker control | top-requested launcher capability |
-| Package managers (winget / Homebrew / cargo) | cross-platform by construction |
 | Password managers (read-only, local vault APIs) | trust surface; no vault contents in our cloud |
 | Unit / regex / time-zone converters | near-zero cost, proves FPP1 ergonomics |
 
@@ -367,7 +366,7 @@ Sequencing rule: platform completeness before AI, AI before store, store before 
 
 Exit criteria per milestone — the definition of done:
 
-- **0.1:** both platforms installable via winget/Homebrew; FPP1 hello-world plugin documented in Python and Rust; crash-free sessions ≥ 99% on our machines.
+- **0.1:** both platforms installable from GitHub Releases; FPP1 hello-world plugin documented in Python and Rust; crash-free sessions ≥ 99% on our machines.
 - **0.2:** gallery live with the ten first-party plugins; sync beta survives a wipe-and-restore; Linux GTK4 host boots and runs the full 0.1 feature set.
 - **0.3:** BYOK AI works against OpenAI, Anthropic, and a local Ollama endpoint; zero server-side inference by us, verified.
 - **1.0:** Pro purchasable end-to-end via Paddle (tax handled, invoice delivered); lifetime cap enforced in licensing logic, not in prose.
