@@ -234,6 +234,10 @@ struct Launcher {
   std::unique_ptr<rivet::linux_runtime::Backend> startup_backend;
   std::string startup_error;
   std::atomic<bool> shutting_down{false};
+  // Ctrl+K mode: `rows` currently holds secondary actions and
+  // search_rows remembers the live result list.
+  bool actions_mode{false};
+  std::vector<ResultRow> search_rows;
 
   static Launcher& instance() {
     static Launcher launcher;
@@ -356,6 +360,52 @@ struct Launcher {
     std::string action_id;
   };
 
+  void show_actions_for_selection() {
+    if (api == nullptr || rows.empty() || actions_mode) {
+      return;
+    }
+    GtkListBoxRow* selected = gtk_list_box_get_selected_row(results);
+    int index = selected != nullptr ? gtk_list_box_row_get_index(selected) : 0;
+    if (index < 0 || index >= static_cast<int>(rows.size())) {
+      index = 0;
+    }
+    ResultRow const row = rows[static_cast<std::size_t>(index)];
+    search_rows = rows;
+    auto* api_raw = api.get();
+    std::thread([api_raw, row]() mutable {
+      std::vector<ResultRow> actions;
+      std::string error;
+      try {
+        for (auto const& cells : api_raw->row_actions(row.id, row.arg).get()) {
+          actions.push_back(parse_row(cells));
+        }
+      } catch (std::exception const& e) {
+        error = e.what();
+      }
+      g_idle_add([](gpointer user_data) -> int {
+        std::unique_ptr<std::vector<ResultRow>> job(
+            static_cast<std::vector<ResultRow>*>(user_data));
+        Launcher& launcher = Launcher::instance();
+        launcher.actions_mode = true;
+        launcher.rows = std::move(*job);
+        launcher.refresh_results();
+        if (launcher.rows.empty()) {
+          launcher.set_status("No secondary actions for this result");
+        }
+        return G_SOURCE_REMOVE;
+      }, new std::vector<ResultRow>(std::move(actions)));
+      (void)error;
+    }).detach();
+  }
+
+  void close_actions() {
+    actions_mode = false;
+    rows = std::move(search_rows);
+    search_rows.clear();
+    refresh_results();
+    gtk_widget_grab_focus(GTK_WIDGET(search));
+  }
+
   void run_selected() {
     if (api == nullptr || rows.empty()) {
       return;
@@ -394,7 +444,13 @@ struct Launcher {
               return G_SOURCE_REMOVE;
             }
           }
-          Launcher::instance().hide();
+          if (Launcher::instance().actions_mode) {
+            // A mutating action (pin, delete, copy) keeps the launcher
+            // open, back on the search rows.
+            Launcher::instance().close_actions();
+          } else {
+            Launcher::instance().hide();
+          }
         } else {
           Launcher::instance().set_status("Action failed: " + job->status);
         }
@@ -404,6 +460,7 @@ struct Launcher {
   }
 
   void show() {
+    actions_mode = false;
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
@@ -603,9 +660,19 @@ void on_row_activated(GtkListBox*, GtkListBoxRow*, gpointer) {
 }
 
 gboolean on_key_pressed(GtkEventControllerKey*, guint keyval, guint,
-                        GdkModifierType, gpointer) {
+                        GdkModifierType state, gpointer) {
+  // Ctrl+K equivalent: the selected row's secondary actions.
+  if (keyval == GDK_KEY_k && (state & GDK_CONTROL_MASK) != 0) {
+    Launcher::instance().show_actions_for_selection();
+    return TRUE;
+  }
   switch (keyval) {
     case GDK_KEY_Escape:
+      // Inside the action panel: back to the search rows first.
+      if (Launcher::instance().actions_mode) {
+        Launcher::instance().close_actions();
+        return TRUE;
+      }
       // Alfred/Raycast convention: clear the query first, hide only when
       // it is already empty.
       if (const gchar* text =

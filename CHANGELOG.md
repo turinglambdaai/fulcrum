@@ -112,6 +112,12 @@ independently per platform packaging run.
   actions (left click toggles the launcher, right click opens the
   menu). Linux is deferred honestly — the rivet tray contract is
   deliberately absent there (StatusNotifierItem, upstream #118).
+- All hosts: **⌘K action panel** — Ctrl+K (Win/Linux) and ⌘K (macOS)
+  open the selected row's secondary actions: Reveal in Finder and Copy
+  path for apps, Pin/Unpin and Delete for clipboard entries, Delete for
+  snippets, Copy URL/path for links, files and web rows. Esc walks back
+  to the live search; mutating actions keep the launcher open instead of
+  dismissing it.
 - All hosts: **Esc follows the Alfred/Raycast convention** — it clears
   the query first and hides the panel only when the query is already
   empty, so a stray Esc never throws away typed text. The app itself

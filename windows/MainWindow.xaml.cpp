@@ -366,6 +366,7 @@ void MainWindow::OnClipboardUpdate() {
 }
 
 void MainWindow::ShowLauncher() {
+  actions_mode_ = false;
   QueryBox().Text(L"");
   SearchAsync(std::wstring(L""));
   this->Activate();
@@ -383,6 +384,17 @@ void MainWindow::QueryBox_TextChanged(
 void MainWindow::QueryBox_KeyDown(
     winrt::Windows::Foundation::IInspectable const&,
     Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const& args) {
+  // ⌘K equivalent: Ctrl+K opens the selected row's secondary actions.
+  if (args.Key() == winrt::Windows::System::VirtualKey::K) {
+    auto const control =
+        winrt::Microsoft::UI::Input::InputKeyboardSource::GetKeyState(
+            winrt::Windows::System::VirtualKey::Control);
+    if (control.IsKeyDown()) {
+      ShowActionsForSelection();
+      args.Handled(true);
+      return;
+    }
+  }
   switch (args.Key()) {
     case winrt::Windows::System::VirtualKey::Down:
       MoveSelection(1);
@@ -397,6 +409,12 @@ void MainWindow::QueryBox_KeyDown(
       args.Handled(true);
       break;
     case winrt::Windows::System::VirtualKey::Escape:
+      // Inside the action panel: back to the search rows first.
+      if (actions_mode_) {
+        CloseActions();
+        args.Handled(true);
+        break;
+      }
       // Alfred/Raycast convention: clear the query first, hide only when
       // it is already empty.
       if (QueryBox().Text().empty()) {
@@ -456,7 +474,13 @@ winrt::fire_and_forget MainWindow::SearchAsync(std::wstring const& query) {
   }
 }
 
+void MainWindow::ApplyActions(std::vector<rivet_app::ResultRow> rows) {
+  ApplyResults(std::move(rows));
+  actions_mode_ = true;  // ApplyResults resets it; the actions stay up.
+}
+
 void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
+  actions_mode_ = false;
   rows_ = std::move(rows);
   auto items = winrt::single_threaded_observable_vector<winrt::hstring>();
   for (auto const& row : rows_) {
@@ -479,6 +503,52 @@ void MainWindow::MoveSelection(int delta) {
   ResultsList().ScrollIntoView(ResultsList().SelectedItem());
 }
 
+void MainWindow::ShowActionsForSelection() {
+  auto const index = ResultsList().SelectedIndex();
+  if (index < 0 || index >= static_cast<int>(rows_.size()) || api_ == nullptr ||
+      actions_mode_) {
+    return;
+  }
+  auto const row = rows_[static_cast<std::size_t>(index)];
+  search_rows_ = rows_;
+  auto const dispatcher = DispatcherQueue();
+  auto* api = api_.get();
+
+  std::thread([weak, api, dispatcher, row]() mutable {
+    try {
+      auto const raw_actions = api->row_actions(row.id, row.arg).get();
+      std::vector<rivet_app::ResultRow> actions;
+      actions.reserve(raw_actions.size());
+      for (auto const& cells : raw_actions) {
+        actions.push_back(rivet_app::ResultRow::from(cells));
+      }
+      dispatcher.TryEnqueue([weak, actions = std::move(actions)]() mutable {
+        if (auto window = weak.get()) {
+          window->ApplyActions(std::move(actions));
+          if (window->rows_.empty()) {
+            window->SetStatusError(L"No secondary actions for this result");
+          }
+        }
+      });
+    } catch (std::exception const& e) {
+      auto message = std::string(e.what());
+      dispatcher.TryEnqueue([weak, message = std::move(message)] {
+        if (auto window = weak.get()) {
+          window->SetStatusError(to_wide(message));
+        }
+      });
+    }
+  }).detach();
+}
+
+void MainWindow::CloseActions() {
+  actions_mode_ = false;
+  auto saved = std::move(search_rows_);
+  search_rows_.clear();
+  ApplyResults(std::move(saved));
+  QueryBox().Focus(winrt::Microsoft::UI::Xaml::FocusState::Programmatic);
+}
+
 void MainWindow::RunSelected() {
   auto const index = ResultsList().SelectedIndex();
   if (index < 0 || index >= static_cast<int>(rows_.size()) || api_ == nullptr) {
@@ -498,7 +568,13 @@ void MainWindow::RunSelected() {
         if (auto window = weak.get()) {
           if (status == "ok" || status == "launched" || status == "copied" ||
               status == "opened") {
-            window->HideLauncher();
+            if (window->actions_mode_) {
+              // A mutating action (pin, delete, copy) keeps the launcher
+              // open, back on the search rows.
+              window->CloseActions();
+            } else {
+              window->HideLauncher();
+            }
           } else if (status == "delegated") {
             // Window commands execute natively: the backend cannot reach
             // other apps' windows.

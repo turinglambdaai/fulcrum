@@ -66,6 +66,12 @@ struct MainWindow : MainWindowT<MainWindow> {
   // Open/Quit menu.
   void HandleTrayMessage(std::uint32_t message, std::int64_t lParam, HWND hwnd);
 
+  // ⌘K equivalent (Ctrl+K): swap the list for the selected row's
+  // secondary actions; Esc walks back to the search rows.
+  void ShowActionsForSelection();
+  void CloseActions();
+  void ApplyActions(std::vector<rivet_app::ResultRow> rows);
+
  private:
   void OnClipboardUpdate();
   winrt::fire_and_forget InitializeBackendAsync();
@@ -86,6 +92,10 @@ struct MainWindow : MainWindowT<MainWindow> {
   std::atomic<bool> clipboard_listener_installed_{false};
   std::wstring last_recorded_clipboard_;
   std::unique_ptr<rivet::system::TrayIcon> tray_icon_;
+  // ⌘K (Ctrl+K) mode: rows_ currently holds secondary actions and
+  // search_rows_ remembers the live result list.
+  bool actions_mode_{false};
+  std::vector<rivet_app::ResultRow> search_rows_;
 };
 
 }  // namespace winrt::RivetHost::implementation
