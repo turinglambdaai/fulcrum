@@ -3,25 +3,8 @@
 一次按键，直达一切。macOS、Windows、Linux 三平台的键盘优先启动器——一个 Racket 大脑，三套第一方原生 UI，全程无 WebView。
 
 [![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.3.0-C15F3C)
+
 [English](README.md) · **中文**
-
-
-## Fulcrum 是什么？
-
-按下全局热键，一个悬浮命令面板随即出现：
-
-- **模糊搜索一切** —— 应用、剪贴板历史、片段，多字段加权排序
-- **内联计算** —— 精确算术、函数、常量；↵ 复制结果
-- **剪贴板历史** —— 每次复制都记录在本机，可搜索、可置顶
-- **片段** —— 带关键词的命名文本展开
-- **Web 搜索 bang** —— `!g`、`!gh`、`!so`、`!w`、`!yt`、`!m`、`!d`、`!t`
-- **Quicklinks** —— 自带关键词的 URL 模板（`yt nature` 直达搜索），在启动器内一行创建
-- **窗口管理** —— 左/右半屏、最大化、近最大化、居中、还原，三平台各自原生实现
-- **文件搜索** —— `find <query>` 走 Spotlight（当前为 macOS，其他平台诚实提示）
-- **BYOK AI** —— 自带 OpenAI / Anthropic / Ollama 密钥：`ai summarize`、`ai clean`、`ai translate <lang>`、`ai explain`、`ai <question>`——答案直接进剪贴板；密钥只存本机、绝不参与同步
-- **系统命令** —— 锁屏、睡眠、重启
-- **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)），附十个第一方插件，可在启动器内直接安装（查询 `gallery`）
-- **同步（beta）** —— 设置与片段镜像到任意云盘同步目录；机器数据被清空后可从镜像恢复
 
 搜索、历史、片段永远不离开你的设备。0.1 没有任何遥测。
 
