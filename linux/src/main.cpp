@@ -653,6 +653,10 @@ void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
 void on_activate(GtkApplication* app, gpointer) {
   Launcher& launcher = Launcher::instance();
 
+  // The panel hides on focus loss; without a hold, GTK would treat the
+  // hidden window as "last window closed" and shut the whole app down.
+  g_application_hold(G_APPLICATION(app));
+
   auto* window = gtk_application_window_new(app);
   launcher.window = GTK_WINDOW(window);
   gtk_window_set_title(launcher.window, "Fulcrum");
