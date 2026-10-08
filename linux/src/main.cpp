@@ -709,6 +709,7 @@ void on_activate(GtkApplication* app, gpointer) {
                    G_CALLBACK(on_row_activated), nullptr);
 
   auto* controller = gtk_event_controller_key_new();
+  gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
   g_signal_connect(controller, "key-pressed", G_CALLBACK(on_key_pressed),
                    nullptr);
   gtk_widget_add_controller(window, controller);
