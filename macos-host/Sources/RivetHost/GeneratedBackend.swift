@@ -76,6 +76,10 @@ public struct RivetAPI: Sendable {
         let result = try await client.call("plugins-reload", arguments: [])
         return try decode_Void(result)
     }
+    public func row_actions(id: String, arg: String) async throws -> [[String]] {
+        let result = try await client.call("row-actions", arguments: [encode_String(id), encode_String(arg)])
+        return try decode__List_List_String_(result)
+    }
     public func run_action(id: String, arg: String) async throws -> String {
         let result = try await client.call("run-action", arguments: [encode_String(id), encode_String(arg)])
         return try decode_String(result)

@@ -252,7 +252,9 @@ struct LauncherView: View {
 
             Divider().opacity(0.5)
             HStack {
-                Text("↑↓ navigate · ↵ run · esc hide")
+                Text(model.showingActions
+                      ? "↑↓ navigate · ↵ run · esc back"
+                      : "↑↓ navigate · ↵ run · ⌘K actions · esc clear/hide")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -289,6 +291,9 @@ struct FulcrumAPI {
     func clipboardRecord(_ text: String) async throws -> String {
         try await generated.clipboard_record(text: text)
     }
+    func rowActions(id: String, arg: String) async throws -> [ResultRow] {
+        (try await generated.row_actions(id: id, arg: arg)).compactMap { ResultRow.from($0) }
+    }
 }
 
 /// Launcher state and backend plumbing. One embedded Racket CS instance,
@@ -305,6 +310,9 @@ final class LauncherModel: ObservableObject {
     @Published var selection: String?
     @Published var ready = false
     @Published var status = "Starting embedded Racket CS…"
+    /// ⌘K mode: rows currently holds secondary actions for `actionParent`.
+    @Published var showingActions = false
+    private var actionParent: ResultRow?
 
     var onToggle: (() -> Void)?
     var onHide: (() -> Void)?
@@ -383,6 +391,39 @@ final class LauncherModel: ObservableObject {
         selection = ids[next]
     }
 
+    /// ⌘K on the selected row: swap the list for its secondary actions.
+    func openActionsForSelection() {
+        guard !showingActions, let api,
+              let row = rows.first(where: { $0.rowId == selection }) else { return }
+        Task { [weak self] in
+            do {
+                let actions = try await api.rowActions(id: row.id, arg: row.arg)
+                await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    if actions.isEmpty {
+                        self.status = "No secondary actions for this result"
+                        return
+                    }
+                    self.rows = actions
+                    self.selection = actions.first?.rowId
+                    self.showingActions = true
+                    self.actionParent = row
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.status = "Actions error: \(error)"
+                }
+            }
+        }
+    }
+
+    /// Esc inside the action panel: back to the live search results.
+    func closeActions() {
+        showingActions = false
+        actionParent = nil
+        searchChanged(query)
+    }
+
     func runSelected() {
         guard let selection,
               let row = rows.first(where: { $0.rowId == selection }) else { return }
@@ -398,7 +439,13 @@ final class LauncherModel: ObservableObject {
                     guard let self else { return }
                     switch status {
                     case "ok", "launched", "copied", "opened":
-                        self.hide()
+                        if self.showingActions {
+                            // A secondary action (pin, delete, copy) keeps
+                            // the launcher open, back on the search rows.
+                            self.closeActions()
+                        } else {
+                            self.hide()
+                        }
                     case "delegated":
                         // Window commands execute natively: the backend
                         // cannot reach other apps' windows.

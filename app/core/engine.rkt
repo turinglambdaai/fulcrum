@@ -40,6 +40,7 @@
          engine-rebuild-index!
          engine-app-count
          engine-record-use!
+         engine-row-actions
          result->row)
 
 (struct result
@@ -476,6 +477,47 @@
                                (list (cons 1.0 (gallery-entry-name entry))
                                      (cons 0.5 (gallery-entry-description entry))))))))))))
 
+;; --- secondary actions (the ⌘K panel) ---------------------------------------
+;;
+;; Providers declare per-row secondary actions as ordinary rows: the host
+;; asks once (row-actions RPC), renders the list it gets back, and runs
+;; selections through the same run-action path. No host hardcodes
+;; behavior; an empty list means the panel offers nothing for that row.
+
+(define (action-row id title badge arg)
+  (result id title "" "Action" arg "" "" badge "" 200))
+
+(define (clipboard-pin-label engine id)
+  (define item (clipboard-item-ref (engine-clipboard engine) id))
+  (if (and item (clipboard-item-pinned? item)) "Unpin" "Pin"))
+
+(define/contract (engine-row-actions engine id arg)
+  (-> engine? string? string? (listof (listof string?)))
+  (define actions
+    (cond
+      [(string=? id "app.launch")
+       (define app (hash-ref (engine-apps-index engine) arg #f))
+       (if app
+           (list (action-row "file.open" "Reveal in Finder" "Finder"
+                             (application-path app))
+                 (action-row "copy" "Copy path" "Copy"
+                             (application-path app)))
+           '())]
+      [(string=? id "clip.copy")
+       (list (action-row "clip.pin"
+                         (clipboard-pin-label engine arg) "Pin" arg)
+             (action-row "clip.delete" "Delete entry" "Delete" arg))]
+      [(string=? id "snip.copy")
+       (list (action-row "snip.delete" "Delete snippet" "Delete" arg))]
+      [(string=? id "link.open")
+       (list (action-row "copy" "Copy URL" "Copy" arg))]
+      [(string=? id "file.open")
+       (list (action-row "copy" "Copy path" "Copy" arg))]
+      [(string=? id "web.open")
+       (list (action-row "copy" "Copy URL" "Copy" arg))]
+      [else '()]))
+  (map result->row actions))
+
 ;; ---- engine -------------------------------------------------------------
 
 (define/contract (make-engine
@@ -631,7 +673,27 @@
     [(string=? id "app.launch") (finish (app-launch! engine arg))]
     [(string=? id "calc.copy")
      (finish (cons "copied" (list (cons 'copy-to-clipboard arg))))]
+    [(string=? id "copy")
+     (finish (cons "copied" (list (cons 'copy-to-clipboard arg))))]
     [(string=? id "clip.copy") (finish (clip-copy-event! engine arg))]
+    [(string=? id "clip.pin")
+     (finish
+      (if (and (engine-clipboard engine)
+               (clipboard-toggle-pin! (engine-clipboard engine) arg))
+          (cons "ok" (list (cons 'notify "Pin toggled")))
+          (cons (format "clipboard entry not found: ~a" arg) '())))]
+    [(string=? id "clip.delete")
+     (finish
+      (if (and (engine-clipboard engine)
+               (clipboard-remove! (engine-clipboard engine) arg))
+          (cons "ok" (list (cons 'notify "Entry deleted")))
+          (cons (format "clipboard entry not found: ~a" arg) '())))]
+    [(string=? id "snip.delete")
+     (finish
+      (if (and (engine-snippets engine)
+               (snippet-delete! (engine-snippets engine) arg))
+          (cons "ok" (list (cons 'notify "Snippet deleted")))
+          (cons (format "snippet not found: ~a" arg) '())))]
     [(string=? id "snip.copy") (finish (snip-copy-event! engine arg))]
     [(string=? id "link.open") (finish (link-open! engine arg))]
     [(string=? id "link.save") (finish (link-save!-from-payload engine arg))]

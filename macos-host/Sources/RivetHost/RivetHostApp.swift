@@ -183,14 +183,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                   event.window === panel else { return event }
             switch event.keyCode {
             case 53:                              // esc
-              // Alfred/Raycast convention: clear the query first, hide
-              // only when it is already empty — a stray Esc never
-              // throws away typed text.
-              if self.model?.query.isEmpty == true {
+              // In the ⌘K panel: back to the search rows.
+              if self.model?.showingActions == true {
+                  self.model?.closeActions()
+              } else if self.model?.query.isEmpty == true {
+                  // Alfred/Raycast convention: clear the query first,
+                  // hide only when it is already empty — a stray Esc
+                  // never throws away typed text.
                   self.model?.hide()
               } else {
                   self.model?.clearQuery()
               }
+            case 40 where event.modifierFlags.contains(.command):
+                  self.model?.openActionsForSelection()   // ⌘K
             case 125: self.model?.moveSelection(1)   // down
             case 126: self.model?.moveSelection(-1)  // up
             default:  return event

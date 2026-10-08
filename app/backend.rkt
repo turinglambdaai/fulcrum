@@ -605,6 +605,11 @@
 (define-rpc (search [query String] : (List (List String)))
   (rows-for (engine!) query))
 
+;; Secondary actions for one result row — the ⌘K panel's contents, in the
+;; same 8-column row contract as search.
+(define-rpc (row-actions [id String] [arg String] : (List (List String)))
+  (engine-row-actions (engine!) id arg))
+
 (define-rpc (run-action [id String] [arg String] : String)
   ;; Settings and AI rows are backend-owned (the engine holds no settings
   ;; or keys), so they route here before the engine.

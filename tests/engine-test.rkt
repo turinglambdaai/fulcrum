@@ -160,3 +160,44 @@
      (for ([row (in-list (engine-search engine "f"))])
        (check-equal? (length row) 8)
        (check-true (andmap string? row))))))
+
+(test-case "secondary actions: the ⌘K panel contract"
+  (with-fresh-data-dir
+   (lambda ()
+     (define engine (fixture-engine #:apps fixture-apps))
+     ;; App rows: reveal + copy path.
+     (define app-actions
+       (engine-row-actions engine "app.launch" "a1"))
+     (check-equal? (length app-actions) 2)
+     (check-equal? (list-ref (car app-actions) 0) "file.open")
+     ;; application-path is the discovery path (the .desktop file on
+     ;; Linux fixtures, the bundle on macOS) — that is what Reveal opens.
+     (check-equal? (list-ref (car app-actions) 4)
+                   "/usr/share/applications/firefox.desktop")
+     ;; Clipboard rows: pin (label reflects state) + delete.
+     (define cid (clipboard-item-id
+                  (clipboard-record! (engine-clipboard engine) "hello")))
+     (check-equal? (list-ref (car (engine-row-actions engine "clip.copy" cid)) 1)
+                   "Pin")
+     (check-true (clipboard-item-pinned?
+                 (clipboard-toggle-pin! (engine-clipboard engine) cid)))
+     (check-equal? (list-ref (car (engine-row-actions engine "clip.copy" cid)) 1)
+                   "Unpin")
+     ;; Snippet rows: delete. Link/file/web rows: copy URL/path.
+     (check-equal? (list-ref (car (engine-row-actions engine "snip.copy" "s1")) 0)
+                   "snip.delete")
+     (check-equal? (list-ref (car (engine-row-actions engine "web.open" "https://x")) 0)
+                   "copy")
+     ;; Unknown ids offer nothing.
+     (check-equal? (engine-row-actions engine "sys.run" "Lock") '())
+
+     ;; The pin route actually toggles; delete removes.
+     (define outcome (engine-run engine "clip.pin" cid))
+     (check-equal? (car outcome) "ok")
+     (check-false (clipboard-item-pinned?
+                   (clipboard-item-ref (engine-clipboard engine) cid)))
+     (check-equal? (car (engine-run engine "clip.delete" cid)) "ok")
+     (check-false (clipboard-item-ref (engine-clipboard engine) cid))
+     ;; Unknown clip id is loud.
+     (check-true (string-contains? (car (engine-run engine "clip.pin" "nope"))
+                                   "not found")))))
