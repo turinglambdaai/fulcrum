@@ -5,6 +5,7 @@
 #endif
 #include "GeneratedBackend.hpp"
 #include "WindowCommands.h"
+#include <Microsoft.UI.Input.h>
 
 #include <shellapi.h>
 #include <commctrl.h>
@@ -298,7 +299,7 @@ void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
   }
   switch (LOWORD(lParam)) {
     case WM_LBUTTONUP:
-      if (AppWindow().Visible()) {
+      if (AppWindow().IsVisible()) {
         HideLauncher();
       } else {
         ShowLauncher();
@@ -316,7 +317,7 @@ void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
         if (choice == kTrayMenuOpen) {
           ShowLauncher();
         } else if (choice == kTrayMenuQuit) {
-          this->AppWindow().Close();
+          this->AppWindow().Destroy();
         }
       }
       break;
