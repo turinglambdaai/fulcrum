@@ -356,7 +356,7 @@ Implementation notes: events batch locally and leave the device only after opt-i
 
 | Version | Months | Scope |
 |---|---|---|
-| **0.1 MVP** | M0–M2 | macOS + Windows: app fuzzy search, clipboard history, snippets, calculator, web-search bangs, system commands, FPP1 (JSON/stdio) plugin protocol; BUSL public repo; winget + Homebrew packaging |
+| **0.1 MVP** | M0–M2 | macOS + Windows: app fuzzy search, clipboard history, snippets, calculator, web-search bangs, system commands, FPP1 (JSON/stdio) plugin protocol; BUSL public repo |
 | **0.2** | M3–M6 | Plugin **gallery** (manual, curated); **sync beta** (settings + snippets); **Linux GTK4 host beta** (the Rivet Linux work lands here — this is the largest engineering risk in the plan); FPP1 docs + 10 first-party plugins; Show HN |
 | **0.3** | M7–M10 | **AI / BYOK**: AI commands with user keys (zero inference cost), snippet editor, theme engine, clipboard rules; CN community presence (V2EX, 少数派); Paddle billing integration behind a flag |
 | **1.0** | M11–M14 | **Pro launch**: Pro + Teams tiers live via Paddle; **Lifetime early-bird window opens (capped, AI excluded)**; curated store groundwork (permissions manifest, review pipeline); Product Hunt |
