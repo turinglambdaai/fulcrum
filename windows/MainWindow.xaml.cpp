@@ -5,7 +5,6 @@
 #endif
 #include "GeneratedBackend.hpp"
 #include "WindowCommands.h"
-#include <Microsoft.UI.Input.h>
 
 #include <shellapi.h>
 #include <commctrl.h>
@@ -386,15 +385,13 @@ void MainWindow::QueryBox_KeyDown(
     winrt::Windows::Foundation::IInspectable const&,
     Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const& args) {
   // ⌘K equivalent: Ctrl+K opens the selected row's secondary actions.
-  if (args.Key() == winrt::Windows::System::VirtualKey::K) {
-    auto const control =
-        winrt::Microsoft::UI::Input::InputKeyboardSource::GetKeyState(
-            winrt::Windows::System::VirtualKey::Control);
-    if (control.IsKeyDown()) {
-      ShowActionsForSelection();
-      args.Handled(true);
-      return;
-    }
+  // Plain Win32 state read: the WinUI InputKeyboardSource projection is
+  // not worth its include surface for one modifier check.
+  if (args.Key() == winrt::Windows::System::VirtualKey::K &&
+      (::GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) {
+    ShowActionsForSelection();
+    args.Handled(true);
+    return;
   }
   switch (args.Key()) {
     case winrt::Windows::System::VirtualKey::Down:
