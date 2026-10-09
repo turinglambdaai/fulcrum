@@ -52,7 +52,11 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: b7bdbc31c796676a4e85e15e0cd965fe2376145e
+          # Same snapshot release.yml builds on; the two must move together
+          # or CI passes on code the release pipeline cannot build (and vice
+          # versa — this pin predating the shutdown hook broke exactly that
+          # way).
+          ref: a5f671845594246bb2a189c8cb14c87b8201e43e
       - name: Set up Racket CS 9.3
         uses: Bogdanp/setup-racket@v1.15
         with:
