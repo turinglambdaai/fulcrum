@@ -17,7 +17,8 @@
 ;; installer surfaced by the host; in-app install/download/rollback is the
 ;; 0.2 updater milestone and will use download-update/execute-install-plan!.
 
-(require rivet/distribution)
+(require rivet/distribution
+         crypto)
 
 (provide fulcrum-update-check
          fulcrum-update-configured?)
@@ -41,8 +42,11 @@
 ;; The manifest verifier takes a parsed key object, not raw DER — this
 ;; conversion is what stands between an update check and a contract
 ;; violation at ed25519-verify (every 0.4.x check failed exactly there).
+;; crypto's datum->pk-key, not rivet's bytes->ed25519-public-key: the
+;; helper postdates the rivet snapshots release builds pin.
 (define current-update-public-key
-  (bytes->ed25519-public-key (hex->bytes current-update-public-key-hex)))
+  (datum->pk-key (hex->bytes current-update-public-key-hex)
+                 'SubjectPublicKeyInfo))
 
 (define (fulcrum-update-configured?)
   (and current-update-public-key-hex
