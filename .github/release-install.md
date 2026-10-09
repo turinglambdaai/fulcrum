@@ -33,7 +33,7 @@ Other distributions — unpack the tarball anywhere and run the binary inside:
 ```sh
 tar -xzf fulcrum-linux-x64.tar.gz
 cd fulcrum-linux-x64
-./fulcrum
+./RivetHost
 ```
 
 ### First keystroke

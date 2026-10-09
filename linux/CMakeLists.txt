@@ -65,7 +65,3 @@ target_link_libraries(RivetHost PRIVATE
 )
 
 target_compile_options(RivetHost PRIVATE -Wall -Wextra -Wpedantic)
-
-# Ship as `fulcrum`, not the generic scaffold binary name: the docs,
-# the .desktop entry, and the compositor keybinding all say `fulcrum --toggle`.
-set_target_properties(RivetHost PROPERTIES OUTPUT_NAME fulcrum)

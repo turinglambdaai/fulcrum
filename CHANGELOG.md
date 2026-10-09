@@ -20,9 +20,7 @@ independently per platform packaging run.
   entry for Linux.
 - **Linux installs like a native package**: the release adds
   `fulcrum_<version>_amd64.deb` — `/opt/fulcrum`, a `/usr/bin/fulcrum`
-  command, a desktop entry, and icons — alongside the tarball, and the
-  Linux binary is named `fulcrum` (not the scaffold's `RivetHost`) to
-  match the docs and the compositor keybinding.
+  command, a desktop entry, and icons — alongside the tarball.
 - Every release now publishes `SHA256SUMS.txt` and renders its changelog
   section plus per-platform install instructions into the release notes.
 
