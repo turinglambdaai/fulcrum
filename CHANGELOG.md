@@ -28,11 +28,12 @@ independently per platform packaging run.
 ### Fixed
 
 - The update check actually verifies now: the embedded public key is
-  decoded into a key object (`bytes->ed25519-public-key`) before reaching
-  the manifest verifier. 0.4.x passed raw DER bytes, so every update check
-  died on an `ed25519-verify` contract violation and surfaced as "update
-  check failed" — with this fix a 0.4.2-era check against the 0.5.0 feed
-  verifies the signature and resolves the candidate.
+  decoded into a key object (`bytes->ed25519-public-key`, evaluated at
+  check time — FFI at module-import time kills embedded apps at startup)
+  before reaching the manifest verifier. 0.4.x passed raw DER bytes, so
+  every update check died on an `ed25519-verify` contract violation and
+  surfaced as "update check failed". The release pin moved to the rivet
+  snapshot that carries the bytes key parser (2e1924c).
 - The update manifest architecture labels now match what the in-app updater
   sends (`arm64`/`x64`, the rivet family vocabulary). The old manifest wrote
   `arm64`/`x64` while the updater sent `aarch64`/`x86_64`, and
