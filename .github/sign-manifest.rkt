@@ -9,8 +9,9 @@
 ;;   RIVET_UPDATE_KEY_ID       signing key id embedded in the wrapper
 ;;   UPDATE_PRIVATE_DER        path to the Ed25519 private key (DER)
 ;;   UPDATE_PUBLIC_DER         path to the matching public key (DER)
-;; The release archives must exist under release/ (fulcrum-{macos,windows,
-;; linux}.zip); the URLs written into the manifest are $BASE_URL/<name>.
+;; The release installers must exist under release/ (fulcrum-macos.dmg,
+;; fulcrum-windows-x64.msi, fulcrum-linux-x64.tar.gz); the URLs written
+;; into the manifest are $BASE_URL/<name>.
 
 (require racket/file
          racket/format
@@ -41,15 +42,15 @@
 (define identifier (rktd-field "identifier"))
 
 (define base (string-trim base-url "/"))
-(define (artifact-for name platform arch)
+(define (artifact-for name platform arch installer)
   (define path (build-path "release" name))
   (unless (file-exists? path)
-    (error 'sign-manifest "release archive is missing: ~a" path))
+    (error 'sign-manifest "release installer is missing: ~a" path))
   (update-artifact platform arch
                    (string-append base "/" name)
                    (sha256-file/hex path)
                    (file-size path)
-                   'zip
+                   installer
                    '()))
 
 (define published-at
@@ -66,9 +67,9 @@
   (update-manifest identifier version build (string->symbol channel)
                    published-at
                    "0.0.0" #f #t 100
-                   (list (artifact-for "fulcrum-macos.zip" 'macos 'arm64)
-                         (artifact-for "fulcrum-windows.zip" 'windows 'x64)
-                         (artifact-for "fulcrum-linux.zip" 'linux 'x64))))
+                   (list (artifact-for "fulcrum-macos.dmg" 'macos 'arm64 'dmg)
+                         (artifact-for "fulcrum-windows-x64.msi" 'windows 'x64 'msi)
+                         (artifact-for "fulcrum-linux-x64.tar.gz" 'linux 'x64 'targz))))
 
 (define private-key (read-ed25519-private-key private-der))
 (define public-key (read-ed25519-public-key public-der))

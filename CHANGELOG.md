@@ -4,6 +4,24 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.4.2
+
+### Changed
+
+- **Releases now ship one human installer per platform instead of bare
+  archives**: `fulcrum-macos.dmg`, `fulcrum-windows-x64.msi` (Start-menu and
+  desktop shortcuts included), and `fulcrum-linux-x64.tar.gz`. The release
+  pipeline runs `raco rivet release`, and the signed channel manifest pins
+  those installers — no more unpacking a WinUI runtime directory to hunt
+  for `RivetHost.exe`.
+
+### Fixed
+
+- The update check now actually ships the redirect-following fetch:
+  0.4.1 announced this fix but its release pin predated rivet#153, so
+  0.4.1 binaries still failed every in-app update check at signature
+  verification. 0.4.2 builds on the commit that carries the fix.
+
 ## 0.4.1
 
 ### Fixed

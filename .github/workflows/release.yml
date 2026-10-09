@@ -1,9 +1,13 @@
 name: Release
 
-# Tag-driven pipeline. The 0.1 developer-preview releases run the validation
-# and packaging stages that do not need publisher identities; production
-# signing (Authenticode / Developer ID + notarization / Ed25519 update
-# manifests) activates once the secrets from docs/release-runbook.md exist.
+# Tag-driven pipeline producing one human installer per platform —
+# fulcrum-macos.dmg, fulcrum-windows-x64.msi, fulcrum-linux-x64.tar.gz —
+# plus the signed stable-channel manifest. `raco rivet release
+# --development` exercises the full release flow (package, launch smoke,
+# installer) without platform production signing; production trust rides on
+# the Ed25519-signed channel manifest. The secrets from
+# docs/release-runbook.md switch on Authenticode / Developer ID +
+# notarization later via `raco rivet release`.
 
 on:
   push:
@@ -11,6 +15,11 @@ on:
 
 permissions:
   contents: write
+
+env:
+  # Rivet snapshot carrying the update-fetch redirect fix (#153). Bump this
+  # deliberately: the pin, not main, is what release artifacts build on.
+  RIVET_PIN: a5f671845594246bb2a189c8cb14c87b8201e43e
 
 jobs:
   validate:
@@ -34,11 +43,9 @@ jobs:
           grep -q "^## $TAG" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $TAG' section"; exit 1; }
 
   package:
-    name: Package (${{ matrix.os }})
+    name: Package (${{ matrix.platform }})
     needs: validate
     runs-on: ${{ matrix.os }}
-    env:
-      HAS_PLATFORM_SIGNING: ${{ secrets.WINDOWS_CERTIFICATE_PFX != '' || secrets.MACOS_CERTIFICATE_P12 != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -56,7 +63,7 @@ jobs:
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: b7bdbc31c796676a4e85e15e0cd965fe2376145e
+          ref: ${{ env.RIVET_PIN }}
       - name: Set up Racket CS 9.3
         if: matrix.platform == 'linux'
         uses: Bogdanp/setup-racket@v1.15
@@ -132,110 +139,88 @@ jobs:
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
-      # secrets are unavailable inside if expressions, so the choice reads
-      # the job-level env instead: production signing when credentials
-      # exist, the unsigned development path otherwise.
-      - name: Production package (publisher-signed)
-        if: env.HAS_PLATFORM_SIGNING == 'true'
+      - name: Install WiX (v5; v7 requires EULA acceptance, v5 runs the v4 schema)
+        if: matrix.platform == 'windows'
+        run: dotnet tool install --global wix --version 5.0.2
+        shell: bash
+      # `raco rivet release --development` = package + launch smoke + the
+      # platform installer (msi/dmg/tar.gz) + a per-platform update manifest
+      # discarded here in favor of the composed channel manifest signed
+      # centrally below. The release flow requires the update environment to
+      # be set even though that manifest is discarded, so the channel key is
+      # plumbed through here too.
+      - name: Release (development strength)
         env:
-          RIVET_WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
-          RIVET_WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          RIVET_MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
-          RIVET_MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          RIVET_MACOS_NOTARY_PROFILE: ${{ secrets.MACOS_NOTARY_PROFILE }}
-        run: raco rivet package --production
+          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/latest/download
+          RIVET_UPDATE_KEY_ID: fulcrum-2026-10
+          RIVET_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY_PEM" > update-private.pem
+          openssl pkey -in update-private.pem -outform DER -out update-private.der
+          export RIVET_UPDATE_PRIVATE_KEY="$PWD/update-private.der"
+          raco rivet release --development
+          rm -f update-private.pem update-private.der
         shell: bash
-      - name: Development package (unsigned)
-        if: env.HAS_PLATFORM_SIGNING != 'true'
-        # Plain `raco rivet package` is the unsigned development path;
-        # --development is a release-only flag.
-        run: raco rivet package
+      - name: Rename installer for the channel manifest
         shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            macos)   mv dist/fulcrum-*-macos.dmg fulcrum-macos.dmg ;;
+            windows) mv dist/fulcrum-*-windows-*.msi fulcrum-windows-x64.msi ;;
+            linux)   mv dist/fulcrum-*-linux-*.tar.gz fulcrum-linux-x64.tar.gz ;;
+          esac
+          ls -la
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: fulcrum-${{ matrix.platform }}
           path: |
-            dist/
-            .rivet/build/**/*.zip
-            .rivet/build/**/*.dmg
-          if-no-files-found: warn
+            fulcrum-macos.dmg
+            fulcrum-windows-x64.msi
+            fulcrum-linux-x64.tar.gz
+          if-no-files-found: error
 
-  release-archives:
-    name: Package release archives
+  channel-manifest:
+    name: Sign channel manifest
     needs: package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      # One archive per platform: the WinUI self-contained layout contains
-      # hundreds of runtime files, and expanding them onto the release turns
-      # the download page into noise (and into API rate-limit territory).
-      # These archives are the exact bytes the update manifest pins, so
-      # this step sits between packaging and manifest signing.
-      - name: Package release archives
-        run: |
-          set -euo pipefail
-          # actions/upload-artifact v4 does not preserve the executable
-          # bit; restore it on the launchers before archiving, or the
-          # unpacked apps refuse to start.
-          find artifacts/fulcrum-macos -path '*Contents/MacOS/fulcrum' -exec chmod +x {} +
-          find artifacts/fulcrum-linux -type f \( -name 'RivetHost' -o -name 'fulcrum' \) -exec chmod +x {} +
-          find artifacts/fulcrum-windows -name 'RivetHost.exe' -exec chmod +x {} +
-          mkdir -p release
-          for dir in artifacts/fulcrum-macos artifacts/fulcrum-windows artifacts/fulcrum-linux; do
-            [ -d "$dir" ] || continue
-            name="$(basename "$dir")"
-            (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/release/${name}.zip" .)
-          done
-          ls -la release/
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-archives
-          path: release/
-          if-no-files-found: error
-
-  update-manifest:
-    name: Sign update manifest
-    needs: release-archives
-    runs-on: ubuntu-latest
-    env:
-      HAS_UPDATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY != '' }}
-    steps:
       - uses: actions/checkout@v4
-        if: env.HAS_UPDATE_KEY == 'true'
       - name: Checkout Rivet
-        if: env.HAS_UPDATE_KEY == 'true'
         uses: actions/checkout@v4
         with:
           repository: turinglambdaai/rivet
           path: rivet
-          ref: b7bdbc31c796676a4e85e15e0cd965fe2376145e
+          ref: ${{ env.RIVET_PIN }}
       - name: Install Racket
-        if: env.HAS_UPDATE_KEY == 'true'
         uses: Bogdanp/setup-racket@v1.15
         with:
           version: stable
           distribution: full
       - name: Link Rivet
-        if: env.HAS_UPDATE_KEY == 'true'
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
-      - name: Download release archives
-        if: env.HAS_UPDATE_KEY == 'true'
+      - name: Download installers
         uses: actions/download-artifact@v4
         with:
-          name: release-archives
-          path: release
+          path: artifacts
+      - name: Collect installers
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          mv artifacts/fulcrum-macos/fulcrum-macos.dmg release/
+          mv artifacts/fulcrum-windows/fulcrum-windows-x64.msi release/
+          mv artifacts/fulcrum-linux/fulcrum-linux-x64.tar.gz release/
+          ls -la release/
       - name: Compose and sign the channel manifest
-        if: env.HAS_UPDATE_KEY == 'true'
         env:
           RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
           RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
           RIVET_UPDATE_BASE_URL: ${{ secrets.RIVET_UPDATE_BASE_URL }}
         run: |
-          # One channel manifest pins every platform archive (see
+          # One channel manifest pins every platform installer (see
           # .github/sign-manifest.rkt). The secret carries the PEM; the
           # signer wants DER paths, and the signed output is verified
           # against the public key before upload.
@@ -244,17 +229,15 @@ jobs:
           openssl pkey -in update-private.pem -pubout -outform DER -out update-public.der
           racket .github/sign-manifest.rkt
       - uses: actions/upload-artifact@v4
-        if: env.HAS_UPDATE_KEY == 'true'
         with:
-          name: update-manifest
+          name: channel-manifest
           path: dist/manifest.json
           if-no-files-found: error
 
   github-release:
     name: Draft GitHub release
-    needs: [release-archives, update-manifest]
+    needs: channel-manifest
     runs-on: ubuntu-latest
-    if: always()
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -263,15 +246,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          cp -R artifacts/release-archives/. release/
-          if [ -d artifacts/update-manifest ]; then
-            cp artifacts/update-manifest/manifest.json release/
-          fi
+          cp artifacts/fulcrum-macos/fulcrum-macos.dmg release/
+          cp artifacts/fulcrum-windows/fulcrum-windows-x64.msi release/
+          cp artifacts/fulcrum-linux/fulcrum-linux-x64.tar.gz release/
+          cp artifacts/channel-manifest/manifest.json release/
           ls -la release/
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
           files: |
-            release/*.zip
+            release/fulcrum-macos.dmg
+            release/fulcrum-windows-x64.msi
+            release/fulcrum-linux-x64.tar.gz
             release/manifest.json
