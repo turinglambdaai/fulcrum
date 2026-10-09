@@ -4,6 +4,38 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.5.0
+
+### Changed
+
+- **Release artifacts now carry the full version and architecture in their
+  names** — `fulcrum-0.5.0-macos-arm64.dmg`, `fulcrum-0.5.0-macos-arm64.zip`,
+  `fulcrum-0.5.0-windows-x64.msi`, `fulcrum-0.5.0-linux-x64.tar.gz` — instead
+  of the fixed `fulcrum-macos.dmg`-style names. Every artifact ships with a
+  `.sha256` sidecar, and the publish job assembles them into a combined
+  `SHA256SUMS` (family packaging standard).
+
+### Added
+
+- **macOS Intel build**: releases now include an x64 DMG and zip alongside
+  the Apple-silicon ones (the taskly-style mac matrix), plus a portable
+  `fulcrum-<version>-macos-<arch>.zip` per architecture — the zip is also
+  what the signed update feed serves macOS clients.
+- **Release version gate**: a `VERSION` file at the repo root and
+  `scripts/check-release-version.sh` (VERSION == rivet.rktd == tag) run in
+  CI and in every release packaging job.
+
+### Fixed
+
+- The update manifest architecture labels now match what the in-app updater
+  sends (`arm64`/`x64`, the rivet family vocabulary). The old manifest wrote
+  `arm64`/`x64` while the updater sent `aarch64`/`x86_64`, and
+  `select-update` matches with `eq?` — so no client ever matched an artifact
+  and every update check reported "up to date" even when a newer version had
+  shipped. Manifest URLs are also tag-pinned now
+  (`releases/download/<tag>/<artifact>`) instead of riding
+  `releases/latest/download/`.
+
 ## 0.4.2
 
 ### Changed

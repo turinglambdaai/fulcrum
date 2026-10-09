@@ -32,6 +32,9 @@ jobs:
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
+      - name: Verify release version alignment
+        run: bash scripts/check-release-version.sh
+        shell: bash
       - name: Compile backend
         run: raco make app/core/*.rkt app/update.rkt app/backend.rkt
         shell: bash

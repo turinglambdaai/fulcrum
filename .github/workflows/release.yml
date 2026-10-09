@@ -1,8 +1,9 @@
 name: Release
 
-# Tag-driven pipeline producing one human installer per platform —
-# fulcrum-macos.dmg, fulcrum-windows-x64.msi, fulcrum-linux-x64.tar.gz —
-# plus the signed stable-channel manifest. `raco rivet release
+# Tag-driven pipeline producing versioned, architecture-suffixed artifacts —
+# fulcrum-<version>-macos-<arch>.dmg + .zip, fulcrum-<version>-windows-x64.msi,
+# fulcrum-<version>-linux-x64.tar.gz — each with a .sha256 checksum, a combined
+# SHA256SUMS, and the signed stable-channel manifest. `raco rivet release
 # --development` exercises the full release flow (package, launch smoke,
 # installer) without platform production signing; production trust rides on
 # the Ed25519-signed channel manifest. The secrets from
@@ -15,6 +16,10 @@ on:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   # Rivet snapshot carrying the update-fetch redirect fix (#153). Bump this
@@ -29,21 +34,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.15
-        with:
-          version: stable
-          distribution: full
-      - name: Check tag matches rivet.rktd and CHANGELOG
+      - name: Check tag matches VERSION, rivet.rktd and CHANGELOG
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          VERSION=$(racket -e '(begin (require racket/file) (hash-ref (file->value "rivet.rktd") (quote version) #f))' | tr -d '"')
-          echo "tag=$TAG rivet.rktd=$VERSION"
-          test "$TAG" = "$VERSION" || { echo "::error::tag $TAG != rivet.rktd version $VERSION"; exit 1; }
-          grep -q "^## $TAG" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $TAG' section"; exit 1; }
+          bash scripts/check-release-version.sh "${{ github.ref_name }}"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          grep -q "^## $TAG_VERSION" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $TAG_VERSION' section"; exit 1; }
 
   package:
-    name: Package (${{ matrix.platform }})
+    name: Package (${{ matrix.platform }}-${{ matrix.arch }})
     needs: validate
     runs-on: ${{ matrix.os }}
     strategy:
@@ -52,10 +50,22 @@ jobs:
         include:
           - os: macos-latest
             platform: macos
+            arch: arm64
+            racket-arch: arm64
+          # Intel macs stay on the family matrix (taskly ships the same pair);
+          # macos-15-intel is the last Intel runner generation.
+          - os: macos-15-intel
+            platform: macos
+            arch: x64
+            racket-arch: x64
           - os: windows-latest
             platform: windows
+            arch: x64
+            racket-arch: x64
           - os: ubuntu-latest
             platform: linux
+            arch: x64
+            racket-arch: x64
     steps:
       - uses: actions/checkout@v4
       - name: Checkout Rivet
@@ -78,10 +88,10 @@ jobs:
         with:
           version: stable
           distribution: full
-          # macOS packaging must be arm64-native: without this the runner
+          # macOS packaging must be arch-native: without this the runner
           # builds under Rosetta and ships an x86_64 app (the PodLens
           # release shipped exactly that bug).
-          architecture: ${{ matrix.platform == 'macos' && 'arm64' || 'x64' }}
+          architecture: ${{ matrix.racket-arch }}
       - name: Install Linux toolchain
         if: matrix.platform == 'linux'
         run: |
@@ -143,6 +153,9 @@ jobs:
         if: matrix.platform == 'windows'
         run: dotnet tool install --global wix --version 5.0.2
         shell: bash
+      - name: Version preflight (VERSION == rivet.rktd == tag)
+        run: bash scripts/check-release-version.sh "${{ github.ref_name }}"
+        shell: bash
       # `raco rivet release --development` = package + launch smoke + the
       # platform installer (msi/dmg/tar.gz) + a per-platform update manifest
       # discarded here in favor of the composed channel manifest signed
@@ -151,7 +164,7 @@ jobs:
       # plumbed through here too.
       - name: Release (development strength)
         env:
-          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/latest/download
+          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
           RIVET_UPDATE_KEY_ID: fulcrum-2026-10
           RIVET_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
         run: |
@@ -162,24 +175,38 @@ jobs:
           raco rivet release --development
           rm -f update-private.pem update-private.der
         shell: bash
-      - name: Rename installer for the channel manifest
+      # Versioned + architecture-suffixed names are the release contract: the
+      # channel manifest (.github/sign-manifest.rkt) pins exactly these names,
+      # and the mac zip doubles as the portable build the update feed serves.
+      - name: Name artifacts and checksum
         shell: bash
         run: |
           set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          ARCH="${{ matrix.arch }}"
+          sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
           case "${{ matrix.platform }}" in
-            macos)   mv dist/fulcrum-*-macos.dmg fulcrum-macos.dmg ;;
-            windows) mv dist/fulcrum-*-windows-*.msi fulcrum-windows-x64.msi ;;
-            linux)   mv dist/fulcrum-*-linux-*.tar.gz fulcrum-linux-x64.tar.gz ;;
+            macos)
+              mv dist/fulcrum-*.dmg "fulcrum-${VERSION}-macos-${ARCH}.dmg"
+              (cd dist && zip -qry "../fulcrum-${VERSION}-macos-${ARCH}.zip" fulcrum.app)
+              ;;
+            windows)
+              mv dist/fulcrum-*-windows-*.msi "fulcrum-${VERSION}-windows-x64.msi"
+              ;;
+            linux)
+              mv dist/fulcrum-*-linux-*.tar.gz "fulcrum-${VERSION}-linux-x64.tar.gz"
+              ;;
           esac
+          for f in fulcrum-${VERSION}-*; do
+            case "$f" in *.sha256) continue ;; esac
+            sha256 "$f" > "$f.sha256"
+          done
           ls -la
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fulcrum-${{ matrix.platform }}
-          path: |
-            fulcrum-macos.dmg
-            fulcrum-windows-x64.msi
-            fulcrum-linux-x64.tar.gz
+          name: fulcrum-${{ matrix.platform }}-${{ matrix.arch }}
+          path: fulcrum-*
           if-no-files-found: error
 
   channel-manifest:
@@ -202,25 +229,25 @@ jobs:
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
-      - name: Download installers
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
       - name: Collect installers
         run: |
           set -euo pipefail
           mkdir -p release
-          mv artifacts/fulcrum-macos/fulcrum-macos.dmg release/
-          mv artifacts/fulcrum-windows/fulcrum-windows-x64.msi release/
-          mv artifacts/fulcrum-linux/fulcrum-linux-x64.tar.gz release/
+          mv artifacts/fulcrum-*/fulcrum-* release/
           ls -la release/
       - name: Compose and sign the channel manifest
         env:
+          # Manifest URLs are tag-pinned (never re-upload under an existing
+          # version URL — hashes are pinned by the signed manifest). The
+          # signing key + key id still come from the RIVET_UPDATE_* secrets.
+          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
           RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
           RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
-          RIVET_UPDATE_BASE_URL: ${{ secrets.RIVET_UPDATE_BASE_URL }}
         run: |
-          # One channel manifest pins every platform installer (see
+          # One channel manifest pins every platform artifact (see
           # .github/sign-manifest.rkt). The secret carries the PEM; the
           # signer wants DER paths, and the signed output is verified
           # against the public key before upload.
@@ -246,17 +273,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          cp artifacts/fulcrum-macos/fulcrum-macos.dmg release/
-          cp artifacts/fulcrum-windows/fulcrum-windows-x64.msi release/
-          cp artifacts/fulcrum-linux/fulcrum-linux-x64.tar.gz release/
+          mv artifacts/fulcrum-*/fulcrum-* release/
           cp artifacts/channel-manifest/manifest.json release/
+          (cd release && cat *.sha256 > SHA256SUMS)
           ls -la release/
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
           files: |
-            release/fulcrum-macos.dmg
-            release/fulcrum-windows-x64.msi
-            release/fulcrum-linux-x64.tar.gz
+            release/fulcrum-*
+            release/SHA256SUMS
             release/manifest.json

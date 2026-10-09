@@ -9,9 +9,13 @@
 ;;   RIVET_UPDATE_KEY_ID       signing key id embedded in the wrapper
 ;;   UPDATE_PRIVATE_DER        path to the Ed25519 private key (DER)
 ;;   UPDATE_PUBLIC_DER         path to the matching public key (DER)
-;; The release installers must exist under release/ (fulcrum-macos.dmg,
-;; fulcrum-windows-x64.msi, fulcrum-linux-x64.tar.gz); the URLs written
-;; into the manifest are $BASE_URL/<name>.
+;; The release installers must exist under release/ (named as the release
+;; pipeline produces them: fulcrum-<version>-macos-arm64.zip,
+;; fulcrum-<version>-macos-x64.zip, fulcrum-<version>-windows-x64.msi,
+;; fulcrum-<version>-linux-x64.tar.gz); the URLs written into the manifest
+;; are $BASE_URL/<name>. Architecture symbols follow the family vocabulary
+;; (arm64/x64) — the same symbols app/update.rkt sends, which
+;; `select-update` matches with `eq?`.
 
 (require racket/file
          racket/format
@@ -67,9 +71,14 @@
   (update-manifest identifier version build (string->symbol channel)
                    published-at
                    "0.0.0" #f #t 100
-                   (list (artifact-for "fulcrum-macos.dmg" 'macos 'arm64 'dmg)
-                         (artifact-for "fulcrum-windows-x64.msi" 'windows 'x64 'msi)
-                         (artifact-for "fulcrum-linux-x64.tar.gz" 'linux 'x64 'targz))))
+                   (list (artifact-for (format "fulcrum-~a-macos-arm64.zip" version)
+                                       'macos 'arm64 'zip)
+                         (artifact-for (format "fulcrum-~a-macos-x64.zip" version)
+                                       'macos 'x64 'zip)
+                         (artifact-for (format "fulcrum-~a-windows-x64.msi" version)
+                                       'windows 'x64 'msi)
+                         (artifact-for (format "fulcrum-~a-linux-x64.tar.gz" version)
+                                       'linux 'x64 'targz))))
 
 (define private-key (read-ed25519-private-key private-der))
 (define public-key (read-ed25519-public-key public-der))

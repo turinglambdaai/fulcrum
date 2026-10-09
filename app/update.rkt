@@ -73,7 +73,13 @@
                            [(macosx) 'macos]
                            [(windows) 'windows]
                            [else 'linux])
-                         (if (eq? (system-type 'arch) 'aarch64) 'aarch64 'x86_64)
+                         ;; Family architecture vocabulary (rivet's own
+                         ;; release flow and taskly's updater both speak
+                         ;; arm64/x64); the signed manifest must use the
+                         ;; same symbols or `select-update` matches nothing.
+                         (case (system-type 'arch)
+                           [(aarch64 arm64) 'arm64]
+                           [else 'x64])
                          key
                          current-update-key-id
                          (random 100)

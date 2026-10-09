@@ -20,10 +20,14 @@ the Rivet repository explains the trust model this builds on.
 
 ## 1. Version bump
 
-All release identity lives in `rivet.rktd`: bump `version` (SemVer) and
-`build` (integer, never reuse per platform). Update `CHANGELOG.md` with a
+Release identity lives in two files that must agree: bump `version` (SemVer)
+and `build` (integer, never reuse per platform) in `rivet.rktd`, and set the
+repo-root `VERSION` file to the same value. Update `CHANGELOG.md` with a
 section named exactly after the new version — the tag validator rejects a
 tag whose version has no matching changelog section.
+`scripts/check-release-version.sh` (run in CI and every release packaging
+job) enforces `VERSION == rivet.rktd == tag`; `.github/sign-manifest.rkt`
+reads the version from `rivet.rktd` when composing the channel manifest.
 
 For the developer preview on the `main` branch this is enough; production
 steps continue below.
@@ -53,24 +57,35 @@ git tag -s v0.1.0 -m "Fulcrum 0.1.0"
 git push origin v0.1.0
 ```
 
-`.github/workflows/release.yml` then, per platform matrix:
+`.github/workflows/release.yml` then, per platform matrix (macOS arm64 +
+x64, Windows x64, Linux x64):
 
-1. validates the tag against `rivet.rktd` and the changelog;
+1. validates the tag against `VERSION`, `rivet.rktd` and the changelog;
 2. `raco rivet build` + `raco rivet package --production` (platform
    signing from secrets);
 3. `raco rivet release` — installer (DMG / MSI), Ed25519-signed update
    manifest, CycloneDX SBOM, third-party notices;
-4. uploads artifacts to the draft GitHub release, including the
-   `manifest.json` signed channel manifest; the app fetches it from
-   `RIVET_UPDATE_BASE_URL` (default
+4. renames artifacts to the versioned, architecture-suffixed release names
+   (`fulcrum-<version>-macos-<arch>.dmg` / `.zip`,
+   `fulcrum-<version>-windows-x64.msi`,
+   `fulcrum-<version>-linux-x64.tar.gz`), writes a `.sha256` sidecar per
+   artifact, and uploads them;
+5. the publish job signs one channel manifest pinning all artifacts
+   (macOS clients are served the portable zip for their architecture),
+   assembles `SHA256SUMS` from the sidecars, and drafts the GitHub
+   release. Manifest URLs are tag-pinned
+   (`releases/download/<tag>/<artifact>`) — never re-upload under an
+   existing version URL. The app itself fetches `manifest.json` under its
+   `update-base-url` setting (default
    `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
    so publishing the draft puts the update feed live.
 
 Required secrets: `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`,
 `MACOS_NOTARY_PROFILE`, `APPLE_ID`/`APPLE_TEAM_ID` (notarytool),
 `WINDOWS_CERTIFICATE_PFX`, `WINDOWS_CERTIFICATE_PASSWORD`,
-`RIVET_UPDATE_PRIVATE_KEY` (the DER file, PEM-wrapped), `RIVET_UPDATE_KEY_ID`,
-`RIVET_UPDATE_BASE_URL`.
+`RIVET_UPDATE_PRIVATE_KEY` (the DER file, PEM-wrapped),
+`RIVET_UPDATE_KEY_ID`. The manifest base URL is derived from the tag, not
+a secret.
 
 ## 4. Publish checklist
 
