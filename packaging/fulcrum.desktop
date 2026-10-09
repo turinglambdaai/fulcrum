@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Fulcrum
+Comment=One keystroke. Everything within reach.
+GenericName=Launcher
+Exec=fulcrum --toggle
+TryExec=fulcrum
+Icon=fulcrum
+Terminal=false
+Categories=Utility;
+Keywords=launcher;search;keyboard;
+StartupWMClass=fulcrum
+X-GNOME-UsesNotifications=false

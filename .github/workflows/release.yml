@@ -139,6 +139,12 @@ jobs:
       - name: Link Rivet
         run: raco pkg install --auto --no-docs --link "$GITHUB_WORKSPACE/rivet"
         shell: bash
+      # rivet.rktd points macos-icon at brand/Fulcrum.icns; the committed
+      # source is brand/iconset/, and iconutil is the Apple-blessed way to
+      # build the .icns from it.
+      - name: Generate macOS icon
+        if: matrix.platform == 'macos'
+        run: iconutil -c icns brand/iconset -o brand/Fulcrum.icns
       - name: Install WiX (v5; v7 requires EULA acceptance, v5 runs the v4 schema)
         if: matrix.platform == 'windows'
         run: dotnet tool install --global wix --version 5.0.2
@@ -172,6 +178,49 @@ jobs:
             linux)   mv dist/fulcrum-*-linux-*.tar.gz fulcrum-linux-x64.tar.gz ;;
           esac
           ls -la
+      # The tarball stays the universal distribution; the .deb is the
+      # first-class Debian/Ubuntu path — /opt/fulcrum plus /usr/bin symlink,
+      # menu entry, and hicolor icons, so the app installs like a native
+      # package instead of a folder to babysit.
+      - name: Build Debian package
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          work="$RUNNER_TEMP/deb-root"
+          root="$work/fulcrum"
+          rm -rf "$work"
+          mkdir -p "$root/DEBIAN" "$root/opt/fulcrum" "$root/usr/bin" \
+            "$root/usr/share/applications" "$root/usr/share/icons/hicolor"
+          tar -xzf fulcrum-linux-x64.tar.gz -C "$root/opt/fulcrum" --strip-components=1
+          binary="$root/opt/fulcrum/fulcrum"
+          [ -f "$binary" ] || binary="$root/opt/fulcrum/RivetHost"
+          test -f "$binary"
+          chmod 0755 "$binary"
+          ln -s "/opt/fulcrum/$(basename "$binary")" "$root/usr/bin/fulcrum"
+          install -m 0644 packaging/fulcrum.desktop \
+            "$root/usr/share/applications/fulcrum.desktop"
+          for size in 16 32 48 64 128 256 512; do
+            dir="$root/usr/share/icons/hicolor/${size}x${size}/apps"
+            mkdir -p "$dir"
+            install -m 0644 "brand/fulcrum-icon-${size}.png" "$dir/fulcrum.png"
+          done
+          cat > "$root/DEBIAN/control" <<CONTROL
+          Package: fulcrum
+          Version: $TAG
+          Section: utils
+          Priority: optional
+          Architecture: amd64
+          Depends: libgtk-4-1 (>= 4.6), libx11-6, zlib1g, liblz4-1, libtinfo6
+          Maintainer: TuringLambdaAI <jirentianxiang1024@gmail.com>
+          Description: One keystroke. Everything within reach.
+           Keyboard-first launcher: one Racket brain, a first-party GTK4 UI.
+           Search apps, clipboard history, snippets, and the web, and run
+           actions without leaving the keyboard.
+          CONTROL
+          dpkg-deb --root-owner-group --build "$root" "fulcrum_${TAG}_amd64.deb"
+          dpkg-deb --contents "fulcrum_${TAG}_amd64.deb" | head -5
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -180,6 +229,7 @@ jobs:
             fulcrum-macos.dmg
             fulcrum-windows-x64.msi
             fulcrum-linux-x64.tar.gz
+            fulcrum_*_amd64.deb
           if-no-files-found: error
 
   channel-manifest:
@@ -239,6 +289,7 @@ jobs:
     needs: channel-manifest
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
@@ -249,14 +300,44 @@ jobs:
           cp artifacts/fulcrum-macos/fulcrum-macos.dmg release/
           cp artifacts/fulcrum-windows/fulcrum-windows-x64.msi release/
           cp artifacts/fulcrum-linux/fulcrum-linux-x64.tar.gz release/
+          cp artifacts/fulcrum-linux/fulcrum_*_amd64.deb release/
           cp artifacts/channel-manifest/manifest.json release/
           ls -la release/
+      - name: Generate SHA256SUMS
+        run: |
+          cd release
+          sha256sum fulcrum-macos.dmg fulcrum-windows-x64.msi \
+            fulcrum-linux-x64.tar.gz fulcrum_*_amd64.deb manifest.json \
+            > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      # Direct pushes mean generate_release_notes has nothing to list; the
+      # changelog section is the notes. Render it plus the per-platform
+      # install instructions into the release body.
+      - name: Render release notes
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          {
+            echo "# Fulcrum $TAG"
+            echo
+            awk -v header="## $TAG" '
+              index($0, header) == 1 { in_section = 1; next }
+              /^## /                 { in_section = 0 }
+              in_section             { print }
+            ' CHANGELOG.md
+            echo
+            cat .github/release-install.md
+          } > release-notes.md
+          cat release-notes.md
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
           generate_release_notes: true
+          body_path: release-notes.md
           files: |
             release/fulcrum-macos.dmg
             release/fulcrum-windows-x64.msi
             release/fulcrum-linux-x64.tar.gz
+            release/fulcrum_*_amd64.deb
             release/manifest.json
+            release/SHA256SUMS.txt

@@ -727,6 +727,7 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* window = gtk_application_window_new(app);
   launcher.window = GTK_WINDOW(window);
   gtk_window_set_title(launcher.window, "Fulcrum");
+  gtk_window_set_default_icon_name("fulcrum");
   gtk_window_set_default_size(launcher.window, 680, 440);
   gtk_window_set_resizable(launcher.window, FALSE);
   gtk_window_set_hide_on_close(launcher.window, FALSE);
@@ -818,6 +819,11 @@ void on_shutdown(GApplication*, gpointer) {
   Launcher::instance().stop_backend();
 }
 
+// SIGTERM/SIGINT bypass the GTK main loop: without the hook the embedded
+// backend dies on the signal while the panel stays up, half-dead. The
+// watcher thread runs the same orderly stop and then hard-exits.
+void perform_orderly_shutdown() { on_shutdown(nullptr, nullptr); }
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -847,6 +853,11 @@ int main(int argc, char** argv) {
       gtk_application_new("site.jrtx.fulcrum", G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
   g_signal_connect(app, "shutdown", G_CALLBACK(on_shutdown), nullptr);
+  try {
+    rivet::system::InstallShutdownHook(perform_orderly_shutdown);
+  } catch (std::exception const& error) {
+    std::cerr << "fulcrum: shutdown hook unavailable: " << error.what() << "\n";
+  }
   int const status = g_application_run(G_APPLICATION(app), argc, argv);
   g_object_unref(app);
   return status;
