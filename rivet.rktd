@@ -6,6 +6,8 @@
         (release-channel . stable)
         (url-schemes . ("fulcrum"))
         (file-associations . ())
+        (windows-icon . "brand/fulcrum.ico")
+        (macos-icon . "brand/Fulcrum.icns")
         (macos-min-version . "14.0")
         (windows-min-version . "10.0.19041.0")
         (backend . "app/backend.rkt")

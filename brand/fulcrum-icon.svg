@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Fulcrum app icon: amber squircle, white lever-on-pivot glyph.
+       The lever presses on a pivot set near its right end; the long arm
+       is lifted — mechanical advantage, everything within reach. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBBF24"/>
+      <stop offset="1" stop-color="#D97706"/>
+    </linearGradient>
+  </defs>
+
+  <!-- squircle tile -->
+  <rect x="0" y="0" width="1024" height="1024" rx="230" fill="url(#tile)"/>
+
+  <!-- lever: hinged at its right end, long arm raised -->
+  <g transform="rotate(18 610 520)">
+    <rect x="90" y="474" width="520" height="92" rx="46" fill="#FFFFFF"/>
+  </g>
+
+  <!-- pivot: the fulcrum itself -->
+  <path d="M610 558 L744 764 L476 764 Z" fill="#FFFFFF"/>
+
+  <!-- spark at the lifted end -->
+  <circle cx="152" cy="248" r="32" fill="#FFFFFF" opacity="0.95"/>
+</svg>

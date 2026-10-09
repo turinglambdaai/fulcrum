@@ -14,6 +14,15 @@ independently per platform packaging run.
   pipeline runs `raco rivet release`, and the signed channel manifest pins
   those installers — no more unpacking a WinUI runtime directory to hunt
   for `RivetHost.exe`.
+- **The app has a brand icon on all three platforms.** One amber
+  lever-on-pivot mark (matching the site palette) ships as the Windows
+  executable icon, the macOS `.icns`, and a full hicolor set plus a menu
+  entry for Linux.
+- **Linux installs like a native package**: the release adds
+  `fulcrum_<version>_amd64.deb` — `/opt/fulcrum`, a `/usr/bin/fulcrum`
+  command, a desktop entry, and icons — alongside the tarball.
+- Every release now publishes `SHA256SUMS.txt` and renders its changelog
+  section plus per-platform install instructions into the release notes.
 
 ### Fixed
 
@@ -21,6 +30,11 @@ independently per platform packaging run.
   0.4.1 announced this fix but its release pin predated rivet#153, so
   0.4.1 binaries still failed every in-app update check at signature
   verification. 0.4.2 builds on the commit that carries the fix.
+- SIGTERM/SIGINT now stop the whole app: the Linux host installs Rivet's
+  shutdown hook, so a termination signal runs the same orderly backend
+  stop as the GTK shutdown signal and then exits. Previously the backend
+  died on the signal while the panel stayed up, half-dead; only SIGKILL
+  removed it.
 
 ## 0.4.1
 
