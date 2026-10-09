@@ -60,9 +60,11 @@ git push origin v0.1.0
    signing from secrets);
 3. `raco rivet release` — installer (DMG / MSI), Ed25519-signed update
    manifest, CycloneDX SBOM, third-party notices;
-4. uploads artifacts to the draft GitHub release and publishes
-   `stable/manifest.json` to the downloads origin (`update-base-url`,
-   default `https://downloads.jrtx.site/fulcrum`).
+4. uploads artifacts to the draft GitHub release, including the
+   `manifest.json` signed channel manifest; the app fetches it from
+   `RIVET_UPDATE_BASE_URL` (default
+   `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
+   so publishing the draft puts the update feed live.
 
 Required secrets: `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`,
 `MACOS_NOTARY_PROFILE`, `APPLE_ID`/`APPLE_TEAM_ID` (notarytool),

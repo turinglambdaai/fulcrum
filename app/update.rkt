@@ -61,7 +61,7 @@
        (define manifest
          (fetch-update-manifest
           (string-append (regexp-replace* #rx"/+$" base-url "")
-                         "/stable/manifest.json")
+                         "/manifest.json")
           key
           #:key-id current-update-key-id
           #:maximum-bytes (* 4 1024 1024)))

@@ -4,6 +4,19 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.4.0
+
+### Added
+
+- **Online updates go live**: the update channel now serves the signed
+  channel manifest straight from GitHub Releases
+  (`releases/latest/download/manifest.json`) — no separate downloads origin
+  to operate. The default `update-base-url` setting points there, and the
+  updater fetches `/manifest.json` under whichever base is configured.
+  Checks stay signature-verified (Ed25519, key `fulcrum-2026-10`) and
+  honest: a developer build reports "developer build", a failed origin
+  reports the error verbatim.
+
 ## 0.3.0
 
 ### Added

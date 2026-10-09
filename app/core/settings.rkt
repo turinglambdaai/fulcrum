@@ -63,7 +63,7 @@
    (list (lambda (v) (and (string? v)
                           (or (string-prefix? v "https://")
                               (string-prefix? v "http://"))))
-         "https://downloads.jrtx.site/fulcrum"
+         "https://github.com/turinglambdaai/fulcrum/releases/latest/download"
          "Base URL the updater fetches the channel manifest from")
    'sync-root
    (list string? ""
