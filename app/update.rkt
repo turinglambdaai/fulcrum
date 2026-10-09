@@ -38,6 +38,12 @@
                        (string->number (substring s i (+ i 2)) 16)))
         #f)))
 
+;; The manifest verifier takes a parsed key object, not raw DER — this
+;; conversion is what stands between an update check and a contract
+;; violation at ed25519-verify (every 0.4.x check failed exactly there).
+(define current-update-public-key
+  (bytes->ed25519-public-key (hex->bytes current-update-public-key-hex)))
+
 (define (fulcrum-update-configured?)
   (and current-update-public-key-hex
        (hex->bytes current-update-public-key-hex)
@@ -57,12 +63,11 @@
      (with-handlers ([exn:fail?
                       (lambda (e)
                         (format "update check failed: ~a" (exn-message e)))])
-       (define key (hex->bytes current-update-public-key-hex))
        (define manifest
          (fetch-update-manifest
           (string-append (regexp-replace* #rx"/+$" base-url "")
                          "/manifest.json")
-          key
+          current-update-public-key
           #:key-id current-update-key-id
           #:maximum-bytes (* 4 1024 1024)))
        (define config
@@ -80,7 +85,7 @@
                          (case (system-type 'arch)
                            [(aarch64 arm64) 'arm64]
                            [else 'x64])
-                         key
+                         current-update-public-key
                          current-update-key-id
                          (random 100)
                          (* 512 1024 1024)))
