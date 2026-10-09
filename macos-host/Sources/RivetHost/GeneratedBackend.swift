@@ -114,30 +114,30 @@ public struct RivetAPI: Sendable {
     }
 
     // Shared state
-    public func get_hotkey() async throws -> String {
+    public func getHotkey() async throws -> String {
         let result = try await client.getState("hotkey")
         return try decode_String(result)
     }
     @discardableResult
-    public func set_hotkey(_ value: String) async throws -> String {
+    public func setHotkey(_ value: String) async throws -> String {
         let result = try await client.setState("hotkey", value: encode_String(value))
         return try decode_String(result)
     }
-    public func get_theme() async throws -> String {
+    public func getTheme() async throws -> String {
         let result = try await client.getState("theme")
         return try decode_String(result)
     }
     @discardableResult
-    public func set_theme(_ value: String) async throws -> String {
+    public func setTheme(_ value: String) async throws -> String {
         let result = try await client.setState("theme", value: encode_String(value))
         return try decode_String(result)
     }
-    public func get_version() async throws -> String {
+    public func getVersion() async throws -> String {
         let result = try await client.getState("version")
         return try decode_String(result)
     }
     @discardableResult
-    public func set_version(_ value: String) async throws -> String {
+    public func setVersion(_ value: String) async throws -> String {
         let result = try await client.setState("version", value: encode_String(value))
         return try decode_String(result)
     }
