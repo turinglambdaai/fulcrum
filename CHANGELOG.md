@@ -4,6 +4,15 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.4.1
+
+### Fixed
+
+- The update check follows HTTP redirects (rivet#153): GitHub release
+  assets answer with a 302 to their CDN, and the previous fetch verified
+  an empty redirect body — every in-app update check failed at signature
+  verification. No app changes; rebuilt on the fixed rivet.
+
 ## 0.4.0
 
 ### Added
