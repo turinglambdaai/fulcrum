@@ -25,7 +25,7 @@
      (check-true (settings-get s 'clipboard-enabled))
      (check-equal? (settings-get s 'default-engine) "!g")
      (check-equal? (settings-get s 'update-base-url)
-                   "https://downloads.jrtx.site/fulcrum"))))
+                   "https://github.com/turinglambdaai/fulcrum/releases/latest/download"))))
 
 (test-case "valid writes round-trip and persist"
   (call-with-settings
