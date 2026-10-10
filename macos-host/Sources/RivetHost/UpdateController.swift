@@ -117,6 +117,11 @@ final class UpdateController: ObservableObject {
                 availableSize = result.size_bytes ?? 0
                 phase = .available
                 panelVisible = true
+                // The silent launch check found something while the update
+                // window was closed — surface the offer (taskly behavior).
+                if !manual {
+                    AppDelegate.shared?.showUpdatePanel()
+                }
             case "throttled":
                 // A silent ask inside the throttle window is a no-op; a
                 // manual one never gets here (manual bypasses).
