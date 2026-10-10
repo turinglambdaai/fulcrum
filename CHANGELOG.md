@@ -4,6 +4,42 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.6.0
+
+### Added
+
+- **Updater 0.2 — download and install** (family pattern, taskly parity):
+  the backend now owns the whole verify-download pipeline. `update-check`
+  (manual and silent variants) returns a typed `UpdateCheck` record
+  (status/version/build/published-at/installer/size-bytes); `update-download`
+  streams the signed artifact to `<data-dir>/updates/` on a background
+  thread with progress in a state box; `update-state` reports phase
+  (idle | checking | downloading | downloaded | error), percent and the
+  verified file path. The 4-hour silent-check throttle is backend-owned
+  (settings key `update-last-check`) so all three hosts share it, and the
+  staged-rollout bucket persists sticky as `update-rollout-bucket`.
+- **Launcher update rows**: query `update` on every platform surfaces the
+  one row the current phase wants — check, download (version + size),
+  live progress, then "Quit and install" (macOS) or "Open the updates
+  folder" with honest manual-install guidance (Windows: the downloaded
+  .msi; Linux: the .tar.gz). Windows and Linux hosts additionally poll
+  download progress into the status line and run the throttled silent
+  check at launch.
+- **macOS update window + in-place install**: a menu-bar "Check for
+  Updates…" item opens an update panel (available → confirm version + size
+  → download progress → quit-and-install). Installation swaps the verified
+  bundle atomically (unzip → ditto → keep the old bundle as `.old` until
+  the relaunch succeeds, taskly's proven swap script) and relaunches.
+- **i18n for the update flow**: `shared/i18n/{zh,en}.json` ship as staged
+  resources (`resources` clause in rivet.rktd) and the macOS host renders
+  the update panel in the configured language (`language` setting, zh
+  default, toggle via the launcher settings rows).
+
+### Fixed
+
+- The updater no longer draws a fresh rollout bucket per check; the bucket
+  is drawn once and persisted, matching the family update contract.
+
 ## 0.5.0
 
 ### Changed

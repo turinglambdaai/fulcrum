@@ -55,8 +55,12 @@
 ;; update check: drift here means every install believes it is outdated
 ;; (0.2.0 shipped believing it was 0.1.0).
 (define app-version
-  (with-handlers ([exn:fail? (lambda (_) "0.3.0")])
+  (with-handlers ([exn:fail? (lambda (_) "0.6.0")])
     (string-append (rivet-info:app-version))))
+
+;; The updater learns the running version from here (the packaged app reads
+;; rivet-app-info.rktd, headless tests parameterize it directly).
+(current-update-version app-version)
 
 ;; ---- States -------------------------------------------------------------
 
@@ -70,6 +74,37 @@
 (define-event copy-to-clipboard : String)
 (define-event open-url : String)
 (define-event update-available : String)
+
+;; ---- update records ------------------------------------------------------
+;;
+;; Wire DTOs for the updater (the family shape taskly ships). Optional
+;; fields travel as null when unfilled; hosts decode them as nil/null.
+
+;; Result of update-check. status: "available" | "up-to-date" | "error" |
+;; "throttled"; version/build/published-at/installer/size-bytes are only
+;; filled for "available".
+(define-record UpdateCheck
+  ([status : String]
+   [error : (Optional String)]
+   [current-version : String]
+   [available-version : (Optional String)]
+   [build : (Optional Int64)]
+   [published-at : (Optional String)]
+   [installer : (Optional String)]
+   [size-bytes : (Optional Int64)]))
+
+;; Polled by the host while a download runs. phase: idle | checking |
+;; downloading | downloaded | error. `downloaded-path` names the verified
+;; installer under <data-dir>/updates once phase reaches "downloaded".
+(define-record UpdateState
+  ([phase : String]
+   [percent : Int64]
+   [message : (Optional String)]
+   [downloaded-path : (Optional String)]
+   [available-version : (Optional String)]))
+
+(define (nullable value)
+  (if value value (void)))
 
 ;; ---- shared engine ------------------------------------------------------
 
@@ -94,10 +129,11 @@
       [(open-url) (open-url (cdr entry))]
       [else (notify (format "~a" entry))])))
 
-;; Queries that name a backend surface outright ("ai", "settings") put
-;; those rows first — twelve fuzzy app hits must not bury the settings
+;; Queries that name a backend surface outright ("ai", "settings", "update")
+;; put those rows first — twelve fuzzy app hits must not bury the settings
 ;; list below the fold.
-(define backend-surface-words '("ai" "settings" "quicklinks" "links" "gallery" "plugins"))
+(define backend-surface-words
+  '("ai" "settings" "quicklinks" "links" "gallery" "plugins" "update" "updates"))
 
 (define (rows-for engine query)
   (define rows (engine-search engine query))
@@ -109,13 +145,15 @@
   (define backend-rows
     (let ([pc (plugin-center-rows query)]
           [sr (settings-rows query)]
-          [ar (append (ai-rows query) (ai-ask-row query))])
+          [ar (append (ai-rows query) (ai-ask-row query))]
+          [ur (update-rows query)])
       ;; The surface the query names leads its own rows.
       (case (string-trim (string-downcase query))
-        [("plugins" "plugin") (append pc sr ar)]
-        [("ai") (append ar sr pc)]
-        [("settings") (append sr ar pc)]
-        [else (append sr ar pc)])))
+        [("plugins" "plugin") (append pc sr ar ur)]
+        [("ai") (append ar sr pc ur)]
+        [("update" "updates") (append ur sr ar pc)]
+        [("settings") (append sr ar pc ur)]
+        [else (append sr ar pc ur)])))
   (if (member (string-trim (string-downcase query)) backend-surface-words)
       (append backend-rows filtered)
       (append filtered backend-rows)))
@@ -128,12 +166,15 @@
 ;; cycles or toggles the value and notifies the new one.
 
 (define managed-setting-keys
-  '(theme max-results clipboard-enabled web-search-enabled plugins-enabled ai-provider))
+  '(language theme max-results clipboard-enabled web-search-enabled plugins-enabled ai-provider))
 
 (define max-results-cycle '(8 12 16 20 25))
 
 (define (next-setting-value key current)
   (case key
+    [(language)
+     (cond [(string=? current "zh") "en"]
+           [else "zh"])]
     [(theme)
      (cond [(string=? current "system") "light"]
            [(string=? current "light") "dark"]
@@ -164,6 +205,7 @@
     (list "settings.set"
           (format "~a" key)
           (case key
+            [(language) "UI language · select to toggle zh ↔ en (update dialogs follow it)"]
             [(theme) "UI theme · select to cycle system → light → dark"]
             [(max-results) "Maximum results shown · select to cycle"]
             [(ai-provider) "BYOK AI provider · select to cycle empty → openai → anthropic → ollama"]
@@ -611,8 +653,9 @@
   (engine-row-actions (engine!) id arg))
 
 (define-rpc (run-action [id String] [arg String] : String)
-  ;; Settings and AI rows are backend-owned (the engine holds no settings
-  ;; or keys), so they route here before the engine.
+  ;; Settings, AI, plugin-center and update rows are backend-owned (the
+  ;; engine holds no settings, keys, or update state), so they route here
+  ;; before the engine.
   (define outcome
     (cond
       [(string-prefix? id "settings.") (settings-act! arg)]
@@ -622,6 +665,7 @@
        ;; on the clipboard, ready to paste into a fresh query.
        (cons "copied" (list (cons 'copy-to-clipboard arg)))]
       [(string-prefix? id "plugins.") (plugins-act! (engine!) id arg)]
+      [(string-prefix? id "update.") (update-act! id)]
       [else (engine-run (engine!) id arg)]))
   (emit-events! (cdr outcome))
   (car outcome))
@@ -694,7 +738,7 @@
 
 (define (coerce-setting-value key value)
   (case key
-    [(max-results clipboard-limit plugins-timeout-ms)
+    [(max-results clipboard-limit plugins-timeout-ms update-last-check update-rollout-bucket)
      (define n (string->number (string-trim value)))
      (if n n (raise-argument-error 'settings-set "numeric string" value))]
     [(clipboard-enabled web-search-enabled plugins-enabled)
@@ -743,13 +787,206 @@
   (when manager (plugin-manager-reload! manager)))
 
 ;; ---- updates ------------------------------------------------------------
+;;
+;; The family pattern (rivet/distribution, taskly): the backend verifies
+;; and downloads the signed artifact; hosts own installation and
+;; presentation. The 4-hour silent-check throttle lives here (settings key
+;; `update-last-check`) so all three hosts share one implementation, and
+;; the sticky rollout bucket persists as `update-rollout-bucket`.
+;;
+;; Two surfaces drive the same state: the `update-check` / `update-download`
+;; / `update-state` RPCs (the macOS host's update window), and update rows
+;; in the launcher (query `update`) — the discoverable surface on every
+;; platform, and the primary one on Windows/Linux.
 
-(define-rpc (update-check : String)
-  (define status
-    (fulcrum-update-check app-version (settings-get (settings!) 'update-base-url)))
-  (when (string-prefix? status "update available")
-    (update-available status))
-  status)
+(define update-throttle-seconds (* 4 60 60))
+
+(define (format-bytes n)
+  (cond
+    [(>= n (* 1024 1024))
+     (string-append (~r (/ n (* 1024 1024)) #:precision '(= 1)) " MB")]
+    [(>= n 1024) (format "~a KB" (quotient n 1024))]
+    [else (format "~a B" n)]))
+
+;; Map the updater's plain hasheq onto the wire record.
+(define (check->record result)
+  (UpdateCheck
+   (hash-ref result 'status "error")
+   (nullable (hash-ref result 'message #f))
+   (hash-ref result 'currentVersion app-version)
+   (nullable (hash-ref result 'availableVersion #f))
+   (nullable (hash-ref result 'build #f))
+   (nullable (hash-ref result 'publishedAt #f))
+   (nullable (hash-ref result 'installer #f))
+   (nullable (hash-ref result 'sizeBytes #f))))
+
+;; One check attempt: bypasses the throttle, records `update-last-check`
+;; either way (a failing feed must not be retried in a tight loop by every
+;; silent launch), and emits update-available so hosts can offer the
+;; install. Never raises — network and manifest failures surface as
+;; status "error".
+(define (update-check! manual)
+  (define manager (settings!))
+  (define now (current-seconds))
+  (define record
+    (with-handlers
+        ([exn:fail?
+          (lambda (e)
+            (UpdateCheck "error" (nullable (exn-message e)) app-version
+                         (void) (void) (void) (void) (void)))])
+      (check->record
+       (perform-check! (settings-get manager 'update-base-url)))))
+  (with-handlers ([exn:fail? void])
+    (settings-set! manager 'update-last-check now))
+  (when (string=? (record-ref record 'status) "available")
+    (update-available
+     (format "update available: Fulcrum v~a (~a)"
+             (or (record-ref record 'available-version) "?")
+             (format-bytes (or (record-ref record 'size-bytes) 0)))))
+  record)
+
+(define-rpc (update-check [manual : Bool] : UpdateCheck)
+  (if manual
+      (update-check! #t)
+      ;; Silent launch check: at most once per 4 hours (the family
+      ;; throttle, shared by every host through this one key).
+      (let ([last (settings-get (settings!) 'update-last-check)])
+        (if (and (exact-integer? last)
+                 (< (- (current-seconds) last) update-throttle-seconds))
+            (UpdateCheck "throttled" (void) app-version
+                         (void) (void) (void) (void) (void))
+            (update-check! #f)))))
+
+;; Runs on a backend worker thread; the host follows progress via
+;; update-state. Never raises: failures surface through the state's phase.
+(define-rpc (update-download : Void)
+  (with-handlers
+      ([exn:fail? (lambda (e) (set-update-error! (exn-message e)))])
+    (start-download! (data-dir)))
+  (void))
+
+(define-rpc (update-state : UpdateState)
+  (define s (update-state-snapshot))
+  (UpdateState
+   (hash-ref s 'phase "idle")
+   (hash-ref s 'percent 0)
+   (nullable (hash-ref s 'message #f))
+   (nullable (hash-ref s 'downloadedPath #f))
+   (nullable (hash-ref s 'availableVersion #f))))
+
+;; ---- updates-as-rows ------------------------------------------------------
+;;
+;; The launcher IS the update UI on Windows and Linux, and a discoverable
+;; second entry on macOS: query `update` lists the one row the current
+;; phase wants — check, download (version + size), live progress, then
+;; install (macOS swaps the bundle in place) or open the folder with
+;; honest manual-install guidance (Windows/Linux).
+
+(define (update-row id title subtitle arg badge)
+  (list id title subtitle "Update" arg "update" "" badge))
+
+(define (update-rows query)
+  (define trimmed (string-trim query))
+  (define lowered (string-downcase trimmed))
+  (define state (update-state-snapshot))
+  (define phase (hash-ref state 'phase "idle"))
+  (define version (hash-ref state 'availableVersion #f))
+  (if (or (member lowered '("update" "updates"))
+          (fuzzy-score-fields
+           trimmed
+           (list (cons 1.0 "update")
+                 (cons 0.6 "check for updates install new version software")
+                 (cons 0.3 (format "fulcrum v~a" (or version ""))))))
+      (case phase
+        [(downloading)
+         (list (update-row
+                "update.progress"
+                (format "Downloading Fulcrum v~a…" (or version "?"))
+                "the download continues in the background; reopen this list for fresh progress"
+                "" (format "~a%" (hash-ref state 'percent 0)))
+               (update-row "update.check" "Check for updates again"
+                           "re-fetch the signed channel manifest now" "" ""))]
+        [(downloaded)
+         (append
+          (if (eq? (system-type 'os) 'macosx)
+              (list (update-row
+                     "update.install"
+                     (format "Quit and install Fulcrum v~a" (or version "?"))
+                     "swaps the downloaded bundle in place and relaunches"
+                     "" "Install"))
+              '())
+          (list (update-row
+                 "update.reveal"
+                 "Open the updates folder"
+                 (or (hash-ref state 'downloadedPath #f) "")
+                 "" "Open")
+                (update-row
+                 "update.hint"
+                 "Install manually"
+                 (case (system-type 'os)
+                   [(windows)
+                    "double-click the downloaded .msi and follow the installer; Fulcrum can be running during the upgrade"]
+                   [else
+                    "extract the .tar.gz and replace the current Fulcrum folder, then relaunch"])
+                 "" "")))]
+        [else
+         (append
+          (if version
+              (list (update-row
+                     "update.download"
+                     (format "Download Fulcrum v~a" version)
+                     (format "~a · ↵ downloads in the background"
+                             (format-bytes
+                              (or (update-candidate-size) 0)))
+                     "" "Download"))
+              '())
+          (list (update-row
+                 "update.check"
+                 (if version
+                     "Check for updates again"
+                     "Check for updates now")
+                 (format "current: Fulcrum v~a · fetches the signed channel manifest"
+                         app-version)
+                 "" "")))]
+      ) '()))
+
+;; The artifact size of the pending candidate, for the download row.
+(define (update-candidate-size)
+  (pending-artifact-size))
+
+(define (update-act! id)
+  (case (string->symbol id)
+    [(update.check)
+     (define record (update-check! #t))
+     (case (record-ref record 'status)
+       [(available)
+        (cons "ok" (list (cons 'notify
+                                (format "Update available: Fulcrum v~a (~a)"
+                                        (record-ref record 'available-version)
+                                        (format-bytes
+                                         (or (record-ref record 'size-bytes) 0))))))]
+       [(up-to-date)
+        (cons "ok" (list (cons 'notify
+                                (format "Fulcrum v~a is up to date" app-version))))]
+       [else (cons (or (record-ref record 'error) "update check failed") '())])]
+    [(update.download)
+     (with-handlers
+         ([exn:fail? (lambda (e)
+                       (set-update-error! (exn-message e))
+                       (cons (exn-message e) '()))])
+       (start-download! (data-dir))
+       (cons "downloading"
+             (list (cons 'notify "Update download started"))))]
+    [(update.install)
+     ;; macOS only: the host intercepts this action id and runs the native
+     ;; bundle swap (dmg/zip is host territory, the backend never installs).
+     (if (eq? (system-type 'os) 'macosx)
+         (cons "quit-and-install" '())
+         (cons "in-app install is macOS-only; open the updates folder instead" '()))]
+    [(update.reveal)
+     (cons "ok" (list (cons 'open-url (updates-folder-uri))))]
+    [(update.hint) (cons "ok" '())]
+    [else (cons (format "unknown update action: ~a" id) '())]))
 
 ;; ---- lifecycle ----------------------------------------------------------
 
@@ -782,6 +1019,9 @@
   (engine-rebuild-index! engine)
   (current-settings manager)
   (current-engine engine)
+  ;; The updater persists its throttle and rollout bucket in the settings
+  ;; store; hand it the manager once it exists.
+  (current-update-settings manager)
   (state-set! theme (settings-get manager 'theme))
   (state-set! hotkey (settings-get manager 'hotkey))
   (serve-fds in-fd out-fd))

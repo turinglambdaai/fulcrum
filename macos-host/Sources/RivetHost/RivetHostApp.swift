@@ -35,6 +35,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Menu bar presence: the discoverable way in when the hotkey is
     // forgotten, and the only quit affordance (Esc just hides).
     private var menuBar: RivetMenuBarController?
+    // Update flow (updater 0.2): panel window + RPC orchestration.
+    private var updateController: UpdateController?
+    private var updateWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // One instance owns the global hotkey; second launches exit here via
@@ -50,6 +53,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Self.shared = self
         let launcherModel = LauncherModel()
         model = launcherModel
+        let updater = UpdateController()
+        updateController = updater
+        updater.attach(model: launcherModel)
+        launcherModel.onBackendReady = { [weak self] in
+            self?.backendReady()
+        }
         installPanel(model: launcherModel)
         installHotkey()
         installKeyMonitor()
@@ -60,6 +69,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         true
+    }
+
+    // MARK: backend readiness
+
+    /// The embedded backend answered health: read the language setting into
+    /// i18n and arm the throttled silent update check (the throttle itself
+    /// lives backend-side, so this is one cheap RPC the backend may decline).
+    private func backendReady() {
+        guard let model else { return }
+        Task { [weak self] in
+            if let api = model.api,
+               let rows = try? await api.settingsList(),
+               let language = rows.first(where: { $0.id == "language" }) {
+                I18nService.shared.setLanguage(language.badge)
+            }
+            self?.updateController?.silentStartupCheck()
+        }
+    }
+
+    // MARK: update panel
+
+    /// The update panel lives in its own small window: the launcher panel is
+    /// transient (Esc hides it), while the update flow must survive focus
+    /// changes until the user decides.
+    nonisolated func showUpdatePanel() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let controller = self.updateController ?? UpdateController()
+            self.updateController = controller
+            let window = self.updateWindow ?? Self.makeUpdateWindow(controller: controller)
+            self.updateWindow = window
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    private static func makeUpdateWindow(controller: UpdateController) -> NSWindow {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 220),
+                              styleMask: [.titled, .closable],
+                              backing: .buffered, defer: false)
+        window.title = "Fulcrum"
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.contentView = NSHostingView(rootView: UpdatePanelView(controller: controller))
+        return window
     }
 
     // MARK: panel
@@ -207,7 +261,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: menu bar
 
     /// First-party rivet menu bar: Open runs the same toggle as the
-    /// hotkey; Quit is the only way out of the resident process.
+    /// hotkey; Check for Updates opens the update panel; Quit is the only
+    /// way out of the resident process.
     private func installMenuBar(model: LauncherModel) {
         let controller = RivetMenuBarController()
         controller.install(
@@ -215,6 +270,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menuItems: [
                 ("Open Fulcrum ⌥Space", "open", { [weak self] in
                     self?.showPanel()
+                }),
+                ("Check for Updates…", "update", { [weak self] in
+                    guard let self else { return }
+                    self.updateController?.checkForUpdates()
+                    self.showUpdatePanel()
                 }),
                 ("Quit Fulcrum", "quit", {
                     NSApp.terminate(nil)

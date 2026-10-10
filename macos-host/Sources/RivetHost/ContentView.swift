@@ -80,6 +80,7 @@ enum RowIcon {
         case "System": return row.id == "sys.lock" ? "lock.fill" : "gearshape"
         case "Setting": return "switch.2"
         case "Window": return "rectangle.split.2x1"
+        case "Update": return "arrow.down.circle"
         case "AI": return "sparkles"
         case "File": return "doc"
         default: return "circle.grid.2x2"
@@ -294,6 +295,18 @@ struct FulcrumAPI {
     func rowActions(id: String, arg: String) async throws -> [ResultRow] {
         (try await generated.row_actions(id: id, arg: arg)).compactMap { ResultRow.from($0) }
     }
+    func settingsList() async throws -> [ResultRow] {
+        (try await generated.settings_list()).compactMap { ResultRow.from($0) }
+    }
+    func updateCheck(manual: Bool) async throws -> RivetTypes.UpdateCheck {
+        try await generated.update_check(manual: manual)
+    }
+    func updateDownload() async throws -> Void {
+        try await generated.update_download()
+    }
+    func updateState() async throws -> RivetTypes.UpdateState {
+        try await generated.update_state()
+    }
 }
 
 /// Launcher state and backend plumbing. One embedded Racket CS instance,
@@ -316,6 +329,9 @@ final class LauncherModel: ObservableObject {
 
     var onToggle: (() -> Void)?
     var onHide: (() -> Void)?
+    /// Fired once the backend is healthy: the AppDelegate reads the language
+    /// setting (i18n) and arms the throttled silent update check there.
+    var onBackendReady: (() -> Void)?
     private(set) var api: FulcrumAPI?
 
     private var backend: EmbeddedRacketBackend?
@@ -351,6 +367,7 @@ final class LauncherModel: ObservableObject {
                         model.ready = true
                         model.status = "Ready — press ⌥Space anywhere"
                         model.beginSearch()
+                        model.onBackendReady?()
                     }
                 } catch {
                     await MainActor.run {
@@ -437,6 +454,12 @@ final class LauncherModel: ObservableObject {
                 let status = try await api.runAction(id: row.id, arg: row.arg)
                 await MainActor.run { [weak self] in
                     guard let self else { return }
+                    // Update rows drive host-native install/reveal; the
+                    // backend already did its part (state transitions).
+                    if row.id == "update.install" {
+                        UpdateController.shared?.quitAndInstall()
+                        return
+                    }
                     switch status {
                     case "ok", "launched", "copied", "opened":
                         if self.showingActions {
@@ -446,6 +469,11 @@ final class LauncherModel: ObservableObject {
                         } else {
                             self.hide()
                         }
+                    case "quit-and-install":
+                        UpdateController.shared?.quitAndInstall()
+                    case "downloading":
+                        self.status = I18nService.shared.t("updateDownloading")
+                        self.hide()
                     case "delegated":
                         // Window commands execute natively: the backend
                         // cannot reach other apps' windows.
@@ -515,7 +543,9 @@ final class LauncherModel: ObservableObject {
             }
             hide()
         case "update-available":
+            // A check found a newer version — make the offer visible.
             status = payload
+            UpdateController.shared?.offered()
         default:
             break
         }

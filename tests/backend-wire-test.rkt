@@ -210,15 +210,49 @@
 (define-values (prv pre _prev) (call-rpc 18 (list "plugins-reload")))
 (check! "plugins-reload no error" pre #f)
 
-;; update-check on a developer build reports honestly (no network)
-(define-values (ucv uce _ucev) (call-rpc 19 (list "update-check")))
+;; update-check over the wire: pin the feed at an unreachable local URL so
+;; the section never touches the network, then check the record shape and
+;; the honest error. The record travels as a field-ordered list.
+(define settings-set!*
+  (dynamic-require (build-path fulcrum-root "app" "core" "settings.rkt")
+                   'settings-set!))
+(void (settings-set!* manager 'update-base-url "https://127.0.0.1:9/fulcrum"))
+(define-values (ucv uce _ucev) (call-rpc 40 (list "update-check" #t)))
 (check! "update-check no error" uce #f)
-(check! "update-check honest on dev build"
-        (or (string-prefix? ucv "updates unavailable")
-            (string-prefix? ucv "update check failed")
-            (string-prefix? ucv "update available")
-            (string-prefix? ucv "Fulcrum is up to date"))
+(check! "update-check record shape"
+        (and (list? ucv) (= (length ucv) 8) (string? (list-ref ucv 0))
+             (string? (list-ref ucv 2))
+             (string=? (list-ref ucv 0) "error")
+             (string-contains? (list-ref ucv 1) "127.0.0.1")
+             #t)
         #t)
+
+;; the silent variant answers "throttled" right after the manual check
+;; above stamped update-last-check (the 4-hour throttle is backend-owned)
+(define-values (uc2v uc2e _uc2ev) (call-rpc 41 (list "update-check" #f)))
+(check! "update-check silent no error" uc2e #f)
+(check! "silent check right after a manual one is throttled"
+        (and (list? uc2v) (string=? (list-ref uc2v 0) "throttled")) #t)
+
+;; update-state after the failed check above: phase "error" with the
+;; reason, the single failure channel hosts poll
+(define-values (usv use _usev) (call-rpc 42 (list "update-state")))
+(check! "update-state no error" use #f)
+(check! "update-state error shape"
+        (and (list? usv) (= (length usv) 5)
+             (string=? (list-ref usv 0) "error")
+             (string-contains? (or (list-ref usv 2) "") "127.0.0.1"))
+        #t)
+
+;; update rows: the idle surface offers exactly the check row — no
+;; download row before a candidate exists
+(define-values (urv ure _urev) (call-rpc 43 (list "search" "update")))
+(check! "update rows no error" ure #f)
+(define update-ids (for/list ([row (in-list urv)] #:when (string=? (list-ref row 3) "Update"))
+                     (list-ref row 0)))
+(check! "update rows offer a check" (member "update.check" update-ids) '("update.check"))
+(check! "no download row before a candidate"
+        (member "update.download" update-ids) #f)
 
 ;; error paths: unknown RPC, unknown action, bad arity
 (define-values (_xv xe _xeve) (call-rpc 20 (list "no-such-rpc" "x")))

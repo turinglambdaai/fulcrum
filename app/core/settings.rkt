@@ -29,6 +29,9 @@
 
 (define schema
   (hasheq
+   'language
+   (list (lambda (v) (member v '("zh" "en"))) "zh"
+         "UI language: zh or en (hosts render update dialogs in this language)")
    'theme
    (list (lambda (v) (member v '("system" "light" "dark"))) "system"
          "UI theme: system, light, or dark")
@@ -65,6 +68,14 @@
                               (string-prefix? v "http://"))))
          "https://github.com/turinglambdaai/fulcrum/releases/latest/download"
          "Base URL the updater fetches the channel manifest from")
+   'update-last-check
+   (list (lambda (v) (and (exact-integer? v) (>= v 0))) 0
+         "Unix epoch seconds of the last update check; the silent check runs at most once every 4 hours")
+   'update-rollout-bucket
+   (list (lambda (v) (or (boolean? v)
+                         (and (exact-integer? v) (>= v 0) (<= v 99))))
+         #f
+         "Sticky 0-99 staged-rollout bucket drawn on the first update check (false = not drawn yet)")
    'sync-root
    (list string? ""
          "Sync beta: directory a file sync service replicates (iCloud Drive, Dropbox, Syncthing); settings and snippets mirror there. Empty disables sync")

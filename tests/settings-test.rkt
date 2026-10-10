@@ -20,12 +20,15 @@
    (lambda (dir)
      (define s (make-settings-manager (build-path dir "settings.json")))
      (check-equal? (settings-get s 'theme) "system")
+     (check-equal? (settings-get s 'language) "zh")
      (check-equal? (settings-get s 'hotkey) "alt+space")
      (check-equal? (settings-get s 'max-results) 12)
      (check-true (settings-get s 'clipboard-enabled))
      (check-equal? (settings-get s 'default-engine) "!g")
      (check-equal? (settings-get s 'update-base-url)
-                   "https://github.com/turinglambdaai/fulcrum/releases/latest/download"))))
+                   "https://github.com/turinglambdaai/fulcrum/releases/latest/download")
+     (check-equal? (settings-get s 'update-last-check) 0)
+     (check-false (settings-get s 'update-rollout-bucket)))))
 
 (test-case "valid writes round-trip and persist"
   (call-with-settings
@@ -36,8 +39,15 @@
      (check-equal? (settings-get s 'theme) "dark")
      (check-true (settings-set! s 'max-results 18))
      (check-equal? (settings-get s 'max-results) 18)
+     (check-true (settings-set! s 'language "en"))
+     (check-equal? (settings-get s 'language) "en")
+     (check-true (settings-set! s 'update-last-check 1759500000))
+     (check-equal? (settings-get s 'update-last-check) 1759500000)
+     (check-true (settings-set! s 'update-rollout-bucket 37))
+     (check-equal? (settings-get s 'update-rollout-bucket) 37)
      (define reloaded (make-settings-manager path))
-     (check-equal? (settings-get reloaded 'theme) "dark"))))
+     (check-equal? (settings-get reloaded 'theme) "dark")
+     (check-equal? (settings-get reloaded 'update-rollout-bucket) 37))))
 
 (test-case "invalid writes raise, unknown keys raise"
   (call-with-settings

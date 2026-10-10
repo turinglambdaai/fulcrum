@@ -82,6 +82,37 @@ std::wstring to_wide(std::string const& utf8_text) {
   return result;
 }
 
+// file:///C:/Users/a%20b → C:\Users\a b. The backend hands out file://
+// URIs so every host can shell-open them; the "open" verb wants the path.
+std::wstring uri_path_to_windows_path(std::wstring const& uri) {
+  std::wstring path = uri.substr(8);  // past "file:///"
+  auto const query = path.find(L'?');
+  if (query != std::wstring::npos) path = path.substr(0, query);
+  auto const fragment = path.find(L'#');
+  if (fragment != std::wstring::npos) path = path.substr(0, fragment);
+  std::wstring out;
+  out.reserve(path.size());
+  for (std::size_t i = 0; i < path.size(); ++i) {
+    if (path[i] == L'%' && i + 2 < path.size()) {
+      auto const hex = [](wchar_t c) -> int {
+        if (c >= L'0' && c <= L'9') return c - L'0';
+        if (c >= L'a' && c <= L'f') return c - L'a' + 10;
+        if (c >= L'A' && c <= L'F') return c - L'A' + 10;
+        return -1;
+      };
+      int const hi = hex(path[i + 1]);
+      int const lo = hex(path[i + 2]);
+      if (hi >= 0 && lo >= 0) {
+        out.push_back(static_cast<wchar_t>((hi << 4) | lo));
+        i += 2;
+        continue;
+      }
+    }
+    out.push_back(path[i] == L'/' ? L'\\' : path[i]);
+  }
+  return out;
+}
+
 rivet::windows::RacketRuntimeConfig runtime_config() {
   auto const exe = executable_path();
   auto const root = exe.parent_path();
@@ -159,8 +190,13 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
             }
             window->HideLauncher();
           } else if (name == "open-url") {
-            std::wstring const url = to_wide(payload);
-            ::ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr,
+            std::wstring target = to_wide(payload);
+            // The backend hands out file:// URIs so every host can shell-open
+            // them; Explorer's shell verb wants the plain path back.
+            if (target.rfind(L"file:///", 0) == 0) {
+              target = uri_path_to_windows_path(target);
+            }
+            ::ShellExecuteW(nullptr, L"open", target.c_str(), nullptr, nullptr,
                             SW_SHOWNORMAL);
             window->HideLauncher();
           } else if (name == "update-available") {
@@ -177,6 +213,7 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
         window->SetStatusOk(L"Ready — press Alt+Space anywhere");
         window->FinishNativeSetup();
         window->SearchAsync(L"");
+        window->StartSilentUpdateCheck();
       } else {
         // Never destroy the last Backend reference on its own reader thread.
         std::thread([backend = std::move(backend)]() mutable {
@@ -574,6 +611,11 @@ void MainWindow::RunSelected() {
             } else {
               window->HideLauncher();
             }
+          } else if (status == "downloading") {
+            // The backend download thread owns the transfer; the host
+            // mirrors its progress into the status bar.
+            window->HideLauncher();
+            window->StartUpdateProgressPoll();
           } else if (status == "delegated") {
             // Window commands execute natively: the backend cannot reach
             // other apps' windows.
@@ -607,6 +649,89 @@ void MainWindow::SetStatusOk(std::wstring const& message) {
 void MainWindow::SetStatusError(std::wstring const& message) {
   StatusBar().Severity(Microsoft::UI::Xaml::Controls::InfoBarSeverity::Error);
   StatusBar().Message(message);
+}
+
+void MainWindow::StartSilentUpdateCheck() {
+  if (api_ == nullptr) {
+    return;
+  }
+  auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
+  auto* api = api_.get();
+  // The 4-hour throttle and the manifest verification are backend-owned;
+  // this is one cheap RPC the backend may decline (status "throttled").
+  // Failures are silent by design — a resident launcher must never nag.
+  std::thread([weak, api, dispatcher]() mutable {
+    try {
+      auto const check = api->update_check(false).get();
+      if (check.status != "available") {
+        return;
+      }
+      auto const version = check.available_version.value_or(std::string("?"));
+      dispatcher.TryEnqueue([weak, version]() mutable {
+        if (auto window = weak.get()) {
+          window->SetStatusOk(L"Update available: Fulcrum v" +
+                              to_wide(version) +
+                              L" — type \"update\" to download");
+        }
+      });
+    } catch (...) {
+      // silent: network down, feed unreachable — never nag
+    }
+  }).detach();
+}
+
+void MainWindow::StartUpdateProgressPoll() {
+  if (api_ == nullptr || update_polling_.exchange(true)) {
+    return;
+  }
+  auto const dispatcher = DispatcherQueue();
+  auto const weak = get_weak();
+  auto* api = api_.get();
+  std::thread([weak, api, dispatcher]() mutable {
+    while (true) {
+      try {
+        auto const state = api->update_state().get();
+        if (state.phase == "downloaded") {
+          dispatcher.TryEnqueue([weak]() mutable {
+            if (auto window = weak.get()) {
+              window->SetStatusOk(
+                  L"Update downloaded — type \"update\" to open the "
+                  L"folder, then run the MSI to upgrade");
+            }
+          });
+          break;
+        }
+        if (state.phase == "error") {
+          auto const message = state.message.value_or("update download failed");
+          dispatcher.TryEnqueue([weak, message = std::move(message)]() mutable {
+            if (auto window = weak.get()) {
+              window->SetStatusError(to_wide(message));
+            }
+          });
+          break;
+        }
+        if (state.phase != "downloading") {
+          break;
+        }
+        auto const percent = state.percent;
+        dispatcher.TryEnqueue([weak, percent]() mutable {
+          if (auto window = weak.get()) {
+            std::wstring text = L"Downloading update… ";
+            text += std::to_wstring(percent);
+            text += L"%";
+            window->SetStatusOk(text);
+          }
+        });
+      } catch (...) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+    // Re-entry guard only: clear it from the worker so a later download
+    // can poll again. No UI state depends on it.
+    update_polling_.store(false, std::memory_order_release);
+  }).detach();
 }
 
 }  // namespace winrt::RivetHost::implementation

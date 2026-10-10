@@ -1,0 +1,23 @@
+{
+  "updateCheckNow": "检查更新…",
+  "updateChecking": "正在检查更新…",
+  "updateUpToDate": "当前已是最新版本",
+  "updateAvailableTitle": "发现新版本",
+  "updateAvailableBody": "新版本 Fulcrum {0} 可用（{1}），是否下载并安装？",
+  "updateDownload": "下载更新",
+  "updateDownloading": "正在下载更新…",
+  "updateDownloadPercent": "正在下载更新… {0}%",
+  "updateDownloaded": "更新已下载",
+  "updateReadyBody": "新版本已就绪，将退出 Fulcrum 并完成安装。",
+  "updateQuitAndInstall": "退出并安装",
+  "updateCheckFailed": "检查更新失败：{0}",
+  "updateInstallFailed": "安装更新失败：{0}。当前版本未受影响。",
+  "updateNotInstalled": "当前为开发副本，自动更新不可用。",
+  "updateClose": "关闭",
+  "updateRetry": "重试",
+  "updateOpenFolder": "打开文件夹",
+  "updateInstallHintMac": "安装方法：挂载下载的 DMG，将 Fulcrum 拖入「应用程序」替换现有版本。",
+  "updateInstallHintWin": "安装方法：双击下载的 MSI 安装包，按安装向导升级（Fulcrum 可以保持运行）。",
+  "updateInstallHintLinux": "安装方法：解压下载的 tar.gz，替换当前 Fulcrum 目录后重新启动。",
+  "updateOpenReleases": "打开发布页"
+}

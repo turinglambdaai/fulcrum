@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
@@ -226,6 +227,8 @@ struct Launcher {
   // Matches the macOS/Windows hosts: only the newest query may paint, so a
   // slow completion can never overwrite a newer result set.
   std::atomic<int> search_generation{0};
+  // Re-entry guard for the download-progress poller (updater 0.2).
+  std::atomic<bool> update_polling{false};
 
   // Official scaffold startup handoff: the boot thread publishes either a
   // started backend or an error; the main loop adopts it exactly once.
@@ -246,6 +249,76 @@ struct Launcher {
 
   void set_status(std::string const& message) {
     gtk_label_set_text(status, message.c_str());
+  }
+
+  // Marshal a status string from any worker thread onto the main loop.
+  static void post_status(std::string message) {
+    g_idle_add([](gpointer user_data) -> int {
+      std::unique_ptr<std::string> text(static_cast<std::string*>(user_data));
+      Launcher::instance().set_status(*text);
+      return G_SOURCE_REMOVE;
+    }, new std::string(std::move(message)));
+  }
+
+  // Updater 0.2 (in-app install stays macOS-only on this line): the 4-hour
+  // throttle and manifest verification are backend-owned, so the silent
+  // launch check is one cheap RPC the backend may decline ("throttled").
+  // Failures are silent by design — a resident launcher must never nag.
+  void start_silent_update_check() {
+    if (api == nullptr) {
+      return;
+    }
+    auto* api_raw = api.get();
+    std::thread([api_raw]() mutable {
+      try {
+        auto const check = api_raw->update_check(false).get();
+        if (check.status != "available") {
+          return;
+        }
+        post_status("Update available: Fulcrum v" +
+                    check.available_version.value_or("?") +
+                    " — type \"update\" to download");
+      } catch (...) {
+        // silent: network down, feed unreachable — never nag
+      }
+    }).detach();
+  }
+
+  // Mirror the backend's download thread into the status bar; when the
+  // artifact is verified the user gets the open-folder / manual-install
+  // guidance (the "update" launcher rows drive reveal on this state).
+  void start_update_progress_poll() {
+    if (api == nullptr || update_polling.exchange(true)) {
+      return;
+    }
+    auto* api_raw = api.get();
+    std::thread([api_raw]() mutable {
+      while (true) {
+        try {
+          auto const state = api_raw->update_state().get();
+          if (state.phase == "downloaded") {
+            post_status("Update downloaded — type \"update\" to open the "
+                        "folder, then extract the tar.gz to upgrade");
+            break;
+          }
+          if (state.phase == "error") {
+            post_status("Update download failed: " +
+                        state.message.value_or("unknown error"));
+            break;
+          }
+          if (state.phase != "downloading") {
+            break;
+          }
+          post_status("Downloading update… " + std::to_string(state.percent) + "%");
+        } catch (...) {
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+      }
+      // Re-entry guard only: clear it from the worker so a later download
+      // can poll again.
+      Launcher::instance().update_polling.store(false, std::memory_order_release);
+    }).detach();
   }
 
   static std::string event_payload(rivet::Value const& value) {
@@ -427,6 +500,7 @@ struct Launcher {
                          boxed->status == "launched" ||
                          boxed->status == "copied" ||
                          boxed->status == "opened" ||
+                         boxed->status == "downloading" ||
                          boxed->status == "delegated";
       } catch (std::exception const& e) {
         boxed->status = e.what();
@@ -443,6 +517,13 @@ struct Launcher {
                   "Window command failed (X11/Wayland window manager refused).");
               return G_SOURCE_REMOVE;
             }
+          }
+          if (job->status == "downloading") {
+            // The backend download thread owns the transfer; the host
+            // mirrors its progress into the status bar.
+            Launcher::instance().hide();
+            Launcher::instance().start_update_progress_poll();
+            return G_SOURCE_REMOVE;
           }
           if (Launcher::instance().actions_mode) {
             // A mutating action (pin, delete, copy) keeps the launcher
@@ -568,6 +649,7 @@ struct Launcher {
 
     set_status("Ready — hotkey or `fulcrum --toggle`");
     run_search("");
+    start_silent_update_check();
   }
 
   void stop_backend() {

@@ -1,0 +1,23 @@
+{
+  "updateCheckNow": "Check for Updates…",
+  "updateChecking": "Checking for updates…",
+  "updateUpToDate": "Fulcrum is up to date",
+  "updateAvailableTitle": "Update Available",
+  "updateAvailableBody": "Fulcrum {0} is available ({1}). Download and install it?",
+  "updateDownload": "Download Update",
+  "updateDownloading": "Downloading update…",
+  "updateDownloadPercent": "Downloading update… {0}%",
+  "updateDownloaded": "Update downloaded",
+  "updateReadyBody": "The new version is ready. Fulcrum will quit to finish the install.",
+  "updateQuitAndInstall": "Quit and Install",
+  "updateCheckFailed": "Update check failed: {0}",
+  "updateInstallFailed": "Install failed: {0}. The running version is unaffected.",
+  "updateNotInstalled": "This is a development copy; in-app updates are unavailable.",
+  "updateClose": "Close",
+  "updateRetry": "Retry",
+  "updateOpenFolder": "Open Folder",
+  "updateInstallHintMac": "To install manually: mount the downloaded DMG and drag Fulcrum onto Applications.",
+  "updateInstallHintWin": "To install manually: double-click the downloaded MSI and follow the wizard (Fulcrum may keep running).",
+  "updateInstallHintLinux": "To install manually: extract the downloaded tar.gz over the current Fulcrum folder and relaunch.",
+  "updateOpenReleases": "Open Releases Page"
+}

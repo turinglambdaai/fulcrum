@@ -83,6 +83,13 @@ struct MainWindow : MainWindowT<MainWindow> {
   void ApplyResults(std::vector<rivet_app::ResultRow> rows);
   void SetStatusOk(std::wstring const& message);
   void SetStatusError(std::wstring const& message);
+  // Updater 0.2 (in-app install stays macOS-only on this line): the silent
+  // launch check is throttled backend-side, and progress polling follows the
+  // backend's download thread, surfacing percent in the status bar. Once the
+  // artifact is downloaded the user gets the open-folder status; the
+  // "update" launcher rows drive check/download/reveal on this state.
+  void StartSilentUpdateCheck();
+  void StartUpdateProgressPoll();
 
   std::shared_ptr<rivet::windows::Backend> backend_;
   std::unique_ptr<rivet_app::API> api_;
@@ -92,6 +99,7 @@ struct MainWindow : MainWindowT<MainWindow> {
   std::atomic<bool> clipboard_listener_installed_{false};
   std::wstring last_recorded_clipboard_;
   std::unique_ptr<rivet::system::TrayIcon> tray_icon_;
+  std::atomic<bool> update_polling_{false};
   // ⌘K (Ctrl+K) mode: rows_ currently holds secondary actions and
   // search_rows_ remembers the live result list.
   bool actions_mode_{false};

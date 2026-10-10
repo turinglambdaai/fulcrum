@@ -22,6 +22,7 @@
 #include <winrt/Microsoft.UI.Xaml.Markup.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <future>
