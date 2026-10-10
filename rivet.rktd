@@ -12,4 +12,8 @@
         (module . "backend")
         (entry . "start")
         (protocol . 1)
-        (resources . ("shared/i18n")))
+        (resources . ("shared/i18n"))
+        ;; The release artifact contract is the tar.gz (versioned name in
+        ;; release.yml, the signed channel manifest, and the update feed all
+        ;; pin it); no native deb/rpm/AppImage on this line.
+        (linux-formats . ()))
