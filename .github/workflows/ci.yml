@@ -56,8 +56,9 @@ jobs:
           repository: turinglambdaai/rivet
           path: rivet
           # Same pin as release.yml's RIVET_PIN — CI verifies what releases
-          # ship (carries the Ed25519 bytes key parser the updater uses).
-          ref: 2e1924cd1b3daf96c67c2bf6432772a1c9e579ae
+          # ship (the redirect fix, the Ed25519 bytes key parser, and the
+          # RivetTypes codegen the macOS host compiles against).
+          ref: 410fc7c6987cda5fcf4e4f795d1d4f7a90d4e0f6
       - name: Set up Racket CS 9.3
         uses: Bogdanp/setup-racket@v1.15
         with:

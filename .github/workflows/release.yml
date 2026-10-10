@@ -22,10 +22,13 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Rivet snapshot carrying the update-fetch redirect fix (#153) and the
-  # Ed25519 bytes key parser (2e1924c) the embedded updater uses. Bump this
-  # deliberately: the pin, not main, is what release artifacts build on.
-  RIVET_PIN: 2e1924cd1b3daf96c67c2bf6432772a1c9e579ae
+  # Exact rivet commit releases build against (family pin discipline, the
+  # same commit taskly v1.4.0 ships). Carries the update-fetch redirect fix
+  (#153), the Ed25519 bytes key parser (2e1924c) the embedded updater uses,
+  # and the RivetTypes codegen namespace the macOS host compiles against.
+  # Bump this deliberately: the pin, not main, is what release artifacts
+  # build on.
+  RIVET_PIN: 410fc7c6987cda5fcf4e4f795d1d4f7a90d4e0f6
 
 jobs:
   validate:
