@@ -728,9 +728,13 @@ void MainWindow::StartUpdateProgressPoll() {
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
-    // Re-entry guard only: clear it from the worker so a later download
-    // can poll again. No UI state depends on it.
-    update_polling_.store(false, std::memory_order_release);
+    // Re-entry guard only: clear it on the UI thread (the worker never
+    // captures `this`) so a later download can poll again.
+    dispatcher.TryEnqueue([weak]() mutable {
+      if (auto window = weak.get()) {
+        window->update_polling_.store(false, std::memory_order_release);
+      }
+    });
   }).detach();
 }
 
