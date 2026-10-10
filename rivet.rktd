@@ -1,7 +1,7 @@
 #hasheq((name . "fulcrum")
         (display-name . "Fulcrum")
-        (version . "0.6.0")
-        (build . 6)
+        (version . "0.7.0")
+        (build . 7)
         (identifier . "site.jrtx.fulcrum")
         (release-channel . stable)
         (url-schemes . ("fulcrum"))
@@ -13,7 +13,11 @@
         (entry . "start")
         (protocol . 1)
         (resources . ("shared/i18n"))
-        ;; The release artifact contract is the tar.gz (versioned name in
-        ;; release.yml, the signed channel manifest, and the update feed all
-        ;; pin it); no native deb/rpm/AppImage on this line.
-        (linux-formats . ()))
+        (linux-icon . "assets/fulcrum-icon-512.png")
+        ;; Native Linux installers (deb installs /opt/fulcrum with a desktop
+        ;; entry, rpm builds via rpmbuild, AppImage carries its own GTK4
+        ;; closure) ride along with the tar.gz. The release artifact contract
+        ;; for the update feed is still the tar.gz (versioned name in
+        ;; release.yml, the signed channel manifest, and the updater all pin
+        ;; it); the new formats ship as GitHub release assets only.
+        (linux-formats . ("deb" "rpm" "appimage"))))

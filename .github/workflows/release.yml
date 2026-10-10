@@ -2,7 +2,9 @@ name: Release
 
 # Tag-driven pipeline producing versioned, architecture-suffixed artifacts —
 # fulcrum-<version>-macos-<arch>.dmg + .zip, fulcrum-<version>-windows-x64.msi,
-# fulcrum-<version>-linux-x64.tar.gz — each with a .sha256 checksum, a combined
+# fulcrum-<version>-linux-x64.tar.gz plus the native Linux installers
+# (fulcrum-<version>-linux-*.deb/.rpm/.AppImage, named by rivet per ecosystem) —
+# each with a .sha256 checksum, a combined
 # SHA256SUMS, and the signed stable-channel manifest. `raco rivet release
 # --development` exercises the full release flow (package, launch smoke,
 # installer) without platform production signing; production trust rides on
@@ -102,7 +104,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config \
-            libgtk-4-dev zlib1g-dev liblz4-dev libncurses-dev
+            libgtk-4-dev libglib2.0-dev zlib1g-dev liblz4-dev libncurses-dev \
+            rpm desktop-file-utils
       - name: Cache embeddable Racket CS (Linux)
         if: matrix.platform == 'linux'
         id: cache-racket-embed
@@ -171,6 +174,9 @@ jobs:
           RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
           RIVET_UPDATE_KEY_ID: fulcrum-2026-10
           RIVET_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
+          # Lets appimagetool (itself an AppImage) run on the runner while
+          # rivet assembles the AppImage's GTK4 dependency closure.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
           set -euo pipefail
           printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY_PEM" > update-private.pem
@@ -199,6 +205,13 @@ jobs:
               ;;
             linux)
               mv dist/fulcrum-*-linux-*.tar.gz "fulcrum-${VERSION}-linux-x64.tar.gz"
+              # The native installers keep rivet's versioned names (deb arch
+              # amd64, rpm embeds the build number, AppImage x86_64); hoist
+              # them beside the tar.gz so the checksum loop and the artifact
+              # upload glob pick them up.
+              for f in dist/fulcrum-*.deb dist/fulcrum-*.rpm dist/fulcrum-*.AppImage; do
+                if [ -e "$f" ]; then mv "$f" .; fi
+              done
               ;;
           esac
           for f in fulcrum-${VERSION}-*; do

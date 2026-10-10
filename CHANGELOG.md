@@ -4,6 +4,22 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## 0.7.0
+
+### Added
+
+- **Native Linux packages**: `raco rivet release` now produces deb, rpm, and
+  AppImage beside the signed tar.gz on x64 — the family rivet 0.6.1
+  linux-formats mechanism, previously opted out on this line. The deb
+  installs `/opt/fulcrum` with a desktop entry and pixmaps icon
+  (`Depends: libgtk-4-1`); the rpm builds through rpmbuild
+  (`Requires: gtk4`); the AppImage bundles its own GTK4 dependency closure
+  with the 512 px brand icon (`assets/fulcrum-icon-512.png`, rendered from
+  the site favicon SVG) as the top-level AppDir icon. The update feed
+  contract is unchanged: the signed channel manifest still pins the four
+  portable artifacts, and Linux updates still flow through the tar.gz —
+  the new formats ship as GitHub release assets only.
+
 ## 0.6.0
 
 ### Added
