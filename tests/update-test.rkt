@@ -59,11 +59,14 @@
     (candidate-for "https://dl.example/fulcrum-9.9.9-windows-x64.msi"
                    (make-string 64 #\a) 10))
    "fulcrum-9.9.9-windows-x64.msi")
+  ;; both sides through build-path: string->path would normalize the
+  ;; separators differently than build-path on Windows
   (check-equal?
    (destination-path (string->path "/tmp/data")
                      (candidate-for "https://dl.example/x/fulcrum-9.9.9-linux-x64.tar.gz"
                                     (make-string 64 #\a) 10))
-   (string->path "/tmp/data/updates/fulcrum-9.9.9-linux-x64.tar.gz")))
+   (build-path (string->path "/tmp/data")
+               "updates" "fulcrum-9.9.9-linux-x64.tar.gz")))
 
 (test-case "the updates folder URI is shell-openable and percent-encoded"
   (check-true (string-prefix? (updates-folder-uri) "file:///"))
