@@ -9,14 +9,23 @@ support — `raco rivet build` compiles this directory, stages
 
 Launcher-specific parts on top of the official runtime:
 
-- **Global hotkey** — X11 `XGrabKey` on Alt+Space. On Wayland this is a
-  protocol limitation, not a bug: the status bar says so and the same
-  toggle is available as `fulcrum --toggle` for a compositor keybinding.
+- **Panel opens on launch** — a launcher that boots hidden is an
+  invisible app wherever the summon path isn't alive yet (before the
+  portal consent, after a reboot, a rejected grab). Esc or focus loss
+  hides it again.
+- **Global hotkey, portal-first** — where `org.freedesktop.portal`
+  `GlobalShortcuts` exists (GNOME 48+, KDE, recent wlroots compositors),
+  the summon shortcut is registered there: the compositor asks for
+  consent once and owns the final binding, which the status bar reports.
+  Sessions without the portal fall back to the X11 `XGrabKey` grab
+  (X11 only, by platform rules); there, `fulcrum --toggle` bound as a
+  compositor keybinding is the documented Wayland fallback — and it
+  summons by starting the launcher when nothing is running yet.
 - **Overlay chrome** — EWMH properties (`_NET_WM_STATE_ABOVE`,
   `SKIP_TASKBAR`, `WINDOW_TYPE_UTILITY`) set directly on X11; Wayland
   compositors own those decisions.
-- **Single instance** — `$XDG_RUNTIME_DIR/fulcrum/host.pid` + `SIGUSR1`,
-  so `--toggle` always controls the running launcher.
+- **Single instance** — Rivet's first-party `SingleInstanceLease`;
+  second launches forward `--toggle` to the primary and exit.
 
 ## Build
 

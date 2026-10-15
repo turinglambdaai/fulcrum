@@ -4,6 +4,25 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## [Unreleased]
+
+### Fixed
+
+- **The Linux host is no longer an invisible app.** The panel now opens at
+  launch: starting hidden was unworkable on any session where the summon
+  path wasn't alive yet — Wayland before the portal consent is granted,
+  after a reboot, a rejected grab — so a fresh install looked dead (no
+  window, dead hotkey, nothing to click). Esc or focus loss still hides
+  the panel immediately.
+- **`fulcrum --toggle` with nothing running is a summon, not an error.**
+  It used to exit with `no running instance to toggle`, which killed the
+  documented compositor-keybinding fallback after every reboot; now it
+  starts the launcher and opens the panel.
+- The portal hotkey path reports the binding the compositor actually
+  chose ("Summon hotkey: Alt+Space") in the status bar instead of
+  silence; `linux/README.md` now describes the real portal-first hotkey
+  and lease-based single instance (both had drifted).
+
 ## [0.11.0] - 2026-10-14
 
 Foundation round — the launcher finally answers "what is this and where

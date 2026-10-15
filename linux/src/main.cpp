@@ -1458,7 +1458,9 @@ std::string install_x11_hotkey(GdkDisplay* display, GtkWindow* window) {
 // itself runs on the lease's watcher thread).
 
 gboolean activate_on_main(gpointer) {
-  Launcher::instance().show();
+  // A forwarded --toggle is a real toggle: the compositor keybinding
+  // summons a hidden panel and dismisses a visible one.
+  Launcher::instance().toggle();
   return G_SOURCE_REMOVE;
 }
 
@@ -1764,20 +1766,32 @@ void on_activate(GtkApplication* app, gpointer) {
               Launcher::post_status("Portal hotkey failed: " +
                                     result.message);
               break;
+            case rivet::system::GlobalShortcutBindStatus::bound:
+              // The compositor owns the final combo; say what it chose.
+              if (!result.bindings.empty() &&
+                  !result.bindings[0].trigger_description.empty()) {
+                Launcher::post_status("Summon hotkey: " +
+                                      result.bindings[0].trigger_description);
+              }
+              break;
             default:
               break;
           }
         });
     launcher.start_backend();
-    return;
+  } else {
+    std::string hotkey_note = install_x11_hotkey(
+        gtk_widget_get_display(window), launcher.window);
+    if (!hotkey_note.empty()) {
+      launcher.set_status(hotkey_note);
+    }
+    launcher.start_backend();
   }
-  std::string hotkey_note =
-      install_x11_hotkey(gtk_widget_get_display(window), launcher.window);
-  if (!hotkey_note.empty()) {
-    launcher.set_status(hotkey_note);
-  }
-
-  launcher.start_backend();
+  // Open on launch. A launcher that starts hidden is an invisible app on
+  // every session where the summon path is not yet alive — Wayland before
+  // the portal consent is granted, after a reboot, a rejected grab. The
+  // panel is one Esc (or focus loss) away from hidden again.
+  launcher.show();
 }
 
 void on_shutdown(GApplication*, gpointer) {
@@ -1787,6 +1801,8 @@ void on_shutdown(GApplication*, gpointer) {
 }  // namespace
 
 int main(int argc, char** argv) {
+  (void)argc;
+  (void)argv;  // --toggle is handled through the lease / activate() below.
   // The first-party rivet lease replaces the old pid-file + SIGUSR1 scheme:
   // second launches forward --toggle to the primary and exit.
   rivet::system::SingleInstanceLease lease("site.jrtx.fulcrum");
@@ -1797,15 +1813,10 @@ int main(int argc, char** argv) {
     }
     return 0;
   }
-  // A --toggle that arrives when no primary is running would otherwise fall
-  // through to GApplication, which rejects the unknown option. There is
-  // nothing to toggle yet.
-  for (int i = 1; i < argc; ++i) {
-    if (std::string{argv[i]} == "--toggle") {
-      std::cerr << "fulcrum: no running instance to toggle\n";
-      return 1;
-    }
-  }
+  // A --toggle that arrives when no primary is running is a summon, not an
+  // error: the fresh instance becomes the primary and activate() opens the
+  // panel. GApplication never sees the flag — the app runs without argv so
+  // the option parser cannot reject it.
   lease.set_activation_handler(on_activation);
 
   // Load the i18n tables before any UI string is composed: the staged
@@ -1817,7 +1828,8 @@ int main(int argc, char** argv) {
       gtk_application_new("site.jrtx.fulcrum", G_APPLICATION_DEFAULT_FLAGS);
   g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
   g_signal_connect(app, "shutdown", G_CALLBACK(on_shutdown), nullptr);
-  int const status = g_application_run(G_APPLICATION(app), argc, argv);
+  int const status =
+      g_application_run(G_APPLICATION(app), 0, nullptr);
   g_object_unref(app);
   return status;
 }
