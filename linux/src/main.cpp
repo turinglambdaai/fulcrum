@@ -68,6 +68,14 @@ ResultRow parse_row(std::vector<std::string> const& cells) {
   return row;
 }
 
+// Rivet's POSIX shutdown plumbing (defined after Launcher). Installed once
+// the embedded runtime has booted — see on_backend_ready for the ordering.
+void install_shutdown_hook_once();
+
+// Tray menu composition (defined after Launcher). Called when the backend
+// `language` setting lands so the labels follow it without a restart.
+void apply_tray_language();
+
 std::filesystem::path executable_path() {
   return std::filesystem::read_symlink("/proc/self/exe");
 }
@@ -379,6 +387,8 @@ I18nEntry const kI18nFallback[] = {
      "Released under the Business Source License 1.1"},
     {"aboutWebsite", "访问官网", "Website"},
     {"aboutReportIssue", "问题反馈", "Report an Issue"},
+    {"trayOpen", "打开 Fulcrum", "Open Fulcrum"},
+    {"trayQuit", "退出 Fulcrum", "Quit Fulcrum"},
 };
 
 I18nTable g_i18n[2];                // 0 = zh, 1 = en
@@ -635,6 +645,13 @@ struct Launcher {
 
   std::unique_ptr<rivet::linux_runtime::Backend> backend;
   std::unique_ptr<rivet_app::API> api;
+  // Tray presence: the visible way back once the panel hides (close
+  // button, Esc, focus loss). StatusNotifierItem where a watcher runs —
+  // GNOME's AppIndicator extension, KDE, wlroots trays; sessions without
+  // one keep the portal hotkey and `fulcrum --toggle` as summon paths.
+  std::unique_ptr<rivet::system::TrayIcon> tray;
+  std::string tray_menu_lang{"en"};
+  GtkApplication* app{nullptr};
   std::vector<ResultRow> rows;
   guint search_source{0};
   // Matches the macOS/Windows hosts: only the newest query may paint, so a
@@ -654,6 +671,12 @@ struct Launcher {
   std::unique_ptr<rivet::linux_runtime::Backend> startup_backend;
   std::string startup_error;
   std::atomic<bool> shutting_down{false};
+  // Teardown is reachable from three threads — the GTK main loop
+  // (GApplication shutdown, tray quit) and the shutdown-hook watcher
+  // (SIGTERM/SIGINT) — so the stop itself is serialized, and the backend
+  // stop runs once.
+  std::mutex stop_mutex;
+  bool backend_stopped_{false};
   // Ctrl+K mode: `rows` currently holds secondary actions and
   // search_rows remembers the live result list.
   bool actions_mode{false};
@@ -778,6 +801,7 @@ struct Launcher {
         auto const& [hotkey, theme, language] = *values;
         Launcher& launcher = Launcher::instance();
         set_i18n_language(language);
+        apply_tray_language();
         if (!hotkey.empty()) {
           std::string note = apply_x11_hotkey(hotkey);
           if (!note.empty()) {
@@ -1340,6 +1364,18 @@ struct Launcher {
   }
 
   void on_backend_ready() {
+    // The embedded Racket runtime installs its own SIGTERM handler while
+    // booting and would leave an earlier hook inert — the runtime's
+    // handler is the last writer (the same lesson the SyncPilot host
+    // logged with a sigaction interposer). Installing here, once the boot
+    // thread has finished, on the main loop thread, is the last word:
+    // SIGTERM/SIGINT now run the orderly stop and exit instead of being
+    // absorbed into a half-dead process. Before this point a signal hits
+    // the default disposition and simply kills the process — nothing
+    // worth tearing down exists yet.
+    install_shutdown_hook_once();
+
+    std::lock_guard stop_lock(stop_mutex);
     if (startup_thread.joinable()) {
       startup_thread.join();
     }
@@ -1404,11 +1440,13 @@ struct Launcher {
   }
 
   void stop_backend() {
+    std::lock_guard lock(stop_mutex);
     shutting_down.store(true, std::memory_order_release);
     if (startup_thread.joinable()) {
       startup_thread.join();
     }
-    if (backend_ != nullptr) {
+    if (backend_ != nullptr && !backend_stopped_) {
+      backend_stopped_ = true;
       backend_->stop();
     }
   }
@@ -1469,7 +1507,88 @@ void on_activation(std::vector<std::string> arguments) {
   g_idle_add(activate_on_main, nullptr);
 }
 
+// ---- tray ------------------------------------------------------------------
+// The visible way back after the panel hides. Without it, a launcher that
+// closes to the background has no summon affordance a mouse user can find:
+// the portal hotkey needs a consent prompt that is easy to miss, and
+// `fulcrum --toggle` is a terminal incantation.
+
+void tray_quit() {
+  // A real quit: GApplication's shutdown path stops the backend, and the
+  // shutdown hook keeps SIGTERM equivalent.
+  g_application_quit(G_APPLICATION(Launcher::instance().app));
+}
+
+std::vector<rivet::system::TrayMenuItem> tray_menu_items() {
+  return {rivet::system::TrayMenuItem(
+              tr("trayOpen"), [] { Launcher::instance().show(); }),
+          rivet::system::TrayMenuItem(
+              rivet::system::TrayMenuItem::Type::separator),
+          rivet::system::TrayMenuItem(tr("trayQuit"),
+                                      [] { tray_quit(); })};
+}
+
+// The menu is composed at tray construction with the startup language; the
+// backend `language` setting lands shortly after boot and re-composes it
+// (set_menu replaces the whole menu), so the labels never need a restart.
+void apply_tray_language() {
+  Launcher& launcher = Launcher::instance();
+  std::string const active =
+      (g_i18n_active.load(std::memory_order_relaxed) == 0) ? "zh" : "en";
+  if (!launcher.tray || active == launcher.tray_menu_lang) {
+    return;
+  }
+  launcher.tray_menu_lang = active;
+  launcher.tray->set_menu(tray_menu_items());
+}
+
+void build_tray() {
+  try {
+    if (!rivet::system::TrayIcon::available()) {
+      return;
+    }
+    Launcher& launcher = Launcher::instance();
+    launcher.tray = std::make_unique<rivet::system::TrayIcon>(
+        rivet_app::kIdentifier, "Fulcrum", "fulcrum");
+    launcher.tray->set_tooltip(
+        "Fulcrum", tr("aboutContent").c_str());
+    launcher.tray->set_menu(tray_menu_items());
+    launcher.tray->set_activation_handler(
+        [] { Launcher::instance().show(); });
+  } catch (std::exception const& error) {
+    // A session that cannot host the tray is supported: the portal hotkey
+    // and `fulcrum --toggle` stay the summon paths.
+    std::cerr << "fulcrum: tray unavailable: " << error.what() << "\n";
+  }
+}
+
+// ---- shutdown hook ---------------------------------------------------------
+
+void install_shutdown_hook_once() {
+  static bool installed = false;
+  if (installed) {
+    return;
+  }
+  installed = true;
+  try {
+    rivet::system::InstallShutdownHook(
+        [] { Launcher::instance().stop_backend(); });
+  } catch (std::exception const& error) {
+    std::cerr << "fulcrum: shutdown hook unavailable: " << error.what()
+              << "\n";
+  }
+}
+
 // ---- GTK wiring -----------------------------------------------------------
+
+// WM close = hide, exactly like the hosts' close buttons. Returning TRUE
+// keeps GTK's hide-on-close default out of the picture: its path was
+// observed killing the X11 surface behind GDK's back, after which the
+// resident launcher could never be presented again.
+gboolean on_close_request(GtkWindow*, gpointer) {
+  Launcher::instance().hide();
+  return TRUE;
+}
 
 void on_search_changed(GtkSearchEntry*, gpointer) {
   Launcher& launcher = Launcher::instance();
@@ -1578,6 +1697,7 @@ void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
 
 void on_activate(GtkApplication* app, gpointer) {
   Launcher& launcher = Launcher::instance();
+  launcher.app = app;  // tray quit routes through GApplication's shutdown
 
   // The panel hides on focus loss; without a hold, GTK would treat the
   // hidden window as "last window closed" and shut the whole app down.
@@ -1591,7 +1711,13 @@ void on_activate(GtkApplication* app, gpointer) {
   // The WM's close button HIDES, exactly like the other hosts: the
   // process stays resident (hotkey / --toggle / tray summon it back).
   // A close that quits would strand the user with no way to summon.
+  // Handled explicitly: letting GTK's hide-on-close default run lets the
+  // X11 surface die behind GDK's back ("GdkSurface unexpectedly
+  // destroyed"), leaving a resident process with a window that can never
+  // be presented again.
   gtk_window_set_hide_on_close(launcher.window, TRUE);
+  g_signal_connect(window, "close-request",
+                   G_CALLBACK(on_close_request), nullptr);
   gtk_widget_add_css_class(window, "fulcrum-window");
 
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -1792,6 +1918,10 @@ void on_activate(GtkApplication* app, gpointer) {
   // the portal consent is granted, after a reboot, a rejected grab. The
   // panel is one Esc (or focus loss) away from hidden again.
   launcher.show();
+
+  // The tray rides last: menus render with the i18n table loaded in main,
+  // and the language arrival re-composes them (apply_tray_language).
+  build_tray();
 }
 
 void on_shutdown(GApplication*, gpointer) {

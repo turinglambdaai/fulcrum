@@ -4,6 +4,41 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## [Unreleased]
+
+### Added
+
+- **A tray icon on Linux** — the visible way back after the panel hides
+  (close button, Esc, focus loss). StatusNotifierItem wherever a watcher
+  runs (GNOME with the AppIndicator extension, KDE, wlroots trays): left
+  click presents the panel, the menu has Open Fulcrum / Quit Fulcrum in
+  the shared i18n source, and the labels follow the backend `language`
+  setting without a restart. Sessions without a tray keep the portal
+  hotkey and `fulcrum --toggle` as summon paths.
+
+### Fixed
+
+- **SIGTERM no longer half-kills the Linux host.** The shutdown hook was
+  wired in the 0.4 era (fulcrum#6), then lost to later scaffold
+  rewrites: the embedded Racket runtime absorbed SIGTERM, so `pkill`
+  could not stop a resident launcher and half-dead processes piled up.
+  The hook is installed again — after the runtime boots, on the main
+  thread, where it is the last writer — and SIGTERM/SIGINT now run the
+  orderly backend stop and exit(0).
+- **The WM close path keeps the window resumable.** The close button now
+  routes through an explicit close-request handler that hides the panel;
+  letting GTK's hide-on-close default run was observed killing the X11
+  surface behind GDK's back, leaving a resident process with a window
+  that could never be presented again.
+
+### Changed
+
+- The generated identity constants (`GeneratedBackend.*`, all three
+  hosts) ride the release commit again — 0.11.1 shipped with the
+  in-tree constants still at 0.11.0, so About panels in source builds
+  lagged one release (release-time codegen kept shipped artifacts
+  correct).
+
 ## [0.11.1] - 2026-10-15
 
 ### Fixed

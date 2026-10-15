@@ -28,5 +28,7 @@
   "aboutContent": "One keystroke, everything within reach — apps, clipboard, snippets, window management and BYOK AI in one panel",
   "aboutLicense": "Released under the Business Source License 1.1",
   "aboutWebsite": "Website",
-  "aboutReportIssue": "Report an Issue"
+  "aboutReportIssue": "Report an Issue",
+  "trayOpen": "Open Fulcrum",
+  "trayQuit": "Quit Fulcrum"
 }

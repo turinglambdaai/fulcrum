@@ -28,5 +28,7 @@
   "aboutContent": "一键即达 — 应用、剪贴板、片段、窗口管理与 BYOK AI，尽在一个面板",
   "aboutLicense": "以 Business Source License 1.1 授权发布",
   "aboutWebsite": "访问官网",
-  "aboutReportIssue": "问题反馈"
+  "aboutReportIssue": "问题反馈",
+  "trayOpen": "打开 Fulcrum",
+  "trayQuit": "退出 Fulcrum"
 }
