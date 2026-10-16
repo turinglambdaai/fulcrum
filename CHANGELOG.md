@@ -4,6 +4,20 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## [Unreleased]
+
+### Fixed
+
+- **"Check for updates now" reported a bogus failure on every platform.**
+  The run-action branch matched the check result with a `case` over
+  symbol literals while `record-ref` hands back strings — an
+  `up-to-date` result always fell to the error branch and surfaced as
+  `update check failed: #<void>` (the `or` treats the void error field
+  as truthy). The successful paths now compare strings, and a real
+  failure reports its actual reason instead of `#<void>`. Found by a
+  full-surface verification pass on Linux; the silent launch check was
+  never affected (it rides events, not this branch).
+
 ## [0.11.2] - 2026-10-15
 
 ### Added

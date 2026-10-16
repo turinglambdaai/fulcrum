@@ -1497,20 +1497,27 @@
      ;; the notify message is readable — and before an error could ever
      ;; be copied).
      (define record (update-check! #t))
-     (case (record-ref record 'status)
-       [(available)
+     (define status (record-ref record 'status))
+     (define err (record-ref record 'error))
+     ;; record-ref hands back strings (the silent path's string=? at
+     ;; update-check! depends on it); a case over symbol literals never
+     ;; matched, so every manual check reported a bogus failure.
+     (cond
+       [(and (string? status) (string=? status "available"))
         (cons "stay"
               (list (cons 'notify
                           (format "Update available: Fulcrum v~a (~a)"
                                   (record-ref record 'available-version)
                                   (format-bytes
                                    (or (record-ref record 'size-bytes) 0))))))]
-       [(up-to-date)
+       [(and (string? status) (string=? status "up-to-date"))
         (cons "stay"
               (list (cons 'notify
                           (format "Fulcrum v~a is up to date" app-version))))]
        [else (cons (format "update check failed: ~a"
-                           (or (record-ref record 'error) "unknown reason"))
+                           (if (and (string? err) (non-empty-string? err))
+                               err
+                               "unknown reason"))
                    '())])]
     [(update.download)
      (with-handlers
