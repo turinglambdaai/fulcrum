@@ -4,6 +4,23 @@ All notable changes to Fulcrum are documented here. Versions follow
 [SemVer](https://semver.org/); the `build` number in `rivet.rktd` increments
 independently per platform packaging run.
 
+## [Unreleased]
+
+### Added
+
+- **GNOME Alt+Space conflict, detected and one click away from fixed.**
+  GNOME's stock *activate window menu* keybinding owns `Alt+Space`, and
+  the compositor swallows the summon press before the portal shortcut
+  ever fires — the binding is granted, the hotkey just never runs. When
+  the portal reports an Alt+Space trigger and that stock binding still
+  exists, the Linux host says so in the status bar and grows a **Fix
+  Alt+Space conflict** item in the tray menu; running it clears the
+  stock binding (`gsettings set org.gnome.desktop.wm.keybindings
+  activate-window-menu "[]"`), reports success, and retracts the item.
+  Both user guides document the manual remedy. Found live: the first
+  full-surface verification pass ended with exactly this diagnosis on
+  this machine.
+
 ## [0.11.3] - 2026-10-16
 
 ### Fixed

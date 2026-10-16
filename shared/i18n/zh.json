@@ -30,5 +30,8 @@
   "aboutWebsite": "访问官网",
   "aboutReportIssue": "问题反馈",
   "trayOpen": "打开 Fulcrum",
-  "trayQuit": "退出 Fulcrum"
+  "trayQuit": "退出 Fulcrum",
+  "trayFixHotkey": "修复 Alt+Space 冲突",
+  "hotkeyShadowed": "唤出热键 {0} 被 GNOME 的窗口菜单占用 — 托盘菜单中的「修复 Alt+Space」可解除",
+  "hotkeyFreed": "已解除 Alt+Space 占用（GNOME 窗口菜单绑定已清空），现在试试热键"
 }

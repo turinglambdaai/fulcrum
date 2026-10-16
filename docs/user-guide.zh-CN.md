@@ -214,7 +214,7 @@ Fulcrum 只发三种网络请求：更新检查（签名、节流）、你主动
 
 ## 排障
 
-- **热键没反应。** 组合键被占了。Fulcrum 自动退到 `Ctrl+Alt+Space` 并提示。也可以从托盘图标（Windows）、菜单栏（macOS）、`fulcrum --toggle`（Linux）打开。
+- **热键没反应。** 组合键被占了。Fulcrum 自动退到 `Ctrl+Alt+Space` 并提示。也可以从托盘图标（Windows）、菜单栏（macOS）、`fulcrum --toggle`（Linux）。GNOME 上特别注意：系统自带的「激活窗口菜单」键位就是 Alt+Space，合成器会先把它吃掉——Fulcrum 启动时会检测这种遮蔽并在托盘菜单里给出「修复 Alt+Space 冲突」一键解除；手动修法：`gsettings set org.gnome.desktop.wm.keybindings activate-window-menu "[]"`。
 
 - **macOS 上粘贴回前台没反应。** 授权辅助功能：系统设置 → 隐私与安全性 → 辅助功能 → 勾选 Fulcrum。
 

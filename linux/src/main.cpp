@@ -389,6 +389,15 @@ I18nEntry const kI18nFallback[] = {
     {"aboutReportIssue", "问题反馈", "Report an Issue"},
     {"trayOpen", "打开 Fulcrum", "Open Fulcrum"},
     {"trayQuit", "退出 Fulcrum", "Quit Fulcrum"},
+    {"trayFixHotkey", "修复 Alt+Space 冲突", "Fix Alt+Space conflict"},
+    {"hotkeyShadowed",
+     "唤出热键 {0} 被 GNOME 的窗口菜单占用 — 托盘菜单中的「修复 Alt+Space」可解除",
+     "Summon hotkey {0} is shadowed by GNOME's window menu — \"Fix "
+     "Alt+Space\" in the tray menu frees it"},
+    {"hotkeyFreed",
+     "已解除 Alt+Space 占用（GNOME 窗口菜单绑定已清空），现在试试热键",
+     "Alt+Space freed — GNOME's window-menu binding cleared; try the "
+     "hotkey now"},
 };
 
 I18nTable g_i18n[2];                // 0 = zh, 1 = en
@@ -651,6 +660,9 @@ struct Launcher {
   // one keep the portal hotkey and `fulcrum --toggle` as summon paths.
   std::unique_ptr<rivet::system::TrayIcon> tray;
   std::string tray_menu_lang{"en"};
+  // GNOME's stock activate-window-menu binding owns Alt+Space: the tray
+  // grows a one-click fix while the conflict stands.
+  bool hotkey_shadowed{false};
   GtkApplication* app{nullptr};
   std::vector<ResultRow> rows;
   guint search_source{0};
@@ -1519,13 +1531,100 @@ void tray_quit() {
   g_application_quit(G_APPLICATION(Launcher::instance().app));
 }
 
+// GNOME's stock "activate window menu" binding is <Alt>space — the
+// compositor consumes the summon key before the portal shortcut ever
+// sees it, and the consent UI does not resolve that for the user. When
+// the active trigger is Alt+Space and that keybinding still exists, the
+// tray grows a one-click fix (clearing the stock binding) instead of
+// leaving every GNOME user to debug gsettings on their own.
+bool trigger_is_alt_space(std::string const& trigger) {
+  std::string lowered = trigger;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) {
+                   return static_cast<char>(std::tolower(c));
+                 });
+  return lowered.find("alt") != std::string::npos &&
+         lowered.find("space") != std::string::npos;
+}
+
+std::string gnome_window_menu_binding() {
+  std::string out;
+  FILE* gsettings = popen(
+      "gsettings get org.gnome.desktop.wm.keybindings "
+      "activate-window-menu 2>/dev/null",
+      "r");
+  if (gsettings == nullptr) {
+    return out;
+  }
+  char buf[256];
+  while (fgets(buf, sizeof buf, gsettings) != nullptr) {
+    out += buf;
+  }
+  pclose(gsettings);
+  return out;
+}
+
+void rebuild_tray_menu();
+
+void tray_fix_hotkey() {
+  int const rc = std::system(
+      "gsettings set org.gnome.desktop.wm.keybindings "
+      "activate-window-menu \"[]\"");
+  Launcher& launcher = Launcher::instance();
+  if (rc == 0) {
+    launcher.hotkey_shadowed = false;
+    rebuild_tray_menu();
+    Launcher::post_status(tr("hotkeyFreed"));
+  } else {
+    Launcher::post_status(std::string("gsettings failed (rc=") +
+                          std::to_string(rc) + ")");
+  }
+}
+
 std::vector<rivet::system::TrayMenuItem> tray_menu_items() {
-  return {rivet::system::TrayMenuItem(
-              tr("trayOpen"), [] { Launcher::instance().show(); }),
-          rivet::system::TrayMenuItem(
-              rivet::system::TrayMenuItem::Type::separator),
-          rivet::system::TrayMenuItem(tr("trayQuit"),
-                                      [] { tray_quit(); })};
+  std::vector<rivet::system::TrayMenuItem> items;
+  items.push_back(rivet::system::TrayMenuItem(
+      tr("trayOpen"), [] { Launcher::instance().show(); }));
+  if (Launcher::instance().hotkey_shadowed) {
+    items.push_back(rivet::system::TrayMenuItem(
+        tr("trayFixHotkey"), [] { tray_fix_hotkey(); }));
+  }
+  items.push_back(rivet::system::TrayMenuItem(
+      rivet::system::TrayMenuItem::Type::separator));
+  items.push_back(
+      rivet::system::TrayMenuItem(tr("trayQuit"), [] { tray_quit(); }));
+  return items;
+}
+
+void rebuild_tray_menu() {
+  Launcher& launcher = Launcher::instance();
+  if (launcher.tray) {
+    launcher.tray->set_menu(tray_menu_items());
+  }
+}
+
+// Runs once the portal bind names the compositor's chosen combo: a
+// GNOME session whose window menu still owns Alt+Space keeps the summon
+// dead no matter how correct the binding is — say so, and put the fix
+// one tray click away.
+void check_hotkey_shadowing(std::string const& trigger) {
+  if (!trigger_is_alt_space(trigger)) {
+    return;
+  }
+  std::string const binding = gnome_window_menu_binding();
+  std::string lowered = binding;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) {
+                   return static_cast<char>(std::tolower(c));
+                 });
+  if (lowered.find("alt") == std::string::npos ||
+      lowered.find("space") == std::string::npos) {
+    return;
+  }
+  Launcher& launcher = Launcher::instance();
+  launcher.hotkey_shadowed = true;
+  rebuild_tray_menu();
+  Launcher::post_status(tr_format("hotkeyShadowed", {trigger}));
 }
 
 // The menu is composed at tray construction with the startup language; the
@@ -1539,7 +1638,7 @@ void apply_tray_language() {
     return;
   }
   launcher.tray_menu_lang = active;
-  launcher.tray->set_menu(tray_menu_items());
+  rebuild_tray_menu();
 }
 
 void build_tray() {
@@ -1893,11 +1992,15 @@ void on_activate(GtkApplication* app, gpointer) {
                                     result.message);
               break;
             case rivet::system::GlobalShortcutBindStatus::bound:
-              // The compositor owns the final combo; say what it chose.
+              // The compositor owns the final combo; say what it chose —
+              // and on GNOME check that the stock window menu is not
+              // shadowing the very same combo.
               if (!result.bindings.empty() &&
                   !result.bindings[0].trigger_description.empty()) {
-                Launcher::post_status("Summon hotkey: " +
-                                      result.bindings[0].trigger_description);
+                std::string const trigger =
+                    result.bindings[0].trigger_description;
+                Launcher::post_status("Summon hotkey: " + trigger);
+                check_hotkey_shadowing(trigger);
               }
               break;
             default:

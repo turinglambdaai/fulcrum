@@ -302,7 +302,12 @@ does not work on Linux.
 - **The hotkey does nothing.** Another app owns that combo. Fulcrum
   falls back to `Ctrl+Alt+Space` and tells you. You can also open
   Fulcrum from the tray icon (Windows), the menu bar (macOS), or
-  `fulcrum --toggle` (Linux).
+  `fulcrum --toggle` (Linux). On GNOME specifically, the stock
+  *Activate Window Menu* keybinding owns `Alt+Space` and the compositor
+  swallows the press before the portal shortcut fires: Fulcrum detects
+  this at launch and grows a **Fix Alt+Space conflict** item in its tray
+  menu (it clears the stock binding). To fix it by hand:
+  `gsettings set org.gnome.desktop.wm.keybindings activate-window-menu "[]"`.
 
 - **Paste-to-frontmost does nothing on macOS.** Grant Accessibility:
   System Settings → Privacy & Security → Accessibility → enable

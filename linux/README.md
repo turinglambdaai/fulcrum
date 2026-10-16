@@ -17,10 +17,14 @@ Launcher-specific parts on top of the official runtime:
   `GlobalShortcuts` exists (GNOME 48+, KDE, recent wlroots compositors),
   the summon shortcut is registered there: the compositor asks for
   consent once and owns the final binding, which the status bar reports.
-  Sessions without the portal fall back to the X11 `XGrabKey` grab
-  (X11 only, by platform rules); there, `fulcrum --toggle` bound as a
-  compositor keybinding is the documented Wayland fallback — and it
-  summons by starting the launcher when nothing is running yet.
+  When the chosen combo is Alt+Space and GNOME's stock *activate window
+  menu* binding still owns it, the host detects the shadowing, says so,
+  and grows a **Fix Alt+Space conflict** item in the tray menu (clears
+  the stock binding with `gsettings`). Sessions without the portal fall
+  back to the X11 `XGrabKey` grab (X11 only, by platform rules); there,
+  `fulcrum --toggle` bound as a compositor keybinding is the documented
+  Wayland fallback — and it summons by starting the launcher when
+  nothing is running yet.
 - **Overlay chrome** — EWMH properties (`_NET_WM_STATE_ABOVE`,
   `SKIP_TASKBAR`, `WINDOW_TYPE_UTILITY`) set directly on X11; Wayland
   compositors own those decisions.

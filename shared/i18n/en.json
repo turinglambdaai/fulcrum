@@ -30,5 +30,8 @@
   "aboutWebsite": "Website",
   "aboutReportIssue": "Report an Issue",
   "trayOpen": "Open Fulcrum",
-  "trayQuit": "Quit Fulcrum"
+  "trayQuit": "Quit Fulcrum",
+  "trayFixHotkey": "Fix Alt+Space conflict",
+  "hotkeyShadowed": "Summon hotkey {0} is shadowed by GNOME's window menu — \"Fix Alt+Space\" in the tray menu frees it",
+  "hotkeyFreed": "Alt+Space freed — GNOME's window-menu binding cleared; try the hotkey now"
 }
