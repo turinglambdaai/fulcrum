@@ -339,6 +339,16 @@ struct LauncherView: View {
                     .onChange(of: model.query) { _, newValue in
                         model.queryChanged(newValue)
                     }
+                if ProcessInfo.processInfo.environment["FULCRUM_ACCEPTANCE"] == "1" {
+                    Button("Acceptance query") {
+                        model.query = "12*12"
+                        model.queryChanged("12*12")
+                    }
+                    .accessibilityIdentifier("FulcrumAcceptanceQuery")
+                    .buttonStyle(.plain)
+                    .frame(width: 1, height: 1)
+                    .opacity(0.01)
+                }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 15)
