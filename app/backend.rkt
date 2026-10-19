@@ -1508,11 +1508,15 @@
                            "re-fetch the signed channel manifest now" "" ""))]
         [(downloaded)
          (append
-          (if (eq? (system-type 'os) 'macosx)
+          (if (memq (system-type 'os) '(macosx windows))
               (list (update-row
                      "update.install"
                      (format "Quit and install Fulcrum v~a" (or version "?"))
-                     "swaps the downloaded bundle in place and relaunches"
+                     (case (system-type 'os)
+                       [(windows)
+                        "runs the verified MSI, upgrades in place, and relaunches"]
+                       [else
+                        "swaps the downloaded bundle in place and relaunches"])
                      "" "Install"))
               '())
           (list (update-row
@@ -1593,11 +1597,12 @@
        (cons "downloading"
              (list (cons 'notify "Update download started"))))]
     [(update.install)
-     ;; macOS only: the host intercepts this action id and runs the native
-     ;; bundle swap (dmg/zip is host territory, the backend never installs).
-     (if (eq? (system-type 'os) 'macosx)
+     ;; Native hosts own the last mile. macOS swaps the verified app bundle;
+     ;; Windows hands the verified MSI to Rivet's MsiHandoff helper. Linux
+     ;; remains install-shape-aware and does not bypass package-manager ownership.
+     (if (memq (system-type 'os) '(macosx windows))
          (cons "quit-and-install" '())
-         (cons "in-app install is macOS-only; open the updates folder instead" '()))]
+         (cons "in-app install is unavailable for this Linux install; open the updates folder instead" '()))]
     [(update.reveal)
      (cons "ok" (list (cons 'open-url (updates-folder-uri))))]
     [(update.hint) (cons "ok" '())]
