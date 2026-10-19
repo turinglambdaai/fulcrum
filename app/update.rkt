@@ -16,9 +16,10 @@
 ;; background thread with progress published to a state box that the UI polls
 ;; through the `update-state` RPC (RVT1 events are thread-local, so a
 ;; background thread cannot emit them directly). The feed serves installers —
-;; macos zip (portable bundle), windows msi, linux tar.gz — per
-;; .github/sign-manifest.rkt; the dmg is the human installer, not a feed
-;; artifact.
+;; macOS zip (portable bundle), Windows MSI, and Linux tar.gz + AppImage — per
+;; .github/sign-manifest.rkt; the DMG is the human installer, not a feed
+;; artifact. Linux AppImage installs select the AppImage entry explicitly;
+;; existing portable/package-manager installs retain the legacy tar.gz path.
 ;;
 ;; Fulcrum-specific rules: the 4-hour silent-check throttle and the sticky
 ;; rollout bucket live in the typed settings store (keys `update-last-check`
@@ -122,10 +123,10 @@
 
 ;; The feed serves installers, and the release pipeline pins versioned,
 ;; architecture-suffixed names (fulcrum-<version>-macos-arm64.zip,
-;; -windows-x64.msi, -linux-x64.tar.gz) — the signed manifest carries the
-;; full URL, so the on-disk name is simply the URL's last segment. Keeping
-;; the release name means the "open folder / run the msi" guidance on
-;; Windows and Linux points at exactly the file the manifest vouches for.
+;; -windows-x64.msi, -linux-x64.tar.gz, -linux-x86_64.AppImage) — the signed
+;; manifest carries the full URL, so the on-disk name is simply the URL's last
+;; segment. Keeping the release name means every host points at exactly the
+;; file the manifest vouches for.
 (define (artifact-file-name candidate)
   (define raw (update-artifact-url (update-candidate-artifact candidate)))
   (or (and (string? raw)
@@ -287,7 +288,17 @@
                          ;; The feed carries exactly one installable per
                          ;; platform/arch — no component discriminator.
                          #f))
-       (define candidate (select-update config manifest))
+       ;; AppImage is the one Linux install shape Rivet can update atomically
+       ;; in place. The release feed also retains tar.gz for the existing
+       ;; portable/manual flow, so only an actual AppImage process opts into
+       ;; the AppImage artifact. deb/rpm ownership stays with the package
+       ;; manager and non-AppImage installs keep the existing selection path.
+       (define install-kind
+         (and (eq? (platform-symbol) 'linux)
+              (eq? (current-install-kind) 'appimage)
+              'appimage))
+       (define candidate
+         (select-update config manifest #:install-kind install-kind))
        (cond
          [candidate
           (set-box! candidate-box candidate)
