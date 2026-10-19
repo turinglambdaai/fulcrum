@@ -2,7 +2,7 @@
 
 One keystroke. Everything within reach. A keyboard-first launcher for macOS, Windows, and Linux — one Racket brain, three first-party native UIs, no WebView anywhere.
 
-[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.11.2-C15F3C)
+[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.13.0-C15F3C)
 
 **English** · [中文](README.zh-CN.md)
 
@@ -52,7 +52,7 @@ fulcrum/
 ├── macos-host/             # SwiftUI panel + Carbon global hotkey
 ├── windows/                # WinUI 3 overlay + RegisterHotKey
 ├── linux/                  # GTK4 panel + X11 grab (Rivet 0.3 Linux preview)
-├── gallery/                # 11 first-party FPP1 plugins (installable in-app)
+├── gallery/                # 26 first-party FPP1 plugins (installable in-app)
 ├── tests/                  # backend tests (raco test tests/)
 ├── docs/                   # user-guide.md, plugins.md, fpp2.md, registry.md
 ├── site/                   # fulcrum.jrtx.site (GitHub Pages)
