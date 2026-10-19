@@ -7,12 +7,25 @@ from pathlib import Path
 import pyatspi
 
 def children(node):
-    for index in range(node.childCount):
-        try: yield node.getChildAtIndex(index)
-        except Exception: continue
+    if node is None:
+        return
+    try:
+        count = node.childCount
+    except Exception:
+        return
+    for index in range(count):
+        try:
+            child = node.getChildAtIndex(index)
+            if child is not None:
+                yield child
+        except Exception:
+            continue
 def walk(node):
+    if node is None:
+        return
     yield node
-    for child in children(node): yield from walk(child)
+    for child in children(node):
+        yield from walk(child)
 def role(node):
     try: return node.getRoleName()
     except Exception: return "unknown"
