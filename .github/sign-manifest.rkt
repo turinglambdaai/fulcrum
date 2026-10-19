@@ -12,10 +12,13 @@
 ;; The release installers must exist under release/ (named as the release
 ;; pipeline produces them: fulcrum-<version>-macos-arm64.zip,
 ;; fulcrum-<version>-macos-x64.zip, fulcrum-<version>-windows-x64.msi,
-;; fulcrum-<version>-linux-x64.tar.gz, fulcrum-<version>-linux-arm64.tar.gz);
-;; the URLs written into the manifest are $BASE_URL/<name>. Architecture
-;; symbols follow the family vocabulary (arm64/x64) — the same symbols
-;; app/update.rkt sends, which `select-update` matches with `eq?`.
+;; fulcrum-<version>-linux-x64.tar.gz, fulcrum-<version>-linux-arm64.tar.gz,
+;; fulcrum-<version>-linux-x86_64.AppImage, and
+;; fulcrum-<version>-linux-aarch64.AppImage). The URLs written into the
+;; manifest are $BASE_URL/<name>. Architecture symbols follow the family
+;; vocabulary (arm64/x64) — the same symbols app/update.rkt sends, which
+;; `select-update` matches with `eq?`; installer kind disambiguates the
+;; Linux tar.gz and AppImage entries for the same platform/arch.
 
 (require racket/file
          racket/format
@@ -56,9 +59,9 @@
                    (file-size path)
                    installer
                    '()
-                   ;; No component discriminator: the feed pins exactly one
-                   ;; installable per platform/arch, which the client's
-                   ;; updater-config matches with #f (rivet 79b1bd8).
+                   ;; No component discriminator: installer kind distinguishes
+                   ;; the Linux tar.gz/AppImage pair for a platform/arch; the
+                   ;; client component remains #f (rivet 79b1bd8).
                    #f))
 
 (define published-at
@@ -81,10 +84,17 @@
                                        'macos 'x64 'zip)
                          (artifact-for (format "fulcrum-~a-windows-x64.msi" version)
                                        'windows 'x64 'msi)
+                         ;; Keep tar.gz first for portable/manual installs.
+                         ;; AppImage processes request #:install-kind 'appimage
+                         ;; and therefore select the signed AppImage entry.
                          (artifact-for (format "fulcrum-~a-linux-x64.tar.gz" version)
                                        'linux 'x64 'targz)
                          (artifact-for (format "fulcrum-~a-linux-arm64.tar.gz" version)
-                                       'linux 'arm64 'targz))))
+                                       'linux 'arm64 'targz)
+                         (artifact-for (format "fulcrum-~a-linux-x86_64.AppImage" version)
+                                       'linux 'x64 'appimage)
+                         (artifact-for (format "fulcrum-~a-linux-aarch64.AppImage" version)
+                                       'linux 'arm64 'appimage))))
 
 (define private-key (read-ed25519-private-key private-der))
 (define public-key (read-ed25519-public-key public-der))
