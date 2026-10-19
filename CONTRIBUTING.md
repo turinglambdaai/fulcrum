@@ -35,7 +35,7 @@ Platform hosts additionally compile in their CI jobs; if you touch
 ## Areas that especially want help
 
 - Linux host polish (GTK4 + embedded Racket CS — see
-  [linux-host/README.md](linux-host/README.md))
+  [linux/README.md](linux/README.md))
 - Plugins! The protocol is MIT and the reference plugin is 100 lines of
   Python ([docs/plugins.md](docs/plugins.md))
 - Documentation translations
