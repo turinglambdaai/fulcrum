@@ -33,10 +33,22 @@ func replaceText(_ element: AXUIElement, with value: String, pid: pid_t) throws 
     guard AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
         throw DriverError.failure("could not focus FulcrumQuery")
     }
-    // Prefer the Accessibility value setter in CI. Posting CGEvents requires
-    // a separate Input Monitoring permission that GitHub-hosted runners do
-    // not grant even when Accessibility itself is available.
-    if AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, value as CFString) == .success {
+    // Use the Accessibility text-editing attributes rather than assigning
+    // AXValue directly. SwiftUI's TextField exposes a writable value, but a
+    // raw AXValue assignment updates the accessibility cache without sending
+    // the editing notification that drives the Binding/onChange path. Replacing
+    // the selected text is treated as a real native edit and therefore crosses
+    // the same UI -> model -> RVT1 path as typing, without requiring the
+    // GitHub runner's unavailable Input Monitoring permission.
+    let existing = stringAttribute(element, kAXValueAttribute)
+    var range = CFRange(location: 0, length: existing.utf16.count)
+    if let rangeValue = AXValueCreate(.cfRange, &range),
+       AXUIElementSetAttributeValue(element,
+                                    kAXSelectedTextRangeAttribute as CFString,
+                                    rangeValue) == .success,
+       AXUIElementSetAttributeValue(element,
+                                    kAXSelectedTextAttribute as CFString,
+                                    value as CFString) == .success {
         _ = try waitFor("FulcrumQuery value \(value)", timeout: 5) {
             stringAttribute(element, kAXValueAttribute) == value ? true : nil
         }
