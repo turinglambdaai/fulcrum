@@ -105,7 +105,7 @@ do {
     let window: AXUIElement = try waitFor("Fulcrum window") { (attribute(application, kAXWindowsAttribute) as? [AXUIElement])?.first }
     _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
     _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-    _ = try waitFor("FulcrumQuery") { findByIdentifier(window, "FulcrumQuery") }
+    let query: AXUIElement = try waitFor("FulcrumQuery") { findByIdentifier(window, "FulcrumQuery") }
     let acceptanceQuery: AXUIElement = try waitFor("FulcrumAcceptanceQuery") {
         findByIdentifier(window, "FulcrumAcceptanceQuery")
     }
@@ -114,6 +114,9 @@ do {
     }
     _ = try waitFor("calculator result 144 from embedded backend") { contains(window, fragment: "144") ? true : nil }
     try writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility.json"))
+    guard AXUIElementSetAttributeValue(query, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
+        throw DriverError.failure("could not refocus FulcrumQuery before Return")
+    }
     try pressReturn(pid: pid)
     _ = try waitFor("calculator action clipboard event") {
         NSPasteboard.general.string(forType: .string) == "144" ? true : nil

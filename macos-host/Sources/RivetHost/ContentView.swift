@@ -346,8 +346,6 @@ struct LauncherView: View {
                     }
                     .accessibilityIdentifier("FulcrumAcceptanceQuery")
                     .buttonStyle(.plain)
-                    .frame(width: 1, height: 1)
-                    .opacity(0.01)
                 }
             }
             .padding(.horizontal, 18)
