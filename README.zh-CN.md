@@ -2,7 +2,7 @@
 
 一次按键，直达一切。macOS、Windows、Linux 三平台的键盘优先启动器——一个 Racket 大脑，三套第一方原生 UI，全程无 WebView。
 
-[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.11.2-C15F3C)
+[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.13.0-C15F3C)
 
 [English](README.md) · **中文**
 
@@ -52,7 +52,7 @@ fulcrum/
 ├── macos-host/             # SwiftUI 悬浮面板 + Carbon 全局热键
 ├── windows/                # WinUI 3 悬浮窗 + RegisterHotKey
 ├── linux/                  # GTK4 面板 + X11 grab（Rivet 0.3 Linux preview）
-├── gallery/                # 11 个第一方 FPP1 插件（应用内可安装）
+├── gallery/                # 26 个第一方 FPP1 插件（应用内可安装）
 ├── tests/                  # 后端测试（raco test tests/）
 ├── docs/                   # user-guide.md、plugins.md、fpp2.md、registry.md
 ├── site/                   # fulcrum.jrtx.site（GitHub Pages）
