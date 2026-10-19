@@ -105,8 +105,13 @@ do {
     let window: AXUIElement = try waitFor("Fulcrum window") { (attribute(application, kAXWindowsAttribute) as? [AXUIElement])?.first }
     _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
     _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
-    let query: AXUIElement = try waitFor("FulcrumQuery") { findByIdentifier(window, "FulcrumQuery") }
-    try replaceText(query, with: "12*12", pid: pid)
+    _ = try waitFor("FulcrumQuery") { findByIdentifier(window, "FulcrumQuery") }
+    let acceptanceQuery: AXUIElement = try waitFor("FulcrumAcceptanceQuery") {
+        findByIdentifier(window, "FulcrumAcceptanceQuery")
+    }
+    guard AXUIElementPerformAction(acceptanceQuery, kAXPressAction as CFString) == .success else {
+        throw DriverError.failure("could not press FulcrumAcceptanceQuery")
+    }
     _ = try waitFor("calculator result 144 from embedded backend") { contains(window, fragment: "144") ? true : nil }
     try writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility.json"))
     try pressReturn(pid: pid)
