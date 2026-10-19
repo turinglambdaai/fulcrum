@@ -64,7 +64,9 @@ jobs:
             "fulcrum-${VERSION}-macos-x64.zip" \
             "fulcrum-${VERSION}-windows-x64.msi" \
             "fulcrum-${VERSION}-linux-x64.tar.gz" \
-            "fulcrum-${VERSION}-linux-arm64.tar.gz"
+            "fulcrum-${VERSION}-linux-arm64.tar.gz" \
+            "fulcrum-${VERSION}-linux-x86_64.AppImage" \
+            "fulcrum-${VERSION}-linux-aarch64.AppImage"
           do
             printf 'CI fixture for %s\n' "$artifact" > "release/$artifact"
           done
