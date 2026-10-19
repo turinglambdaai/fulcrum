@@ -74,6 +74,28 @@
   (check-true (string-prefix? (updates-folder-uri) "file:///"))
   (check-false (string-contains? (updates-folder-uri) " ")))
 
+(test-case "Linux AppImage selection uses the installer discriminator"
+  (define tar
+    (update-artifact 'linux 'x64
+                     "https://dl.example/fulcrum-9.9.9-linux-x64.tar.gz"
+                     (make-string 64 #\a) 10 'targz '() #f))
+  (define appimage
+    (update-artifact 'linux 'x64
+                     "https://dl.example/fulcrum-9.9.9-linux-x86_64.AppImage"
+                     (make-string 64 #\b) 20 'appimage '() #f))
+  (define manifest
+    (update-manifest "site.jrtx.fulcrum" "9.9.9" 9 'stable
+                     "2026-10-10T00:00:00Z" "0.0.0" #f #t 100
+                     (list tar appimage)))
+  (define config
+    (updater-config "site.jrtx.fulcrum" "0.13.0" 'stable
+                    'linux 'x64 #f "test" 0 maximum-download-bytes #f))
+  (define candidate (select-update config manifest #:install-kind 'appimage))
+  (check-not-false candidate)
+  (check-equal? (update-candidate-artifact candidate) appimage)
+  (check-equal? (artifact-file-name candidate)
+                "fulcrum-9.9.9-linux-x86_64.AppImage"))
+
 ;; ---------- rollout bucket ----------------------------------------------------
 
 (test-case "rollout bucket is sticky and persists to the settings store"
