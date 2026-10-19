@@ -2675,6 +2675,9 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* search = gtk_search_entry_new();
   gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(search),
                                         "Search apps, clipboard, snippets, the web…");
+  gtk_accessible_update_property(GTK_ACCESSIBLE(search),
+                                 GTK_ACCESSIBLE_PROPERTY_LABEL,
+                                 "FulcrumQuery", -1);
   gtk_widget_set_margin_top(search, 10);
   gtk_widget_set_margin_start(search, 10);
   gtk_widget_set_margin_end(search, 10);
@@ -2901,7 +2904,12 @@ void on_shutdown(GApplication*, gpointer) {
 int run_application() {
   // The first-party rivet lease replaces the old pid-file + SIGUSR1 scheme:
   // second launches forward --toggle to the primary and exit.
-  rivet::system::SingleInstanceLease lease("site.jrtx.fulcrum");
+  char const* isolated_id = std::getenv("FULCRUM_INSTANCE_ID");
+  std::string const application_id =
+      isolated_id != nullptr && *isolated_id != '\0'
+          ? isolated_id
+          : "site.jrtx.fulcrum";
+  rivet::system::SingleInstanceLease lease(application_id);
   if (!lease.is_primary()) {
     if (!lease.forward_arguments({"--toggle"})) {
       std::cerr << "fulcrum: running instance not reachable\n";

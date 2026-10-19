@@ -32,6 +32,13 @@ constexpr int kHotkeyIdFallback = 0xF11D; // Ctrl+Alt+Space
 constexpr int kWindowWidth = 680;
 constexpr int kWindowHeight = 440;
 
+bool is_acceptance_run() {
+  wchar_t value[8]{};
+  auto const length =
+      ::GetEnvironmentVariableW(L"FULCRUM_ACCEPTANCE", value, 8);
+  return length == 1 && value[0] == L'1';
+}
+
 std::filesystem::path executable_path() {
   std::wstring buffer(32768, L'\0');
   auto const length = ::GetModuleFileNameW(nullptr, buffer.data(),
@@ -910,7 +917,8 @@ void MainWindow::FinishNativeSetup() {
   this->Activated([this](auto&&,
                          winrt::Microsoft::UI::Xaml::WindowActivatedEventArgs const& args) {
     if (args.WindowActivationState() ==
-        winrt::Microsoft::UI::Xaml::WindowActivationState::Deactivated) {
+            winrt::Microsoft::UI::Xaml::WindowActivationState::Deactivated &&
+        !is_acceptance_run()) {
       this->HideLauncher();
     }
   });

@@ -333,6 +333,7 @@ struct LauncherView: View {
                           text: $model.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 19, weight: .medium))
+                    .accessibilityIdentifier("FulcrumQuery")
                     .focused($queryFocused)
                     .onSubmit { model.runSelected() }
                     .onChange(of: model.query) { _, newValue in

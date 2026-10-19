@@ -102,7 +102,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // One instance owns the global hotkey; second launches exit here via
         // the first-party rivet lease instead of growing a second panel. The
         // lease is retained so the lock holds for the process lifetime.
-        if let lease = try? RivetSingleInstance(applicationID: "site.jrtx.fulcrum") {
+        let applicationID = ProcessInfo.processInfo.environment["FULCRUM_INSTANCE_ID"]
+            ?? "site.jrtx.fulcrum"
+        if let lease = try? RivetSingleInstance(applicationID: applicationID) {
             guard lease.isPrimary else {
                 NSApp.terminate(nil)
                 return

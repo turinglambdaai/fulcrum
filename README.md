@@ -61,7 +61,7 @@ fulcrum/
 
 ## Status (developer preview)
 
-Developer preview. The backend is complete and tested (81 test cases over ranking, stores, plugins, AI, and the signed update pipeline) and ships a twenty-six-plugin first-party gallery (query `gallery` to install) plus a settings/snippets sync beta (`sync-root`). All three hosts track the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). Known platform edges are stated in the [user guide](docs/user-guide.md#troubleshooting) rather than papered over: file search is macOS-only, and the Linux host wants `wtype` for paste-to-frontmost on Wayland. `raco rivet doctor` / `dev` is the supported developer loop on every platform.
+Developer preview. The backend is complete and tested (101 test cases over ranking, stores, plugins, AI, and the signed update pipeline) and ships a twenty-six-plugin first-party gallery (query `gallery` to install) plus a settings/snippets sync beta (`sync-root`). All three hosts track the backend contract: Windows (WinUI 3), macOS (SwiftUI), and Linux (GTK4) — the Linux host builds through the official `raco rivet build` Linux path introduced in [Rivet 0.3](https://github.com/turinglambdaai/rivet). Known platform edges are stated in the [user guide](docs/user-guide.md#troubleshooting) rather than papered over: file search is macOS-only, and the Linux host wants `wtype` for paste-to-frontmost on Wayland. `raco rivet doctor` / `dev` is the supported developer loop on every platform.
 
 ## Development
 
@@ -71,6 +71,7 @@ Prerequisites: [Racket CS](https://racket-lang.org/) 9.3 (stable), a Rivet check
 raco pkg install --auto --no-docs --link /path/to/rivet
 raco make app/core/*.rkt app/backend.rkt
 raco test tests/
+raco rivet acceptance --json # packaged product acceptance on this platform
 ```
 
 Run the launcher through the Rivet toolchain (macOS / Windows):

@@ -16,7 +16,9 @@
                  "missing binaries return #f, never raise")))
 
 (test-case "spawn-command is fire-and-forget"
-  (check-true (spawn-command "true" '()))
+  ;; `true` is not a Windows executable. Use Racket itself so this checks
+  ;; PATH resolution and successful spawning on every supported platform.
+  (check-true (spawn-command "racket" '("-e" "(void)")))
   (check-false (spawn-command "definitely-not-a-real-binary-xyz" '())))
 
 ;; Regression: a child whose output exceeds the 64 KiB pipe buffer used to
