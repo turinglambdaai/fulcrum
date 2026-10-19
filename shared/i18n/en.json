@@ -21,7 +21,7 @@
   "updateInstallHintLinux": "To install manually: extract the downloaded tar.gz over the current Fulcrum folder and relaunch.",
   "updateOpenReleases": "Open Releases Page",
   "updateAvailableStatus": "Update available: Fulcrum v{0} — type \"update\" to download",
-  "updateDownloadedStatusWin": "Update downloaded — type \"update\" to open the folder, then run the MSI to upgrade",
+  "updateDownloadedStatusWin": "Update downloaded — type \"update\" to install and relaunch",
   "updateDownloadedStatusLinux": "Update downloaded — type \"update\" to open the folder, then extract the tar.gz to upgrade",
   "updateDownloadFailed": "Update download failed: {0}",
   "updateUnknownError": "unknown error",
