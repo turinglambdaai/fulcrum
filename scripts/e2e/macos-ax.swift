@@ -33,6 +33,15 @@ func replaceText(_ element: AXUIElement, with value: String, pid: pid_t) throws 
     guard AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
         throw DriverError.failure("could not focus FulcrumQuery")
     }
+    // Prefer the Accessibility value setter in CI. Posting CGEvents requires
+    // a separate Input Monitoring permission that GitHub-hosted runners do
+    // not grant even when Accessibility itself is available.
+    if AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, value as CFString) == .success {
+        _ = try waitFor("FulcrumQuery value \(value)", timeout: 5) {
+            stringAttribute(element, kAXValueAttribute) == value ? true : nil
+        }
+        return
+    }
     guard let source = CGEventSource(stateID: .hidSystemState),
           let selectDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
           let selectUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false),
