@@ -128,6 +128,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installMenus()
         installClipboardWatcher(model: launcherModel)
         launcherModel.start()
+        if ProcessInfo.processInfo.environment["FULCRUM_ACCEPTANCE"] == "1" {
+            showPanel()
+        }
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
