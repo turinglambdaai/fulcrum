@@ -30,6 +30,9 @@ jobs:
         run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#$env:RIVET_PIN"
       - name: Run executable product acceptance
         run: raco rivet acceptance --json
+      - name: Require generated Windows client to be current
+        shell: pwsh
+        run: git diff --exit-code -- windows/GeneratedBackend.hpp
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -61,6 +64,8 @@ jobs:
         run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
       - name: Run executable product acceptance
         run: raco rivet acceptance --json
+      - name: Require generated macOS client to be current
+        run: git diff --exit-code -- macos-host/Sources/RivetHost/GeneratedBackend.swift
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -94,6 +99,8 @@ jobs:
         uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@de1fb8997539d34ba029064f500f6903b955b5a7
       - name: Run executable product acceptance
         run: PATH="$FULL_RACKET_BIN:$PATH" dbus-run-session -- raco rivet acceptance --json
+      - name: Require generated Linux client to be current
+        run: git diff --exit-code -- linux/GeneratedBackend.hpp
       - uses: actions/upload-artifact@v4
         if: always()
         with:
