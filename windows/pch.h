@@ -38,3 +38,4 @@
 
 #include "../runtime/backend.hpp"
 #include "../system/system_services.hpp"
+#include "../update/update_handoff.hpp"
