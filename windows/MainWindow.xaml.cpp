@@ -380,9 +380,8 @@ constexpr I18nEntry kI18nFallback[] = {
     {"updateAvailableStatus", "发现新版本：Fulcrum v{0} — 输入 “update” 下载",
      "Update available: Fulcrum v{0} — type \"update\" to download"},
     {"updateDownloadedStatusWin",
-     "更新已下载 — 输入 “update” 打开文件夹，运行 MSI 完成升级",
-     "Update downloaded — type \"update\" to open the folder, then run the "
-     "MSI to upgrade"},
+     "更新已下载 — 输入 “update” 安装并自动重启到新版本",
+     "Update downloaded — type \"update\" to install and relaunch"},
     {"updateDownloadFailed", "更新下载失败：{0}",
      "Update download failed: {0}"},
     {"updateUnknownError", "未知错误", "unknown error"},
@@ -726,6 +725,15 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
         window->api_ = std::make_unique<rivet_app::API>(*window->backend_);
         window->SetStatusOk(L"Ready — press Alt+Space anywhere");
         window->FinishNativeSetup();
+        try {
+          rivet::update::MsiHandoff::CleanupStaleAttempts(L"site.jrtx.fulcrum");
+          if (auto failure =
+                  rivet::update::MsiHandoff::ConsumeFailure(L"site.jrtx.fulcrum")) {
+            window->SetStatusError(L"Update install failed: " + failure->message);
+          }
+        } catch (...) {
+          // Updater housekeeping must never prevent the launcher from starting.
+        }
         window->SearchAsync(L"");
         window->StartSilentUpdateCheck();
         window->PullHostSettings();
@@ -1430,7 +1438,15 @@ void MainWindow::RunSelected() {
   std::thread([weak, api, dispatcher, row]() mutable {
     try {
       auto const status = api->run_action(row.id, row.arg).get();
-      dispatcher.TryEnqueue([weak, dispatcher, status, row]() mutable {
+      std::optional<std::string> update_path;
+      if (status == "quit-and-install" && row.id == "update.install") {
+        auto const state = api->update_state().get();
+        if (state.downloaded_path && !state.downloaded_path->empty()) {
+          update_path = *state.downloaded_path;
+        }
+      }
+      dispatcher.TryEnqueue([weak, dispatcher, status, row,
+                             update_path = std::move(update_path)]() mutable {
         if (auto window = weak.get()) {
           if (status == "ok" || status == "launched" || status == "copied" ||
               status == "opened") {
@@ -1479,6 +1495,23 @@ void MainWindow::RunSelected() {
             // mirrors its progress into the status bar.
             window->HideLauncher();
             window->StartUpdateProgressPoll();
+          } else if (status == "quit-and-install" &&
+                     row.id == "update.install") {
+            try {
+              if (!update_path) {
+                throw std::runtime_error("downloaded update path is missing");
+              }
+              auto const msi = std::filesystem::path(to_wide(*update_path));
+              rivet::update::MsiHandoff::LaunchVerifiedInstaller(
+                  L"site.jrtx.fulcrum", msi, executable_path());
+              // Existing tray Quit uses Destroy() as the supported process
+              // exit path; the detached handoff waits for this PID to leave,
+              // upgrades with msiexec /passive /norestart, then relaunches.
+              window->AppWindow().Destroy();
+            } catch (std::exception const& e) {
+              window->SetStatusError(
+                  L"Update install failed: " + to_wide(e.what()));
+            }
           } else if (status == "delegated") {
             // Host-native actions: window commands reach other apps'
             // windows; about.open and settings.open render this app's own
