@@ -49,6 +49,32 @@ jobs:
       - name: Run tests
         run: raco test tests/
         shell: bash
+      - name: Channel manifest smoke test
+        if: runner.os == 'Linux'
+        env:
+          RIVET_UPDATE_BASE_URL: https://example.invalid/fulcrum
+          RIVET_UPDATE_KEY_ID: ci-smoke
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < VERSION)"
+          trap 'rm -rf release dist update-private.pem update-private.der update-public.der' EXIT
+          mkdir -p release
+          for artifact in \
+            "fulcrum-${VERSION}-macos-arm64.zip" \
+            "fulcrum-${VERSION}-macos-x64.zip" \
+            "fulcrum-${VERSION}-windows-x64.msi" \
+            "fulcrum-${VERSION}-linux-x64.tar.gz" \
+            "fulcrum-${VERSION}-linux-arm64.tar.gz"
+          do
+            printf 'CI fixture for %s\n' "$artifact" > "release/$artifact"
+          done
+          openssl genpkey -algorithm ED25519 -out update-private.pem
+          openssl pkey -in update-private.pem -outform DER -out update-private.der
+          openssl pkey -in update-private.pem -pubout -outform DER -out update-public.der
+          racket .github/sign-manifest.rkt
+          test -s dist/update-manifest.json
+          cmp dist/update-manifest.json dist/manifest.json
+        shell: bash
 
   linux-host:
     name: Linux host (official build)
