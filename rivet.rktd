@@ -18,10 +18,11 @@
         (linux-icon . "assets/fulcrum-icon-512.png")
         ;; Native Linux installers (deb installs /opt/fulcrum with a desktop
         ;; entry, rpm builds via rpmbuild, AppImage carries its own GTK4
-        ;; closure) ride along with the tar.gz. The release artifact contract
-        ;; for the update feed is still the tar.gz (versioned name in
-        ;; release.yml, the signed channel manifest, and the updater all pin
-        ;; it); the new formats ship as GitHub release assets only.
+        ;; closure) ride along with the tar.gz. The signed update feed carries
+        ;; both tar.gz and AppImage: existing portable/manual installs retain
+        ;; the tar.gz path, while an AppImage process selects the AppImage by
+        ;; installer kind so Rivet's atomic AppImage replacement can own the
+        ;; eventual in-app install. deb/rpm remain package-manager-owned.
         (linux-formats . ("deb" "rpm" "appimage")))
         ;; No dmg-background / windows-installer-bitmaps: the entries used
         ;; to name files that never existed in the repo, which the old
