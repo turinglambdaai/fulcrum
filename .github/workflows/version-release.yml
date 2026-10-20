@@ -64,8 +64,7 @@ jobs:
           version="$(tr -d '\r\n' < VERSION)"
           tag="v$version"
           bash scripts/check-release-version.sh "$tag"
-          grep -Fqx "## [$version] - $(date -u +%F)" CHANGELOG.md || \
-            grep -q "^## \[$version\]" CHANGELOG.md
+          grep -Fq "## [$version]" CHANGELOG.md || { echo "::error::Missing changelog section"; exit 1; }
           if git show-ref --verify --quiet "refs/tags/$tag" ||
               gh api "repos/$GH_REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
             echo "::error::Tag $tag already exists; refusing to republish"
