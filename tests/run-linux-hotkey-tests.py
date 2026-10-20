@@ -46,8 +46,13 @@ def main():
                     start_new_session=True, preexec_fn=limits)
                 os.close(write_fd)
                 write_fd = -1
-                if not select.select([read_fd], [], [], 5)[0]:
-                    raise RuntimeError("Private Xvfb startup timed out")
+                # Busy shared runners can take longer than five seconds to
+                # initialize the display. Keep the check bounded and show the
+                # Xvfb log on timeout, rather than hiding the actual cause.
+                if not select.select([read_fd], [], [], 15)[0]:
+                    log.flush()
+                    log.seek(0)
+                    raise RuntimeError("Private Xvfb startup timed out: " + log.read())
                 number = os.read(read_fd, 32).decode().strip()
                 if not number.isdigit():
                     log.seek(0)
