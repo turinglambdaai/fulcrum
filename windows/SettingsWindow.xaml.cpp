@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SettingsWindow.xaml.h"
+#include "GeneratedI18n.hpp"
 #if __has_include("SettingsWindow.g.cpp")
 #include "SettingsWindow.g.cpp"
 #endif
@@ -25,6 +26,15 @@ std::wstring to_wide(std::string const& utf8_text) {
                           result.data(), size);
   }
   return result;
+}
+
+std::wstring translated_setting(std::string const& language, std::string_view key) {
+  for (auto const& row : rivet_app::kI18nTable) {
+    if (row.key == key) {
+      return to_wide(std::string(language == "en" ? row.en : row.zh));
+    }
+  }
+  return to_wide(std::string(key));
 }
 
 std::string to_utf8(std::wstring const& wide) {
@@ -151,6 +161,7 @@ void SettingsWindow::Apply(std::map<std::string, std::string> values,
     auto const it = values_.find(key);
     return it == values_.end() ? std::string() : it->second;
   };
+  ApplyLocalization(get("language"));
   select_choice(LanguageBox(), get("language"));
   select_choice(ThemeBox(), get("theme"));
   HotkeyBox().Text(to_wide(get("hotkey")));
@@ -178,6 +189,7 @@ void SettingsWindow::Write(std::string key, std::string value) {
     return;
   }
   values_[key] = value;
+  if (key == "language") ApplyLocalization(value);
   auto const dispatcher = DispatcherQueue();
   auto const weak = get_weak();
   auto* api = api_;
@@ -206,6 +218,18 @@ void SettingsWindow::Write(std::string key, std::string value) {
       }
     });
   }).detach();
+}
+
+void SettingsWindow::ApplyLocalization(std::string const& language) {
+  LanguageLabel().Text(translated_setting(language, "setting.language"));
+  ThemeLabel().Text(translated_setting(language, "setting.theme"));
+  HotkeyLabel().Text(translated_setting(language, "setting.hotkey"));
+  MaxResultsLabel().Text(translated_setting(language, "setting.max-results"));
+  ClipboardLabel().Text(translated_setting(language, "setting.clipboard-enabled"));
+  WebSearchLabel().Text(translated_setting(language, "setting.web-search-enabled"));
+  ExpansionLabel().Text(translated_setting(language, "setting.expansion-enabled"));
+  PluginsLabel().Text(translated_setting(language, "setting.plugins-enabled"));
+  ProviderLabel().Text(translated_setting(language, "setting.ai-provider"));
 }
 
 void SettingsWindow::RefreshAiStatus() {
