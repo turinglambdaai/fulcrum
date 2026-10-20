@@ -31,7 +31,7 @@ constexpr int kTrayMenuUpdates = 5;
 constexpr int kHotkeyIdPrimary = 0xF11C;  // Alt+Space
 constexpr int kHotkeyIdFallback = 0xF11D; // Ctrl+Alt+Space
 constexpr int kWindowWidth = 680;
-constexpr int kWindowHeight = 440;
+constexpr int kWindowHeight = 460;
 
 bool is_acceptance_run() {
   wchar_t value[8]{};

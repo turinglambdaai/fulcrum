@@ -186,7 +186,7 @@ struct ResultRowView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(isSelected
                       ? FulcrumTheme.accent.opacity(0.14)
-                      : hovering ? Color.primary.opacity(0.05) : Color.clear)
+                      : hovering ? FulcrumTheme.accent.opacity(0.08) : Color.clear)
         )
         .contentShape(Rectangle())
         .onHover { hovering in
