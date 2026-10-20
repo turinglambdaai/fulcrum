@@ -30,7 +30,7 @@ constexpr int kTrayMenuUpdates = 5;
 constexpr int kHotkeyIdPrimary = 0xF11C;  // Alt+Space
 constexpr int kHotkeyIdFallback = 0xF11D; // Ctrl+Alt+Space
 constexpr int kWindowWidth = 680;
-constexpr int kWindowHeight = 440;
+constexpr int kWindowHeight = 460;
 
 bool is_acceptance_run() {
   wchar_t value[8]{};
@@ -1340,10 +1340,12 @@ winrt::fire_and_forget MainWindow::SearchAsync(std::wstring const& query) {
 void MainWindow::ApplyActions(std::vector<rivet_app::ResultRow> rows) {
   ApplyResults(std::move(rows));
   actions_mode_ = true;  // ApplyResults resets it; the actions stay up.
+  HintBar().Text(L"↑↓ navigate · ↵ run · Esc back");
 }
 
 void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
   actions_mode_ = false;
+  HintBar().Text(L"↑↓ navigate · ↵ run · Ctrl+K actions · Esc clear/hide");
   rows_ = std::move(rows);
   auto items = ResultsList().Items();
   items.Clear();
