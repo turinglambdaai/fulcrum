@@ -90,7 +90,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake pkg-config \
             libgtk-4-dev libglib2.0-dev libsecret-1-dev liblz4-dev zlib1g-dev \
-            libncurses-dev libx11-dev libxtst-dev weston xvfb xauth \
+            libncurses-dev libx11-dev libxtst-dev weston xvfb xauth xdotool \
             at-spi2-core python3-pyatspi
       - name: Install pinned Rivet and dependencies
         run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"

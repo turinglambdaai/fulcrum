@@ -20,6 +20,7 @@ mkdir -p "$HOME" "$FULCRUM_DATA_DIR" "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME
 # Fulcrum still runs as a native Wayland client, while acceptance can verify
 # focus and inject actual keystrokes through AT-SPI.
 host_display=:99
+export FULCRUM_ACCEPTANCE_X11_DISPLAY="$host_display"
 Xvfb "$host_display" -screen 0 1280x800x24 -nolisten tcp >"$output/xvfb.log" 2>&1 &
 xvfb_pid=$!; weston_pid=""; app_pid=""; atspi_pid=""
 stop_bounded() { local pid="$1"; kill -TERM "$pid" 2>/dev/null || true; for _ in $(seq 1 200); do kill -0 "$pid" 2>/dev/null || return 0; sleep 0.05; done; kill -KILL "$pid" 2>/dev/null || true; return 1; }
