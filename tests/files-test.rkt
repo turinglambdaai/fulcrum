@@ -62,10 +62,15 @@
                             (equal? (row-id r) "noop")))
             rows))
   (if (file-search-available?)
-      ;; macOS with Spotlight: rows are file.open, kind File (Spotlight is
-      ;; indexed on dev machines and macOS CI; if the index were empty the
-      ;; file-rows list is simply empty and nothing fails).
-      (check-true (andmap (lambda (r) (equal? (row-id r) "file.open")) file-rows))
+      ;; A search tool on PATH does not guarantee it finishes within 3s.
+      ;; Especially on Windows, a cold unindexed PowerShell scan can time out
+      ;; on a shared CI runner. In that case a visible timeout explanation is
+      ;; the correct product behavior; never mistake it for missing tools.
+      (check-true
+       (or (andmap (lambda (r) (equal? (row-id r) "file.open")) file-rows)
+           (and (= (length file-rows) 1)
+                (equal? (row-id (car file-rows)) "noop")
+                (string-contains? (list-ref (car file-rows) 1) "timed out"))))
       ;; Everywhere else: exactly one honest explanation, which runs to a
       ;; quiet refusal.
       (begin
