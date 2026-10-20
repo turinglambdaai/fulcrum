@@ -121,7 +121,7 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 ## 插件
 
-插件用任何能输出 JSON 的语言编写。内置画廊自带十一个真实插件：单位换算（`u`）、时间戳（`ts`）、正则（`re`）、时区（`tz`）、GitHub 搜索（`gh`）、crates.io（`crate`）、Homebrew（`brew`）、Docker（`dk`）、winget（`winget`）、Bitwarden（`bw`）、汇率（`cur`）。
+插件用任何能输出 JSON 的语言编写。内置画廊自带二十六个真实插件：单位换算（`u`）、时间戳（`ts`）、正则（`re`）、时区（`tz`）、GitHub 搜索（`gh`）、crates.io（`crate`）、Homebrew（`brew`）、Docker（`dk`）、winget（`winget`）、Bitwarden（`bw`）、汇率（`cur`）、进制转换（`base`）、Base64（`b64`）、大小写转换（`case`）、颜色（`color`）、词典（`define`）、哈希（`hash`）、Hacker News（`hn`）、IP 地址（`ip`）、Lorem Ipsum（`lorem`）、npm 搜索（`npm`）、密码生成（`pw`）、UUID（`uuid`）、天气（`wx`）、维基百科（`wiki`）、字数统计（`wc`）。
 
 - 输入 `gallery` 查看全部；回车安装或卸载。
 - 输入 `plugins` 逐个开关。
@@ -201,14 +201,14 @@ Fulcrum 只发三种网络请求：更新检查（签名、节流）、你主动
 
 **我们不一样的地方，以及为什么：**
 
-- **免费，没有账号。** Fulcrum 没有 Pro 会员，没有登录，没有账号体系。这个页面上写的一切都是免费的，永远。
+- **免费，没有账号。** 没有登录，没有账号体系，没有遥测。完整的本地产品——这个页面上写的一切——都是免费的。Pro 会员计划随 1.0 推出，只落在真正产生成本的服务上（同步、内置 AI、主题）；本地功能集永远免费。
 - **三平台平等。** macOS、Windows、Linux 功能相同、键位相同、原生 UI。不是一头优先两头将就。
 - **BYOK AI 不订阅。** 用你自己的密钥。没有月费，没有按次计费，数据不过 Fulcrum 的服务器。
 - **本地优先。** 你的数据不离开设备，除非你主动让它走（AI 提示、网页搜索）。同步不需要云账号——用你已有的文件夹同步服务。
 - **插件用任何语言。** Raycast 只收 TypeScript。Fulcrum 接受任何读 stdin 写 JSON 的程序——Python、Go、Rust、shell 脚本。
 - **专注，不臃肿。** Fulcrum 把启动器的事做好，不试图变成窗口管理器、笔记应用或 AI 聊天机器人。
 
-**还没做到的（诚实清单）：** 插件生态年轻（11 个内置 vs Raycast 的几千个）；剪贴板只收文本；文件搜索仅限 macOS；片段自动展开不支持 Linux。
+**还没做到的（诚实清单）：** 插件生态年轻（26 个内置 vs Raycast 商店的 2500+）；剪贴板只收文本；文件搜索仅限 macOS；片段自动展开不支持 Linux。
 
 ---
 

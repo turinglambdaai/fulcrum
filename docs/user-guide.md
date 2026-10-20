@@ -158,7 +158,7 @@ same provider.
 ## Plugins
 
 Plugins extend Fulcrum in any language that can print JSON. The
-bundled gallery ships eleven:
+bundled gallery ships twenty-six:
 
 | Plugin | Keyword | What it does |
 |---|---|---|
@@ -173,6 +173,21 @@ bundled gallery ships eleven:
 | winget | `winget` | Windows package search |
 | Bitwarden | `bw` | Password vault items |
 | Currency | `cur` | Exchange rate conversion |
+| Number Base | `base` | Decimal, hex, octal and binary forms of a number |
+| Base64 | `b64` | Base64 encode / decode text |
+| Case Converter | `case` | UPPER, Title, camelCase, snake_case, kebab-case… all at once |
+| Color | `color` | HEX / RGB / HSL forms of a color |
+| Dictionary | `define` | English definitions, phonetics, examples |
+| Hash | `hash` | MD5 / SHA-1 / SHA-256 / SHA-512 digests |
+| Hacker News | `hn` | Front page and story search |
+| IP Address | `ip` | Local and public IP, hostname, interfaces |
+| Lorem Ipsum | `lorem` | Lorem ipsum by paragraph, word or sentence count |
+| npm Search | `npm` | npm registry package search |
+| Password Generator | `pw` | Strong random passwords and passphrases |
+| UUID | `uuid` | Random v4 UUIDs |
+| Weather | `wx` | Current conditions and forecast (wttr.in) |
+| Wikipedia | `wiki` | English Wikipedia search |
+| Word Count | `wc` | Words, characters, lines, reading time |
 
 - Query `gallery` to see everything; Enter installs or uninstalls.
 - Query `plugins` to toggle each one on/off.
@@ -273,8 +288,10 @@ Themes. Dark mode.
 
 **Different by design:**
 
-- **Free, no account.** Fulcrum has no Pro tier, no login, no account
-  system. Everything on this page is free, forever.
+- **Free, no account.** No login, no account system, no telemetry.
+  The entire local product — everything on this page — is free. A Pro
+  tier is planned for 1.0 and will sit only on services that cost us
+  money (sync, bundled AI, themes); the local feature set stays free.
 - **Cross-platform, equally.** macOS, Windows, and Linux get the same
   features, same keyboard, same native UI. Not one first-class platform
   and two afterthoughts.
@@ -290,10 +307,10 @@ Themes. Dark mode.
   doesn't try to be a window manager, a note-taking app, or an AI
   chatbot. When we add AI features, they solve launcher problems.
 
-**Not yet (honest list):** the extension ecosystem is young (11
-built-in plugins vs. Raycast's thousands); clipboard history is text
-only (no images); file search is macOS only; snippet auto-expansion
-does not work on Linux.
+**Not yet (honest list):** the extension ecosystem is young (26
+first-party plugins vs. Raycast's 2,500+ store extensions); clipboard
+history is text only (no images); file search is macOS only; snippet
+auto-expansion does not work on Linux.
 
 ---
 
