@@ -55,10 +55,12 @@ int main() {
     Display* input = XOpenDisplay(nullptr);
     check(input != nullptr, "input connection unavailable");
     int toggles = 0;
+    Time last_timestamp = CurrentTime;
     bool visible = true;
     fulcrum::X11Hotkey hotkey;
-    auto toggle = [&] {
+    auto toggle = [&](Time timestamp) {
       ++toggles;
+      last_timestamp = timestamp;
       visible = !visible;
       if (visible) {
         XMapWindow(ui, window);
@@ -101,6 +103,8 @@ int main() {
     check(toggles == 0, "wrong key or modifiers triggered a hotkey");
     chord(input, XK_space);
     check(toggles == 1, "one chord must trigger exactly once");
+    check(last_timestamp != CurrentTime,
+          "hotkey callback receives the grabbed user-event timestamp");
     chord(input, XK_space, true);
     chord(input, XK_space, false, true);
     chord(input, XK_space, true, true);
@@ -127,7 +131,7 @@ int main() {
                DefaultRootWindow(input));
     XSync(input, False);
     fulcrum::X11Hotkey competitor;
-    check(competitor.start(DisplayString(ui), [] {}).empty(),
+    check(competitor.start(DisplayString(ui), [](Time) {}).empty(),
           "competitor connection failed");
     check(competitor.bind(XK_b, Mod1Mask).empty(),
           "failed rebind leaked partial grabs");
@@ -151,7 +155,7 @@ int main() {
     chord(input, XK_b);
     check(toggles == before + 1, "restarted listener did not trigger");
     next.stop();
-    check(!next.start("invalid-display", [] {}).empty(),
+    check(!next.start("invalid-display", [](Time) {}).empty(),
           "invalid display failure was not reported");
     XCloseDisplay(input);
     XDestroyWindow(ui, window);

@@ -432,22 +432,36 @@
         (let ([text (string-trim (substring query (string-length find-file-prefix)))])
           (if (zero? (string-length text))
               '()
-              (if (file-search-available?)
-                  (for/list ([hit (in-list (file-search text))])
-                    (result "file.open" (car hit)
-                            (cdr hit) "File"
-                            (cdr hit) "doc" "" ""
-                            (car hit)
-                            85))
-                  (list (result "noop"
-                                (case (system-type 'os)
-                                  [(macosx) "File search needs mdfind (Spotlight CLI)"]
-                                  [(windows) "File search needs PowerShell"]
-                                  [else "File search needs locate or find"])
-                                "no search tool on PATH — install one and this turns into real results"
-                                "File" "" "doc" "" ""
-                                "find file search"
-                                85))))))))
+              (let ([search (file-search/status text)])
+                (case (file-search-result-status search)
+                  [(ok)
+                   (for/list ([hit (in-list (file-search-result-hits search))])
+                     (result "file.open" (car hit)
+                             (cdr hit) "File"
+                             (cdr hit) "doc" "" ""
+                             (car hit)
+                             85))]
+                  [(timeout)
+                   (list
+                    (result "noop"
+                            "File search timed out"
+                            (if (and (eq? (system-type 'os) 'unix)
+                                     (eq? (file-search-result-backend search) 'find))
+                                "the unindexed find fallback exceeded 3 seconds — install plocate for fast indexed search"
+                                "the platform search tool did not respond within 3 seconds — try again")
+                            "File" "" "doc" "" "Timed out"
+                            "find file search timeout plocate"
+                            85))]
+                  [else
+                   (list (result "noop"
+                                 (case (system-type 'os)
+                                   [(macosx) "File search needs mdfind (Spotlight CLI)"]
+                                   [(windows) "File search needs PowerShell"]
+                                   [else "File search needs locate or find"])
+                                 "no search tool on PATH — install one and this turns into real results"
+                                 "File" "" "doc" "" "Unavailable"
+                                 "find file search"
+                                 85))])))))))
 
 (define (window-provider engine)
   (lambda (query)

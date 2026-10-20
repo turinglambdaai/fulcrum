@@ -1629,7 +1629,7 @@ struct Launcher {
     }).detach();
   }
 
-  void show() {
+  void show(guint32 user_time = GDK_CURRENT_TIME) {
     cancel_focus_loss();
     activated_since_show = false;
     actions_mode = false;
@@ -1641,7 +1641,16 @@ struct Launcher {
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
-    gtk_window_present(window);
+    auto* display = gtk_widget_get_display(GTK_WIDGET(window));
+    if (GDK_IS_X11_DISPLAY(display)) {
+      guint32 const present_time =
+          user_time != GDK_CURRENT_TIME
+              ? user_time
+              : gdk_x11_display_get_user_time(display);
+      gtk_window_present_with_time(window, present_time);
+    } else {
+      gtk_window_present(window);
+    }
     // X11 can grant focus synchronously; Wayland repeats this when the
     // is-active notification arrives below.
     gtk_widget_grab_focus(GTK_WIDGET(search));
@@ -1663,11 +1672,11 @@ struct Launcher {
     gtk_widget_set_visible(GTK_WIDGET(window), FALSE);
   }
 
-  void toggle() {
+  void toggle(guint32 user_time = GDK_CURRENT_TIME) {
     if (gtk_widget_get_visible(GTK_WIDGET(window))) {
       hide();
     } else {
-      show();
+      show(user_time);
     }
   }
 
@@ -2322,9 +2331,10 @@ std::string install_x11_hotkey(GdkDisplay* display) {
     return "Wayland session: compositors do not allow global key grabs. "
            "Bind `fulcrum --toggle` to a key in your compositor settings.";
   }
-  std::string note = g_x11_hotkey.start(gdk_display_get_name(display), [] {
-    Launcher::instance().toggle();
-  });
+  std::string note = g_x11_hotkey.start(
+      gdk_display_get_name(display), [](Time time) {
+        Launcher::instance().toggle(static_cast<guint32>(time));
+      });
   if (!note.empty()) return note;
   // Use the root on a dedicated connection so the grab works even when
   // the launcher is hidden, without changing GDK's event mask or queue.

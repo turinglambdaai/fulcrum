@@ -27,7 +27,9 @@ Launcher-specific parts on top of the official runtime:
   menu* binding still owns it, the host detects the shadowing, says so,
   and grows a **Fix Alt+Space conflict** item in the tray menu (clears
   the stock binding with `gsettings`). Sessions without the portal fall
-  back to the X11 `XGrabKey` grab (X11 only, by platform rules); there,
+  back to the X11 `XGrabKey` grab (X11 only, by platform rules); the grabbed
+  user-event timestamp is forwarded to GTK so Mutter accepts the focus
+  request even when another application owns focus. On Wayland,
   `fulcrum --toggle` bound as a compositor keybinding is the documented
   Wayland fallback — and it summons by starting the launcher when
   nothing is running yet.
@@ -51,6 +53,10 @@ libncurses-dev`, plus an embeddable Racket CS 9.3 build (`libracketcs.a`;
 the official recipe builds one from the `racket-minimal` source tarball —
 see Rivet's `roundtrip.yml` for the exact steps, and this repository's CI
 for a cached version of the same flow).
+
+For fast `find <name>` file search, install `plocate` and build its index
+(`sudo apt install plocate`). Fulcrum can fall back to a bounded home-directory
+scan, but reports when that unindexed scan exceeds its three-second budget.
 
 ## Hotkey regression tests
 

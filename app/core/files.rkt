@@ -15,20 +15,28 @@
          racket/string
          "proc.rkt")
 
-(provide file-search-available?
+(provide (struct-out file-search-result)
+         file-search-available?
          parse-paths
+         file-search/status
          file-search
          file-open!)
+
+(struct file-search-result (hits status backend) #:transparent)
+
+(define (file-search-backend os resolver)
+  (case os
+    [(macosx) (and (resolver "mdfind") 'mdfind)]
+    [(unix) (cond [(resolver "locate") 'locate]
+                  [(resolver "find") 'find]
+                  [else #f])]
+    [(windows) (and (resolver "powershell.exe") 'powershell)]
+    [else #f]))
 
 ;; ---- availability ---------------------------------------------------------
 
 (define (file-search-available?)
-  (case (system-type 'os)
-    [(macosx) (not (false? (resolve-program "mdfind")))]
-    [(unix) (or (not (false? (resolve-program "locate")))
-                (not (false? (resolve-program "find"))))]
-    [(windows) (not (false? (resolve-program "powershell.exe")))]
-    [else #f]))
+  (not (false? (file-search-backend (system-type 'os) resolve-program))))
 
 ;; ---- search ---------------------------------------------------------------
 
@@ -51,33 +59,39 @@
 (define (take-min xs n)
   (if (> (length xs) n) (take xs n) xs))
 
-;; (name path) pairs, or '() when the platform has no search tool.
-;; Bounded by the command timeout: a wedged index or deep filesystem scan
-;; costs 3 s at most.
-(define (file-search query [limit 8])
-  (if (not (file-search-available?))
-      '()
-      (let-values ([(program args parser)
-                    (case (system-type 'os)
-                      [(macosx)
-                       (values "mdfind" (list "-name" query) parse-paths)]
-                      [(unix)
-                       (if (not (false? (resolve-program "locate")))
-                           (values "locate" (list "-i" "-l" "8" query) parse-paths)
-                           (values "find"
-                                   (list (path->string (find-system-path 'home-dir))
-                                         "-maxdepth" "4"
-                                         "-iname" (string-append "*" query "*")
-                                         "-type" "f")
-                                   parse-paths))]
-                      [(windows)
+;; Keep "no matches", "no tool", and "tool timed out" distinct. The old
+;; list-only API collapsed all three to '(), which made stock Ubuntu's slow
+;; `find` fallback look like a successful empty search.
+(define (file-search/status query [limit 8]
+                            #:os [os (system-type 'os)]
+                            #:resolve [resolver resolve-program]
+                            #:run [runner run-command])
+  (define backend (file-search-backend os resolver))
+  (if (false? backend)
+      (file-search-result '() 'unavailable #f)
+      (let-values ([(program args)
+                    (case backend
+                      [(mdfind) (values "mdfind" (list "-name" query))]
+                      [(locate) (values "locate" (list "-i" "-l" "8" query))]
+                      [(find)
+                       (values "find"
+                               (list (path->string (find-system-path 'home-dir))
+                                     "-maxdepth" "4"
+                                     "-iname" (string-append "*" query "*")
+                                     "-type" "f"))]
+                      [(powershell)
                        (values "powershell.exe"
                                (list "-NoProfile" "-Command"
                                      (format "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter '*~a*' -File | Select-Object -First 8 -ExpandProperty FullName"
-                                             query))
-                               parse-paths)])])
-        (let ([output (run-command program args #:timeout-ms 3000)])
-          (parser output limit)))))
+                                             query)))])])
+        (define output (runner program args #:timeout-ms 3000))
+        (if (false? output)
+            (file-search-result '() 'timeout backend)
+            (file-search-result (parse-paths output limit) 'ok backend)))))
+
+;; Compatibility API for callers that only need hits.
+(define (file-search query [limit 8])
+  (file-search-result-hits (file-search/status query limit)))
 
 (define (opener-for-platform)
   (case (system-type 'os)

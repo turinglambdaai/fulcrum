@@ -19,7 +19,8 @@ class X11Hotkey {
   X11Hotkey& operator=(X11Hotkey const&) = delete;
   ~X11Hotkey() { stop(); }
 
-  std::string start(char const* display_name, std::function<void()> activate) {
+  std::string start(char const* display_name,
+                    std::function<void(Time)> activate) {
     stop();
     display_ = XOpenDisplay(display_name);
     if (!display_) return "X11 hotkey setup failed: cannot open display.";
@@ -101,7 +102,7 @@ class X11Hotkey {
   int error_{0};
   bool pressed_{false};
   bool detectable_repeat_{false};
-  std::function<void()> activate_;
+  std::function<void(Time)> activate_;
 
   static int on_error(Display* display, XErrorEvent* event) {
     if (error_target_ && error_target_->display_ == display) {
@@ -142,7 +143,10 @@ class X11Hotkey {
                                       Mod3Mask | Mod4Mask | Mod5Mask)) == self.mods_) {
         if (!self.pressed_) {
           self.pressed_ = true;
-          self.activate_();
+          // The timestamp belongs to the actual grabbed user event. Passing
+          // it across the private connection lets GTK present with credible
+          // user interaction time instead of a stale time from GDK's queue.
+          self.activate_(event.xkey.time);
         }
       }
     }

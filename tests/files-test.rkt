@@ -25,6 +25,29 @@
   ;; The limit holds.
   (check-equal? (length (parse-paths "/a/1\n/a/2\n/a/3\n/a/4\n" 3)) 3))
 
+(test-case "Linux find fallback reports timeout instead of an empty success"
+  (define (find-only program)
+    (and (string=? program "find") "/usr/bin/find"))
+  (define timed-out
+    (file-search/status
+     "report" 8
+     #:os 'unix
+     #:resolve find-only
+     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]) #f)))
+  (check-equal? (file-search-result-status timed-out) 'timeout)
+  (check-equal? (file-search-result-backend timed-out) 'find)
+  (check-equal? (file-search-result-hits timed-out) '())
+  (define completed
+    (file-search/status
+     "report" 8
+     #:os 'unix
+     #:resolve find-only
+     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000])
+             "/home/me/report.txt\n")))
+  (check-equal? (file-search-result-status completed) 'ok)
+  (check-equal? (file-search-result-hits completed)
+                '(("report.txt" . "/home/me/report.txt"))))
+
 (test-case "engine provider: honest row without Spotlight, real rows with it"
   (define engine (make-engine #:clipboard-store #f
                               #:snippet-store #f
