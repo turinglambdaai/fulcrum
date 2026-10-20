@@ -36,6 +36,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <unistd.h>
