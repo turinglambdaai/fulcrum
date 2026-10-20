@@ -70,7 +70,18 @@ int main() {
     };
     check(hotkey.start(DisplayString(ui), toggle).empty(),
           "hotkey connection failed");
-    check(hotkey.bind(XK_space, Mod1Mask).empty(), "initial bind failed");
+    // Emulate GNOME's window-menu grab: X11 must report an unavailable
+    // Alt+Space instead of quietly appearing to have registered it.
+    XGrabKey(input, XKeysymToKeycode(input, XK_space), Mod1Mask,
+             DefaultRootWindow(input), False, GrabModeAsync, GrabModeAsync);
+    XSync(input, False);
+    check(!hotkey.bind(XK_space, Mod1Mask).empty(),
+          "desktop-owned Alt+Space was not reported as a conflict");
+    XUngrabKey(input, XKeysymToKeycode(input, XK_space), Mod1Mask,
+               DefaultRootWindow(input));
+    XSync(input, False);
+    check(hotkey.bind(XK_space, Mod1Mask).empty(),
+          "Alt+Space failed after releasing desktop's grab");
 
     // A normal UI event must neither trigger a hotkey nor leave GDK's queue.
     Atom property = XInternAtom(input, "FULCRUM_REGRESSION", False);
