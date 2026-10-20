@@ -114,7 +114,7 @@ window.fulcrum-window entry {
   border: none;
   box-shadow: none;
   outline: none;
-  font-size: 17px;
+  font-size: 19px;
   padding: 10px 4px;
 }
 window.fulcrum-window list {
@@ -122,6 +122,7 @@ window.fulcrum-window list {
   background: none;
 }
 window.fulcrum-window list row {
+  min-height: 44px;
   border-radius: 8px;
   margin: 1px 2px;
   padding: 4px 8px;
@@ -131,7 +132,7 @@ window.fulcrum-window list row:hover {
   background-color: alpha(#D97706, 0.08);
 }
 window.fulcrum-window list row:selected {
-  background-color: alpha(#D97706, 0.16);
+  background-color: alpha(#D97706, 0.14);
 }
 .fulcrum-row-title {
   font-size: 13px;
@@ -141,13 +142,13 @@ window.fulcrum-window list row:selected {
   font-size: 11px;
 }
 .fulcrum-row-icon {
-  background-color: alpha(#D97706, 0.14);
+  background-color: alpha(#D97706, 0.12);
   border-radius: 6px;
   padding: 5px;
   color: #D97706;
 }
 .fulcrum-badge {
-  background-color: alpha(#D97706, 0.16);
+  background-color: alpha(#D97706, 0.14);
   color: #D97706;
   border-radius: 9px;
   padding: 1px 7px;
@@ -2750,7 +2751,7 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* window = gtk_application_window_new(app);
   launcher.window = GTK_WINDOW(window);
   gtk_window_set_title(launcher.window, "Fulcrum");
-  gtk_window_set_default_size(launcher.window, 680, 440);
+  gtk_window_set_default_size(launcher.window, 680, 460);
   gtk_window_set_resizable(launcher.window, FALSE);
   // Chromeless like the other hosts: the panel content IS the window, and
   // the stylesheet rounds it. Close still hides (below) via Esc / the tray.
