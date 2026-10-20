@@ -66,7 +66,7 @@
       ;; resolves): rows are file.open — or the provider's honest noop row
       ;; when the probe timed out or found nothing on a cold machine. Any
       ;; third row kind inside a `find` query is a real bug.
-      (check-true (andmap (lambda (r) (member (row-id r) '("file.open" "noop")))
+      (check-true (andmap (lambda (r) (pair? (member (row-id r) '("file.open" "noop"))))
                           file-rows))
       ;; Everywhere else: exactly one honest explanation, which runs to a
       ;; quiet refusal.
