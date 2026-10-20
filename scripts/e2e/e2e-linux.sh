@@ -24,7 +24,27 @@ export FULCRUM_ACCEPTANCE_X11_DISPLAY="$host_display"
 Xvfb "$host_display" -screen 0 1280x800x24 -nolisten tcp >"$output/xvfb.log" 2>&1 &
 xvfb_pid=$!; weston_pid=""; app_pid=""; atspi_pid=""
 stop_bounded() { local pid="$1"; kill -TERM "$pid" 2>/dev/null || true; for _ in $(seq 1 200); do kill -0 "$pid" 2>/dev/null || return 0; sleep 0.05; done; kill -KILL "$pid" 2>/dev/null || true; return 1; }
-cleanup() { local status=$?; trap - EXIT; [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null && stop_bounded "$app_pid" || true; [[ -n "$atspi_pid" ]] && kill -0 "$atspi_pid" 2>/dev/null && kill -TERM "$atspi_pid" || true; [[ -n "$weston_pid" ]] && kill -TERM "$weston_pid" 2>/dev/null || true; kill -TERM "$xvfb_pid" 2>/dev/null || true; wait "$app_pid" "$atspi_pid" "$weston_pid" "$xvfb_pid" 2>/dev/null || true; exit "$status"; }
+cleanup() {
+  local status=$?
+  trap - EXIT
+  if [[ "$status" -ne 0 ]]; then
+    # Native UI acceptance writes diagnostics to files. Forward their tails
+    # on failure so CI reveals the first real Xvfb/Weston/AT-SPI/app error
+    # instead of a context-free exit 1. Keep the original failure status.
+    for name in xvfb weston at-spi-bus application; do
+      if [[ -f "$output/$name.log" ]]; then
+        printf '\n--- %s.log (last 80 lines) ---\n' "$name" >&2
+        tail -n 80 "$output/$name.log" >&2 || true
+      fi
+    done
+  fi
+  [[ -n "$app_pid" ]] && kill -0 "$app_pid" 2>/dev/null && stop_bounded "$app_pid" || true
+  [[ -n "$atspi_pid" ]] && kill -0 "$atspi_pid" 2>/dev/null && kill -TERM "$atspi_pid" || true
+  [[ -n "$weston_pid" ]] && kill -TERM "$weston_pid" 2>/dev/null || true
+  kill -TERM "$xvfb_pid" 2>/dev/null || true
+  wait "$app_pid" "$atspi_pid" "$weston_pid" "$xvfb_pid" 2>/dev/null || true
+  exit "$status"
+}
 trap cleanup EXIT
 for _ in $(seq 1 100); do [[ -S "/tmp/.X11-unix/X${host_display#:}" ]] && break; kill -0 "$xvfb_pid" 2>/dev/null; sleep 0.05; done
 [[ -S "/tmp/.X11-unix/X${host_display#:}" ]]
