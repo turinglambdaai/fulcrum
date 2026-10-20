@@ -1645,6 +1645,10 @@ struct Launcher {
     // X11 can grant focus synchronously; Wayland repeats this when the
     // is-active notification arrives below.
     gtk_widget_grab_focus(GTK_WIDGET(search));
+    // A hidden window can remain the compositor's active toplevel. In that
+    // case showing it again produces no is-active transition, so seed the
+    // focus-loss guard from the state immediately after present.
+    activated_since_show = gtk_window_is_active(window);
   }
 
   void cancel_focus_loss() {
