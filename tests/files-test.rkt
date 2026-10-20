@@ -62,10 +62,12 @@
                             (equal? (row-id r) "noop")))
             rows))
   (if (file-search-available?)
-      ;; macOS with Spotlight: rows are file.open, kind File (Spotlight is
-      ;; indexed on dev machines and macOS CI; if the index were empty the
-      ;; file-rows list is simply empty and nothing fails).
-      (check-true (andmap (lambda (r) (equal? (row-id r) "file.open")) file-rows))
+      ;; macOS with Spotlight (and Windows, where powershell.exe always
+      ;; resolves): rows are file.open — or the provider's honest noop row
+      ;; when the probe timed out or found nothing on a cold machine. Any
+      ;; third row kind inside a `find` query is a real bug.
+      (check-true (andmap (lambda (r) (member (row-id r) '("file.open" "noop")))
+                          file-rows))
       ;; Everywhere else: exactly one honest explanation, which runs to a
       ;; quiet refusal.
       (begin
