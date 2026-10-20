@@ -14,7 +14,9 @@ Work.
    PR description and update the checked-in generated clients
    (`windows/GeneratedBackend.hpp`, `linux/GeneratedBackend.hpp`,
    `macos-host/Sources/RivetHost/GeneratedBackend.swift`) in the same commit.
-   Run `raco rivet generate --check` before pushing. Changes under
+   Run `raco rivet generate`, then confirm `git diff --exit-code` for those
+   three tracked clients before pushing. (`generate --check` also expects
+   Rivet's ignored Kotlin scratch output and is not clean-checkout safe.) Changes under
    `shared/i18n/` likewise require `raco rivet i18n`; the three generated
    i18n tables are build inputs, not optional caches.
 2. **Fail honestly.** Missing runtimes, bad plugin manifests, unavailable

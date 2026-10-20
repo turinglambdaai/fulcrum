@@ -38,7 +38,12 @@ jobs:
         shell: bash
       - name: Generated backend clients are current
         if: runner.os == 'Linux'
-        run: raco rivet generate --check
+        run: |
+          raco rivet generate
+          git diff --exit-code -- \
+            linux/GeneratedBackend.hpp \
+            macos-host/Sources/RivetHost/GeneratedBackend.swift \
+            windows/GeneratedBackend.hpp
         shell: bash
       - name: Verify release version alignment
         run: bash scripts/check-release-version.sh
