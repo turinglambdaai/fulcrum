@@ -1,0 +1,80 @@
+name: Gate VERSION bump and dispatch tagged release
+
+# Release tags are minted only after both main-branch CI and executable
+# Product Acceptance pass for the EXACT version-bump commit. Existing
+# manually pushed tags remain supported by release.yml.
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: version-release-main
+  cancel-in-progress: false
+
+jobs:
+  tag-after-green:
+    name: Validate, tag and start release
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Await successful main CI and Product Acceptance for this SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in ci.yml acceptance.yml; do
+            completed=0
+            for attempt in $(seq 1 150); do
+              info="$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?event=push&head_sha=$GITHUB_SHA&per_page=20" \
+                --jq '[.workflow_runs[0].status // "waiting", .workflow_runs[0].conclusion // "pending"] | @tsv')"
+              IFS=$'\t' read -r status conclusion <<< "$info"
+              echo "$workflow attempt=$attempt status=$status conclusion=$conclusion"
+              if [[ "$status" == completed ]]; then
+                if [[ "$conclusion" != success ]]; then
+                  echo "::error::$workflow did not pass for $GITHUB_SHA"
+                  exit 1
+                fi
+                completed=1
+                break
+              fi
+              sleep 20
+            done
+            if [[ "$completed" != 1 ]]; then
+              echo "::error::Timed out awaiting $workflow for $GITHUB_SHA"
+              exit 1
+            fi
+          done
+      - name: Validate version and create immutable release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n' < VERSION)"
+          tag="v$version"
+          bash scripts/check-release-version.sh "$tag"
+          grep -Fqx "## [$version] - $(date -u +%F)" CHANGELOG.md || \
+            grep -q "^## \[$version\]" CHANGELOG.md
+          if git show-ref --verify --quiet "refs/tags/$tag" ||
+              gh api "repos/$GH_REPO/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag $tag already exists; refusing to republish"
+            exit 1
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "$tag" -m "Fulcrum $tag"
+          git push origin "refs/tags/$tag"
+          # Tags pushed by GITHUB_TOKEN intentionally do not trigger push
+          # workflows. workflow_dispatch IS explicitly exempt from that rule.
+          gh workflow run release.yml --ref "$tag" --repo "$GH_REPO"
