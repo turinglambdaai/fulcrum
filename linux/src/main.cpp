@@ -112,7 +112,7 @@ window.fulcrum-window entry {
   border: none;
   box-shadow: none;
   outline: none;
-  font-size: 17px;
+  font-size: 19px;
   padding: 10px 4px;
 }
 window.fulcrum-window list {
@@ -120,6 +120,7 @@ window.fulcrum-window list {
   background: none;
 }
 window.fulcrum-window list row {
+  min-height: 44px;
   border-radius: 8px;
   margin: 1px 2px;
   padding: 4px 8px;
@@ -129,7 +130,7 @@ window.fulcrum-window list row:hover {
   background-color: alpha(#D97706, 0.08);
 }
 window.fulcrum-window list row:selected {
-  background-color: alpha(#D97706, 0.16);
+  background-color: alpha(#D97706, 0.14);
 }
 .fulcrum-row-title {
   font-size: 13px;
@@ -139,13 +140,13 @@ window.fulcrum-window list row:selected {
   font-size: 11px;
 }
 .fulcrum-row-icon {
-  background-color: alpha(#D97706, 0.14);
+  background-color: alpha(#D97706, 0.12);
   border-radius: 6px;
   padding: 5px;
   color: #D97706;
 }
 .fulcrum-badge {
-  background-color: alpha(#D97706, 0.16);
+  background-color: alpha(#D97706, 0.14);
   color: #D97706;
   border-radius: 9px;
   padding: 1px 7px;
@@ -542,8 +543,10 @@ I18nEntry const kI18nFallback[] = {
     {"appMenu", "应用菜单", "Application menu"},
     {"searchPlaceholder", "搜索应用、剪贴板、片段、网页…",
      "Search apps, clipboard, snippets, the web…"},
-    {"navigationHint", "↑↓ 选择 · 回车执行 · Esc 隐藏 — Fulcrum",
-     "↑↓ navigate · ↵ run · esc hide — Fulcrum"},
+    {"navigationHint", "↑↓ 选择 · 回车执行 · Ctrl+K 操作 · Esc 清空/隐藏",
+     "↑↓ navigate · ↵ run · Ctrl+K actions · Esc clear/hide"},
+    {"navigationHintActions", "↑↓ 选择 · 回车执行 · Esc 返回",
+     "↑↓ navigate · ↵ run · Esc back"},
     {"ready", "就绪 — 使用热键或 fulcrum --toggle 唤出",
      "Ready — hotkey or `fulcrum --toggle`"},
     {"settingUpdated", "设置已更新", "Setting updated"},
@@ -1414,6 +1417,13 @@ struct Launcher {
     std::string arg;
   };
 
+  void update_navigation_hint() {
+    if (navigation_hint != nullptr) {
+      gtk_label_set_text(navigation_hint,
+          tr(actions_mode ? "navigationHintActions" : "navigationHint").c_str());
+    }
+  }
+
   void show_actions_for_selection() {
     if (api == nullptr || rows.empty() || actions_mode) {
       return;
@@ -1441,6 +1451,7 @@ struct Launcher {
             static_cast<std::vector<ResultRow>*>(user_data));
         Launcher& launcher = Launcher::instance();
         launcher.actions_mode = true;
+        launcher.update_navigation_hint();
         launcher.rows = std::move(*job);
         launcher.refresh_results();
         if (launcher.rows.empty()) {
@@ -1454,6 +1465,7 @@ struct Launcher {
 
   void close_actions() {
     actions_mode = false;
+    update_navigation_hint();
     rows = std::move(search_rows);
     search_rows.clear();
     refresh_results();
@@ -1584,6 +1596,7 @@ struct Launcher {
   void show() {
     cancel_focus_loss();
     actions_mode = false;
+    update_navigation_hint();
     dismiss_ai_panel();
     dismiss_detail_panel();
     gtk_editable_set_text(GTK_EDITABLE(search), "");
@@ -1759,7 +1772,7 @@ void set_i18n_language(std::string const& lang) {
                                           tr("searchPlaceholder").c_str());
   }
   if (launcher.navigation_hint != nullptr) {
-    gtk_label_set_text(launcher.navigation_hint, tr("navigationHint").c_str());
+    launcher.update_navigation_hint();
   }
   if (launcher.app_menu != nullptr) {
     gtk_widget_set_tooltip_text(GTK_WIDGET(launcher.app_menu), tr("appMenu").c_str());
@@ -2653,7 +2666,7 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* window = gtk_application_window_new(app);
   launcher.window = GTK_WINDOW(window);
   gtk_window_set_title(launcher.window, "Fulcrum");
-  gtk_window_set_default_size(launcher.window, 680, 440);
+  gtk_window_set_default_size(launcher.window, 680, 460);
   gtk_window_set_resizable(launcher.window, FALSE);
   // Chromeless like the other hosts: the panel content IS the window, and
   // the stylesheet rounds it. Close still hides (below) via Esc / the tray.
@@ -2778,7 +2791,7 @@ void on_activate(GtkApplication* app, gpointer) {
   launcher.results = GTK_LIST_BOX(results);
   gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), results);
 
-  auto* hint = gtk_label_new("↑↓ navigate · ↵ run · esc hide — Fulcrum");
+  auto* hint = gtk_label_new("↑↓ navigate · ↵ run · Ctrl+K actions · Esc clear/hide");
   launcher.navigation_hint = GTK_LABEL(hint);
   gtk_label_set_xalign(GTK_LABEL(hint), 0.0);
   gtk_widget_add_css_class(hint, "caption");
