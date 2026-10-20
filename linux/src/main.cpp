@@ -36,6 +36,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <unistd.h>
@@ -114,7 +115,7 @@ window.fulcrum-window entry {
   border: none;
   box-shadow: none;
   outline: none;
-  font-size: 17px;
+  font-size: 19px;
   padding: 10px 4px;
 }
 window.fulcrum-window list {
@@ -122,6 +123,7 @@ window.fulcrum-window list {
   background: none;
 }
 window.fulcrum-window list row {
+  min-height: 44px;
   border-radius: 8px;
   margin: 1px 2px;
   padding: 4px 8px;
@@ -131,7 +133,7 @@ window.fulcrum-window list row:hover {
   background-color: alpha(#D97706, 0.08);
 }
 window.fulcrum-window list row:selected {
-  background-color: alpha(#D97706, 0.16);
+  background-color: alpha(#D97706, 0.14);
 }
 .fulcrum-row-title {
   font-size: 13px;
@@ -141,13 +143,13 @@ window.fulcrum-window list row:selected {
   font-size: 11px;
 }
 .fulcrum-row-icon {
-  background-color: alpha(#D97706, 0.14);
+  background-color: alpha(#D97706, 0.12);
   border-radius: 6px;
   padding: 5px;
   color: #D97706;
 }
 .fulcrum-badge {
-  background-color: alpha(#D97706, 0.16);
+  background-color: alpha(#D97706, 0.14);
   color: #D97706;
   border-radius: 9px;
   padding: 1px 7px;
@@ -799,6 +801,7 @@ void load_i18n(std::filesystem::path const& exe_dir) {
 }
 
 void set_i18n_language(std::string const& lang);
+void refresh_settings_language();
 
 std::string tr(char const* key) {
   int const active = g_i18n_active.load(std::memory_order_relaxed);
@@ -1851,6 +1854,7 @@ void set_i18n_language(std::string const& lang) {
   }
   if (changed && launcher.api != nullptr) launcher.set_status(tr("ready"));
   apply_tray_language();
+  refresh_settings_language();
 }
 
 // ---- settings window ---------------------------------------------------------
@@ -1876,6 +1880,8 @@ struct SettingBinding {
 struct SettingsForm {
   GtkWindow* window{nullptr};
   std::vector<std::unique_ptr<SettingBinding>> bindings;
+  // Keep backend-defined localized labels alive across language changes.
+  std::vector<std::tuple<GtkLabel*, std::string, std::string>> localized_labels;
   GtkLabel* ai_status{nullptr};
   GtkLabel* key_notice{nullptr};
   GtkWidget* key_entry{nullptr};
@@ -2040,13 +2046,21 @@ void on_key_entry_activate(GtkPasswordEntry*, gpointer) { settings_save_key(); }
 // ---- form construction
 
 GtkWidget* settings_row(GtkWidget* section, char const* label_text,
-                        GtkWidget* control) {
+                        GtkWidget* control, char const* setting_key = nullptr) {
   auto* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 12);
   gtk_widget_set_margin_top(row, 8);
   gtk_widget_set_margin_bottom(row, 8);
   gtk_widget_set_margin_start(row, 14);
   gtk_widget_set_margin_end(row, 14);
-  auto* label = gtk_label_new(label_text);
+  std::string const lookup = setting_key == nullptr
+      ? "" : "setting." + std::string(setting_key);
+  std::string const translated = lookup.empty() ? "" : tr(lookup.c_str());
+  auto* label = gtk_label_new(!lookup.empty() && translated != lookup
+                                  ? translated.c_str() : label_text);
+  if (!lookup.empty()) {
+    g_settings_form->localized_labels.emplace_back(
+        GTK_LABEL(label), lookup, label_text);
+  }
   gtk_label_set_xalign(GTK_LABEL(label), 0.0);
   gtk_label_set_wrap(GTK_LABEL(label), TRUE);
   gtk_widget_set_hexpand(label, TRUE);
@@ -2101,7 +2115,7 @@ GtkWidget* settings_add_toggle(GtkWidget* section, char const* label,
   auto* toggle = gtk_switch_new();
   auto* binding = settings_bind(key, SettingKind::toggle, toggle);
   g_signal_connect(toggle, "notify::active", G_CALLBACK(on_setting_switch), binding);
-  settings_row(section, label, toggle);
+  settings_row(section, label, toggle, key);
   return toggle;
 }
 
@@ -2117,7 +2131,7 @@ void settings_add_choice(GtkWidget* section, char const* label, char const* key,
   auto* drop = gtk_drop_down_new_from_strings(labels.data());
   auto* binding = settings_bind(key, SettingKind::choice, drop, std::move(values));
   g_signal_connect(drop, "notify::selected", G_CALLBACK(on_setting_choice), binding);
-  settings_row(section, label, drop);
+  settings_row(section, label, drop, key);
 }
 
 void settings_add_number(GtkWidget* section, char const* label, char const* key,
@@ -2125,7 +2139,7 @@ void settings_add_number(GtkWidget* section, char const* label, char const* key,
   auto* spin = gtk_spin_button_new_with_range(min, max, 1);
   auto* binding = settings_bind(key, SettingKind::number, spin);
   g_signal_connect(spin, "value-changed", G_CALLBACK(on_setting_number), binding);
-  settings_row(section, label, spin);
+  settings_row(section, label, spin, key);
 }
 
 void settings_add_text(GtkWidget* section, char const* label, char const* key,
@@ -2138,7 +2152,15 @@ void settings_add_text(GtkWidget* section, char const* label, char const* key,
   auto* focus = gtk_event_controller_focus_new();
   g_signal_connect(focus, "leave", G_CALLBACK(on_setting_entry_leave), binding);
   gtk_widget_add_controller(entry, focus);
-  settings_row(section, label, entry);
+  settings_row(section, label, entry, key);
+}
+
+void refresh_settings_language() {
+  if (g_settings_form == nullptr) return;
+  for (auto const& [label, key, fallback] : g_settings_form->localized_labels) {
+    std::string const value = tr(key.c_str());
+    gtk_label_set_text(label, value == key ? fallback.c_str() : value.c_str());
+  }
 }
 
 void settings_build() {
@@ -2750,7 +2772,7 @@ void on_activate(GtkApplication* app, gpointer) {
   auto* window = gtk_application_window_new(app);
   launcher.window = GTK_WINDOW(window);
   gtk_window_set_title(launcher.window, "Fulcrum");
-  gtk_window_set_default_size(launcher.window, 680, 440);
+  gtk_window_set_default_size(launcher.window, 680, 460);
   gtk_window_set_resizable(launcher.window, FALSE);
   // Chromeless like the other hosts: the panel content IS the window, and
   // the stylesheet rounds it. Close still hides (below) via Esc / the tray.

@@ -43,7 +43,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Language" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="LanguageLabel" Text="Language" Style="{StaticResource RowLabel}" />
                             <ComboBox x:Name="LanguageBox" Grid.Column="1" Tag="language" MinWidth="160"
                                       VerticalAlignment="Center" SelectionChanged="Choice_Changed">
                                 <ComboBoxItem Content="中文" Tag="zh" />
@@ -55,7 +55,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Theme" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="ThemeLabel" Text="Theme" Style="{StaticResource RowLabel}" />
                             <ComboBox x:Name="ThemeBox" Grid.Column="1" Tag="theme" MinWidth="160"
                                       VerticalAlignment="Center" SelectionChanged="Choice_Changed">
                                 <ComboBoxItem Content="System" Tag="system" />
@@ -68,7 +68,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Hotkey" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="HotkeyLabel" Text="Hotkey" Style="{StaticResource RowLabel}" />
                             <TextBox x:Name="HotkeyBox" Grid.Column="1" Tag="hotkey" MinWidth="200"
                                      VerticalAlignment="Center" PlaceholderText="alt+space"
                                      LostFocus="Text_LostFocus" KeyDown="Text_KeyDown" />
@@ -80,7 +80,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Maximum results" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="MaxResultsLabel" Text="Maximum results" Style="{StaticResource RowLabel}" />
                             <NumberBox x:Name="MaxResultsBox" Grid.Column="1" Tag="max-results"
                                        Minimum="5" Maximum="25" SpinButtonPlacementMode="Inline"
                                        VerticalAlignment="Center" ValueChanged="Number_Changed" />
@@ -96,7 +96,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Record clipboard history" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="ClipboardLabel" Text="Record clipboard history" Style="{StaticResource RowLabel}" />
                             <ToggleSwitch x:Name="ClipboardSwitch" Grid.Column="1" Tag="clipboard-enabled"
                                           OnContent="" OffContent="" MinWidth="0"
                                           VerticalAlignment="Center" Toggled="Toggle_Toggled" />
@@ -116,7 +116,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Web search rows (bangs and fallback)" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="WebSearchLabel" Text="Web search rows (bangs and fallback)" Style="{StaticResource RowLabel}" />
                             <ToggleSwitch x:Name="WebSearchSwitch" Grid.Column="1" Tag="web-search-enabled"
                                           OnContent="" OffContent="" MinWidth="0"
                                           VerticalAlignment="Center" Toggled="Toggle_Toggled" />
@@ -144,7 +144,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Expand snippet keywords as you type in any app" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="ExpansionLabel" Text="Expand snippet keywords as you type in any app" Style="{StaticResource RowLabel}" />
                             <ToggleSwitch x:Name="ExpansionSwitch" Grid.Column="1" Tag="expansion-enabled"
                                           OnContent="" OffContent="" MinWidth="0"
                                           VerticalAlignment="Center" Toggled="Toggle_Toggled" />
@@ -154,7 +154,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Load plugins" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="PluginsLabel" Text="Load plugins" Style="{StaticResource RowLabel}" />
                             <ToggleSwitch x:Name="PluginsSwitch" Grid.Column="1" Tag="plugins-enabled"
                                           OnContent="" OffContent="" MinWidth="0"
                                           VerticalAlignment="Center" Toggled="Toggle_Toggled" />
@@ -180,7 +180,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Provider" Style="{StaticResource RowLabel}" />
+                            <TextBlock x:Name="ProviderLabel" Text="Provider" Style="{StaticResource RowLabel}" />
                             <ComboBox x:Name="ProviderBox" Grid.Column="1" Tag="ai-provider" MinWidth="160"
                                       VerticalAlignment="Center" SelectionChanged="Choice_Changed">
                                 <ComboBoxItem Content="Off" Tag="" />

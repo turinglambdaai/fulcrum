@@ -127,6 +127,12 @@ private struct SettingField: View {
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
 
+    // Translation reads the observable backend setting, so switching language
+    // immediately re-renders the visible settings surface.
+    private func t(_ key: String) -> String {
+        GeneratedI18n.tr(model.values["language"] ?? "zh", key)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             TabView {
@@ -157,23 +163,23 @@ struct SettingsView: View {
     private var generalTab: some View {
         Form {
             Section {
-                Picker("Language", selection: model.choice("language", default: "zh")) {
+                Picker(t("setting.language"), selection: model.choice("language", default: "zh")) {
                     Text("中文").tag("zh")
                     Text("English").tag("en")
                 }
-                Picker("Theme", selection: model.choice("theme", default: "system")) {
+                Picker(t("setting.theme"), selection: model.choice("theme", default: "system")) {
                     Text("System").tag("system")
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
                 }
             }
             Section {
-                SettingField(title: "Hotkey", key: "hotkey",
+                SettingField(title: t("setting.hotkey"), key: "hotkey",
                              placeholder: "alt+space", model: model)
                 Text("Modifiers alt / ctrl / shift / cmd plus a key: space, a–z, 0–9, f1–f12, comma, period, minus, equal, tab. Applies immediately; a taken combo falls back to ⌃⌥Space.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                Stepper("Maximum results: \(model.number("max-results", default: 12).wrappedValue)",
+                Stepper("\(t("setting.max-results")): \(model.number("max-results", default: 12).wrappedValue)",
                         value: model.number("max-results", default: 12), in: 5...25)
             }
         }
@@ -183,12 +189,12 @@ struct SettingsView: View {
     private var featuresTab: some View {
         Form {
             Section("Clipboard") {
-                Toggle("Record clipboard history", isOn: model.toggle("clipboard-enabled"))
+                Toggle(t("setting.clipboard-enabled"), isOn: model.toggle("clipboard-enabled"))
                 SettingField(title: "History limit", key: "clipboard-limit",
                              placeholder: "1000", model: model)
             }
             Section("Search") {
-                Toggle("Web search rows (bangs and fallback)", isOn: model.toggle("web-search-enabled"))
+                Toggle(t("setting.web-search-enabled"), isOn: model.toggle("web-search-enabled"))
                 Picker("Default bang", selection: model.choice("default-engine", default: "!g")) {
                     ForEach(["!g", "!d", "!gh", "!so", "!w", "!yt", "!m", "!t"], id: \.self) {
                         Text($0).tag($0)
@@ -196,13 +202,13 @@ struct SettingsView: View {
                 }
             }
             Section("Snippets") {
-                Toggle("Expand snippet keywords as you type in any app", isOn: model.toggle("expansion-enabled"))
+                Toggle(t("setting.expansion-enabled"), isOn: model.toggle("expansion-enabled"))
                 Text("Needs the Accessibility permission on macOS.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
             Section("Plugins") {
-                Toggle("Load plugins", isOn: model.toggle("plugins-enabled"))
+                Toggle(t("setting.plugins-enabled"), isOn: model.toggle("plugins-enabled"))
                 SettingField(title: "Call timeout (ms)", key: "plugins-timeout-ms",
                              placeholder: "2000", model: model)
             }
@@ -213,7 +219,7 @@ struct SettingsView: View {
     private var aiTab: some View {
         Form {
             Section {
-                Picker("Provider", selection: model.choice("ai-provider", default: "")) {
+                Picker(t("setting.ai-provider"), selection: model.choice("ai-provider", default: "")) {
                     Text("Off").tag("")
                     Text("OpenAI").tag("openai")
                     Text("Anthropic").tag("anthropic")

@@ -44,6 +44,7 @@ struct SettingsWindow : SettingsWindowT<SettingsWindow> {
   void Apply(std::map<std::string, std::string> values, std::string ai_status);
   void Write(std::string key, std::string value);
   void RefreshAiStatus();
+  void ApplyLocalization(std::string const& language);
   void SaveKey();
   void CommitText(Microsoft::UI::Xaml::Controls::TextBox const& box);
   void ShowError(std::wstring const& message);
