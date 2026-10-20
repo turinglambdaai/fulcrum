@@ -21,7 +21,7 @@ the panel has been active once, otherwise the summon operation can erase itself.
 
 ## Shared visual and language grammar
 
-- The panel is 680×440, uses amber `#D97706`, 44-point result rows, an inset
+- The panel is 680×460, uses amber `#D97706`, 44-point result rows, an inset
   rounded selection, a leading semantic icon and a trailing badge/Enter chip.
 - Application rows should use the real application icon when the platform can
   resolve it. Other kinds use distinct semantic icons; Calculator and AI must
