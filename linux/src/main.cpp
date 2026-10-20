@@ -2831,12 +2831,20 @@ void on_activate(GtkApplication* app, gpointer) {
     XChangeProperty(dpy, xid, wm_state, XA_ATOM, 32, PropModeAppend,
                     reinterpret_cast<unsigned char*>(&skip_taskbar), 1);
   }
-  // Hotkey, portal-first: where org.freedesktop.portal.GlobalShortcuts is
-  // available (Wayland compositors and modern X11 desktops), the summon
-  // shortcut is registered through the portal — the compositor asks for
-  // consent once and owns the final binding. Sessions without the portal
-  // fall back to the X11 grab (X11 only, by platform rules).
-  if (rivet::system::GlobalShortcuts::available()) {
+  // X11 owns a reliable, directly testable global grab. Prefer it over
+  // a portal advertised on the same desktop: portal availability alone does
+  // not mean consent was granted or the compositor accepted the shortcut.
+  // Wayland must use the portal; XGrabKey cannot operate on Wayland.
+  if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(window))) {
+    std::string hotkey_note = install_x11_hotkey(gtk_widget_get_display(window));
+    if (!hotkey_note.empty()) {
+      launcher.set_status(hotkey_note);
+      // On GNOME this is often the stock Alt+Space window menu. Surface
+      // the explicit tray fix rather than leaving a dead shortcut.
+      check_hotkey_shadowing("Alt+Space");
+    }
+    launcher.start_backend();
+  } else if (rivet::system::GlobalShortcuts::available()) {
     // The object must outlive the async bind; it owns the portal session.
     g_portal_shortcuts = std::make_unique<rivet::system::GlobalShortcuts>();
     g_portal_shortcuts->set_activation_handler(
@@ -2876,10 +2884,9 @@ void on_activate(GtkApplication* app, gpointer) {
         });
     launcher.start_backend();
   } else {
-    std::string hotkey_note = install_x11_hotkey(gtk_widget_get_display(window));
-    if (!hotkey_note.empty()) {
-      launcher.set_status(hotkey_note);
-    }
+    launcher.set_status(
+        "Wayland GlobalShortcuts portal unavailable. Bind "
+        "`fulcrum --toggle` in your compositor keyboard settings.");
     launcher.start_backend();
   }
   // Open on launch. A launcher that starts hidden is an invisible app on
