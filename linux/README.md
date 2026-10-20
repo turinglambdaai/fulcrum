@@ -19,18 +19,17 @@ Launcher-specific parts on top of the official runtime:
   theme. The menu beside the search field and the tray both offer Restart
   Fulcrum and Quit Fulcrum. Restart stops the backend and releases the
   single-instance lease before replacing the process image.
-- **Global hotkey, portal-first** — where `org.freedesktop.portal`
-  `GlobalShortcuts` exists (GNOME 48+, KDE, recent wlroots compositors),
-  the summon shortcut is registered there: the compositor asks for
-  consent once and owns the final binding, which the status bar reports.
-  When the chosen combo is Alt+Space and GNOME's stock *activate window
-  menu* binding still owns it, the host detects the shadowing, says so,
-  and grows a **Fix Alt+Space conflict** item in the tray menu (clears
-  the stock binding with `gsettings`). Sessions without the portal fall
-  back to the X11 `XGrabKey` grab (X11 only, by platform rules); there,
-  `fulcrum --toggle` bound as a compositor keybinding is the documented
-  Wayland fallback — and it summons by starting the launcher when
-  nothing is running yet.
+- **Global hotkey, X11-first / Wayland portal** — X11 always uses an
+  isolated `XGrabKey` grab, even if the desktop advertises a portal:
+  advertising `GlobalShortcuts` does not guarantee consent or a working
+  binding. On Wayland, the portal asks for consent and the compositor owns
+  the final binding (shown in the status bar). If GNOME's stock *activate
+  window menu* action reserves Alt+Space, the host reports the conflict
+  and offers a **Fix Alt+Space conflict** tray item (which explicitly
+  clears that GNOME binding via `gsettings` when clicked).
+  Where Wayland has no working portal, bind `fulcrum --toggle` in
+  the compositor's keyboard shortcut settings; it also launches Fulcrum
+  when the app is not already running.
 - **Overlay chrome** — EWMH properties (`_NET_WM_STATE_ABOVE`,
   `SKIP_TASKBAR`, `WINDOW_TYPE_UTILITY`) set directly on X11; Wayland
   compositors own those decisions.
