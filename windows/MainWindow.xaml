@@ -26,7 +26,7 @@
             CornerRadius="8"
             Background="Transparent"
             BorderBrush="Transparent"
-            FontSize="17" />
+            FontSize="19" />
 
         <InfoBar
             x:Name="StatusBar"
@@ -121,7 +121,7 @@
                 Grid.Column="0"
                 Opacity="0.45"
                 FontSize="11"
-                Text="↑↓ navigate · ↵ run · ctrl+k actions · esc hide" />
+                Text="↑↓ navigate · ↵ run · Ctrl+K actions · Esc clear/hide" />
             <TextBlock
                 x:Name="StatusText"
                 Grid.Column="1"
