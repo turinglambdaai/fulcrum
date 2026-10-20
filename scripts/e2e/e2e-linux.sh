@@ -12,6 +12,7 @@ export FULCRUM_INSTANCE_ID="site.jrtx.fulcrum.acceptance.$$"
 export XDG_RUNTIME_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/fulcrum-acceptance-runtime-$$"
 export WAYLAND_DISPLAY=wayland-fulcrum-acceptance
 export GDK_BACKEND=wayland GTK_A11Y=atspi NO_AT_BRIDGE=0 LANG=C.UTF-8
+export FULCRUM_ACCEPTANCE_HOTKEY=1
 unset DISPLAY
 mkdir -p "$HOME" "$FULCRUM_DATA_DIR" "$XDG_RUNTIME_DIR"; chmod 700 "$XDG_RUNTIME_DIR"
 weston --backend=headless-backend.so --socket="$WAYLAND_DISPLAY" --idle-time=0 --debug --log="$output/weston.log" &

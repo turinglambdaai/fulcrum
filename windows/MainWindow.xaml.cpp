@@ -4,6 +4,7 @@
 #include "MainWindow.g.cpp"
 #endif
 #include "GeneratedBackend.hpp"
+#include "GeneratedI18n.hpp"
 #include "SettingsWindow.xaml.h"
 #include "WindowCommands.h"
 
@@ -165,7 +166,7 @@ winrt::Windows::UI::Color amber_color(BYTE alpha) {
 
 // Segoe Fluent Icons codepoints (the FontIcon default font family).
 wchar_t const* row_glyph(rivet_app::ResultRow const& row) {
-  if (row.kind == "Calculator") return L"\uE945";  // LightningBolt
+  if (row.kind == "Calculator") return L"\uE8EF";  // Calculator
   if (row.kind == "Clipboard") return L"\uE77F";   // Paste
   if (row.kind == "Snippet") return L"\uE70F";     // Edit
   if (row.kind == "Quicklink") return L"\uE71B";   // Link
@@ -555,6 +556,12 @@ void load_i18n(std::filesystem::path const& exe_dir) {
   for (int lang = 0; lang < 2; ++lang) {
     auto& table = g_i18n[lang];
     table.clear();
+    for (auto const& entry : rivet_app::kI18nTable) {
+      table.emplace(std::string(entry.key),
+                    to_wide(std::string(lang == 0 ? entry.zh : entry.en)));
+    }
+    // Keep the older minimal literals as a bootstrap safety net; generated
+    // entries win because emplace never overwrites an existing key.
     for (auto const& entry : kI18nFallback) {
       table.emplace(entry.key, to_wide(lang == 0 ? entry.zh : entry.en));
     }
@@ -616,6 +623,7 @@ MainWindow::MainWindow() {
   // i18n tables before any UI string is composed: the staged shared/i18n
   // JSON when packaged, the embedded fallback otherwise.
   load_i18n(executable_path().parent_path());
+  ApplyLanguage();
   InitializeBackendAsync();
 }
 
@@ -681,6 +689,17 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
               }
             });
           }
+        } else if (*state_name == "language") {
+          if (auto const* language =
+                  std::get_if<std::string>(&(fields->at(1).data))) {
+            std::string value_copy = *language;
+            dispatcher.TryEnqueue([weak, value_copy]() mutable {
+              if (auto window = weak.get()) {
+                set_i18n_language(value_copy);
+                window->ApplyLanguage();
+              }
+            });
+          }
         } else if (*state_name == "search-revision") {
           dispatcher.TryEnqueue([weak]() mutable {
             if (auto window = weak.get()) {
@@ -730,7 +749,7 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
       if (auto window = weak.get()) {
         window->backend_ = std::move(backend);
         window->api_ = std::make_unique<rivet_app::API>(*window->backend_);
-        window->SetStatusOk(L"Ready — press Alt+Space anywhere");
+        window->SetStatusOk(t("readyStatus"));
         window->FinishNativeSetup();
         try {
           rivet::update::MsiHandoff::CleanupStaleAttempts(L"site.jrtx.fulcrum");
@@ -940,11 +959,11 @@ void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
     case WM_RBUTTONUP: {
       HMENU menu = ::CreatePopupMenu();
       if (menu != nullptr) {
-        ::AppendMenuW(menu, MF_STRING, kTrayMenuOpen, L"Open Fulcrum");
-        ::AppendMenuW(menu, MF_STRING, kTrayMenuSettings, L"Settings…");
-        ::AppendMenuW(menu, MF_STRING, kTrayMenuUpdates, L"Check for Updates…");
-        ::AppendMenuW(menu, MF_STRING, kTrayMenuAbout, L"About Fulcrum");
-        ::AppendMenuW(menu, MF_STRING, kTrayMenuQuit, L"Quit Fulcrum");
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuOpen, t("trayOpen").c_str());
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuSettings, t("traySettings").c_str());
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuUpdates, t("trayCheckUpdates").c_str());
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuAbout, t("trayAbout").c_str());
+        ::AppendMenuW(menu, MF_STRING, kTrayMenuQuit, t("trayQuit").c_str());
         ::SetForegroundWindow(hwnd);  // so outside clicks dismiss the menu
         int const choice = ::TrackPopupMenu(
             menu, TPM_RETURNCMD | TPM_NONOTIFY, 0, 0, 0, hwnd, nullptr);
@@ -1009,6 +1028,7 @@ void MainWindow::OnClipboardUpdate() {
 
 void MainWindow::ShowLauncher() {
   actions_mode_ = false;
+  HintBar().Text(t("navigationHint"));
   DismissAiPanel();
   DismissDetailPanel();
   QueryBox().Text(L"");
@@ -1031,6 +1051,17 @@ void MainWindow::ShowLauncher() {
 }
 
 void MainWindow::HideLauncher() { this->AppWindow().Hide(); }
+
+void MainWindow::ApplyLanguage() {
+  QueryBox().PlaceholderText(t("searchPlaceholder"));
+  HintBar().Text(actions_mode_ ? t("navigationHintActions")
+                               : t("navigationHint"));
+  DetailHeader().Text(t("detailTitle"));
+  if (!api_) {
+    StatusText().Text(t("startingStatus"));
+    StatusBar().Message(t("startingStatus"));
+  }
+}
 
 void MainWindow::WriteClipboardText(std::wstring const& text) {
   if (!::OpenClipboard(nullptr)) {
@@ -1134,11 +1165,11 @@ void MainWindow::ApplyAiStream(rivet_app::AiStream const& stream) {
       winrt::Microsoft::UI::Xaml::Visibility::Visible);
   AiText().Text(to_wide(stream.text));
   if (stream.phase == "running") {
-    AiPhase().Text(L"AI is answering…");
+    AiPhase().Text(t("aiRunning"));
   } else if (stream.phase == "error") {
-    AiPhase().Text(L"AI request failed");
+    AiPhase().Text(t("aiFailed"));
   } else {
-    AiPhase().Text(L"AI answer");
+    AiPhase().Text(t("aiAnswer"));
   }
 }
 
@@ -1202,6 +1233,7 @@ void MainWindow::PullHostSettings() {
         [weak, hotkey, theme, language]() mutable {
           if (auto window = weak.get()) {
             set_i18n_language(language);
+            window->ApplyLanguage();
             if (!hotkey.empty()) {
               window->ApplyHotkey(hotkey);
             }
@@ -1295,9 +1327,9 @@ void MainWindow::QueryBox_KeyDown(
   }
 }
 
-void MainWindow::ResultsList_ItemClick(
+void MainWindow::ResultsList_DoubleTapped(
     winrt::Windows::Foundation::IInspectable const&,
-    Microsoft::UI::Xaml::Controls::ItemClickEventArgs const&) {
+    Microsoft::UI::Xaml::Input::DoubleTappedRoutedEventArgs const&) {
   RunSelected();
 }
 
@@ -1340,6 +1372,7 @@ winrt::fire_and_forget MainWindow::SearchAsync(std::wstring const& query) {
 void MainWindow::ApplyActions(std::vector<rivet_app::ResultRow> rows) {
   ApplyResults(std::move(rows));
   actions_mode_ = true;  // ApplyResults resets it; the actions stay up.
+  HintBar().Text(t("navigationHintActions"));
 }
 
 void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
@@ -1408,7 +1441,7 @@ void MainWindow::ShowActionsForSelection() {
         if (auto window = weak.get()) {
           window->ApplyActions(std::move(actions));
           if (window->rows_.empty()) {
-            window->SetStatusError(L"No secondary actions for this result");
+            window->SetStatusError(t("noSecondaryActions"));
           }
         }
       });
@@ -1428,6 +1461,7 @@ void MainWindow::CloseActions() {
   auto saved = std::move(search_rows_);
   search_rows_.clear();
   ApplyResults(std::move(saved));
+  HintBar().Text(t("navigationHint"));
   QueryBox().Focus(winrt::Microsoft::UI::Xaml::FocusState::Programmatic);
 }
 
@@ -1468,7 +1502,7 @@ void MainWindow::RunSelected() {
           } else if (status == "started") {
             // AI run: the request continues on a backend thread; the
             // ai-stream State drives the streaming panel.
-            window->SetStatusOk(L"AI is answering…");
+            window->SetStatusOk(t("aiRunning"));
           } else if (status == "stay") {
             // The result is meant to be read (update check, ...): the
             // event already wrote the status line; keep the panel open.

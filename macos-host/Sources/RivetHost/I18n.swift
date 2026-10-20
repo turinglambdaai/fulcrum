@@ -47,11 +47,15 @@ final class I18nService: @unchecked Sendable {
     // MARK: - Resource loading
 
     private static func loadTable(_ lang: String) -> [String: String] {
+        var fallback: [String: String] = [:]
+        for (key, row) in GeneratedI18n.table {
+            if let value = row[lang], !value.isEmpty { fallback[key] = value }
+        }
         if let url = HostResources.locate(i18n: lang),
            let data = try? Data(contentsOf: url),
            let table = try? JSONDecoder().decode([String: String].self, from: data) {
-            return table
+            fallback.merge(table) { _, staged in staged }
         }
-        return [:]
+        return fallback
     }
 }

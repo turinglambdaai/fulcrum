@@ -223,6 +223,15 @@ public struct RivetAPI: Sendable {
         let rivetResult = try await client.setState("hotkey", value: encode_String(value))
         return try decode_String(rivetResult)
     }
+    public func get_language() async throws -> String {
+        let rivetResult = try await client.getState("language")
+        return try decode_String(rivetResult)
+    }
+    @discardableResult
+    public func set_language(_ value: String) async throws -> String {
+        let rivetResult = try await client.setState("language", value: encode_String(value))
+        return try decode_String(rivetResult)
+    }
     public func get_search_revision() async throws -> Int64 {
         let rivetResult = try await client.getState("search-revision")
         return try decode_Int64(rivetResult)

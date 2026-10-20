@@ -99,8 +99,7 @@
             Grid.Row="4"
             Margin="8,4,8,0"
             SelectionMode="Single"
-            IsItemClickEnabled="True"
-            ItemClick="ResultsList_ItemClick">
+            DoubleTapped="ResultsList_DoubleTapped">
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>

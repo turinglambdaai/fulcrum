@@ -232,7 +232,7 @@ struct AiStreamView: View {
             .scrollIndicators(.hidden)
             .frame(maxHeight: 170)
             if state.phase == "done" {
-                Text("Answer copied to the clipboard · esc dismisses")
+                Text(I18nService.shared.t("aiCopiedHint"))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
             }
@@ -249,9 +249,9 @@ struct AiStreamView: View {
 
     private var header: String {
         switch state.phase {
-        case "running": return "AI is answering…"
-        case "error": return "AI request failed"
-        default: return "AI answer"
+        case "running": return I18nService.shared.t("aiRunning")
+        case "error": return I18nService.shared.t("aiFailed")
+        default: return I18nService.shared.t("aiAnswer")
         }
     }
 
@@ -281,7 +281,7 @@ struct PluginDetailView: View {
                 Image(systemName: "puzzlepiece.extension")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(FulcrumTheme.accent)
-                Text("Details")
+                Text(I18nService.shared.t("detailTitle"))
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -329,7 +329,7 @@ struct LauncherView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(.secondary)
-                TextField("Search apps, clipboard, snippets, the web…",
+                TextField(model.t("searchPlaceholder"),
                           text: $model.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 19, weight: .medium))
@@ -409,8 +409,8 @@ struct LauncherView: View {
             Divider().opacity(0.5)
             HStack {
                 Text(model.showingActions
-                      ? "↑↓ navigate · ↵ run · esc back"
-                      : "↑↓ navigate · ↵ run · ⌘K actions · esc clear/hide")
+                      ? model.t("navigationHintActions")
+                      : model.t("navigationHintMac"))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
@@ -501,7 +501,9 @@ final class LauncherModel: ObservableObject {
     @Published var rows: [ResultRow] = []
     @Published var selection: String?
     @Published var ready = false
-    @Published var status = "Starting embedded Racket CS…"
+    @Published var status = I18nService.shared.t("startingStatus")
+    /// Drives a SwiftUI repaint when the backend-owned language changes.
+    @Published private(set) var language = "en"
     /// ⌘K mode: rows currently holds secondary actions for `actionParent`.
     @Published var showingActions = false
     /// Live AI answer (nil = nothing to show); survives typing so the user
@@ -527,6 +529,18 @@ final class LauncherModel: ObservableObject {
         status = text
     }
 
+    func setLanguage(_ value: String) {
+        I18nService.shared.setLanguage(value)
+        language = I18nService.shared.language
+        if ready { status = t("readyStatusMac") }
+    }
+
+    func t(_ key: String) -> String {
+        // Reading the published language is what makes this lookup reactive.
+        _ = language
+        return I18nService.shared.t(key)
+    }
+
     func start() {
         guard backend == nil else { return }
         Self.active = self
@@ -550,7 +564,7 @@ final class LauncherModel: ObservableObject {
                         guard let model = LauncherModel.active else { return }
                         model.api = api
                         model.ready = true
-                        model.status = "Ready"
+                        model.status = model.t("readyStatusMac")
                         model.beginSearch()
                         model.onBackendReady?()
                     }
@@ -567,6 +581,8 @@ final class LauncherModel: ObservableObject {
     }
 
     func beginSearch() {
+        showingActions = false
+        actionParent = nil
         query = ""
         searchChanged("")
     }
@@ -627,7 +643,7 @@ final class LauncherModel: ObservableObject {
     }
 
     func select(_ row: ResultRow) {
-        selection = row.id
+        selection = row.rowId
     }
 
     func moveSelection(_ delta: Int) {
@@ -648,7 +664,7 @@ final class LauncherModel: ObservableObject {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     if actions.isEmpty {
-                        self.status = "No secondary actions for this result"
+                        self.status = self.t("noSecondaryActions")
                         return
                     }
                     self.rows = actions
@@ -702,7 +718,7 @@ final class LauncherModel: ObservableObject {
                     case "started":
                         // AI run: the request continues on a backend thread;
                         // the ai-stream State drives the streaming panel.
-                        self.status = "AI is answering…"
+                        self.status = self.t("aiRunning")
                     case "stay":
                         // The result is meant to be read (update check, …):
                         // the notify event already wrote the status line;
@@ -801,6 +817,11 @@ final class LauncherModel: ObservableObject {
             case "hotkey":
                 if case .string(let spec) = change.value {
                     AppDelegate.shared?.applyHotkey(spec)
+                }
+            case "language":
+                if case .string(let language) = change.value {
+                    setLanguage(language)
+                    AppDelegate.shared?.refreshLocalizedMenus()
                 }
             case "ai-stream":
                 if case .list(let fields) = change.value, fields.count == 3,

@@ -329,6 +329,11 @@
 (check! "settings-set off round-trips through settings-list"
         (setting-value sl3 "expansion-enabled") "off")
 (call-rpc 53 (list "settings-set" "expansion-enabled" "on"))
+(define-values (_langv _lange lang-events)
+  (call-rpc 63 (list "settings-set" "language" "en")))
+(check! "language changes push live host state"
+        (and (member '("$state" ("language" "en")) lang-events) #t) #t)
+(call-rpc 64 (list "settings-set" "language" "zh"))
 (define-values (sov _soe _soev) (call-rpc 54 (list "run-action" "settings.open" "")))
 (check! "settings.open delegates to the host" sov "delegated")
 (define-values (erows _ere _erev) (call-rpc 55 (list "search" "")))

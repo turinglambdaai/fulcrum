@@ -155,24 +155,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the selectable status text, ⌘W/⌘M on the About and update windows.
     /// Accessory app: the menus show only while one of its windows is key.
     private func installMenus() {
+        let i18n = I18nService.shared
         let mainMenu = NSMenu()
 
         let appItem = NSMenuItem()
         mainMenu.addItem(appItem)
         let appMenu = NSMenu()
         appItem.submenu = appMenu
-        appMenu.addItem(withTitle: "About Fulcrum",
+        appMenu.addItem(withTitle: i18n.t("trayAbout"),
                         action: #selector(showAboutFromMenu(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Settings…",
+        appMenu.addItem(withTitle: i18n.t("traySettings"),
                         action: #selector(showSettingsFromMenu(_:)),
                         keyEquivalent: ",")
-        appMenu.addItem(withTitle: "Check for Updates…",
+        appMenu.addItem(withTitle: i18n.t("trayCheckUpdates"),
                         action: #selector(checkForUpdatesFromMenu(_:)),
                         keyEquivalent: "")
         appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Fulcrum",
+        appMenu.addItem(withTitle: i18n.t("trayQuit"),
                         action: #selector(NSApplication.terminate(_:)),
                         keyEquivalent: "q")
 
@@ -241,7 +242,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let rows = try? await api.settingsList(),
                    let language = rows.first(where: { $0.id == "language" }) {
                     // settings-list puts the value in the title column.
-                    I18nService.shared.setLanguage(language.title)
+                    self?.model?.setLanguage(language.title)
+                    self?.rebuildLocalizedMenus()
                 }
             }
             self?.updateController?.silentStartupCheck()
@@ -357,7 +359,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func settingChanged(_ key: String, _ value: String) {
         switch key {
         case "language":
-            I18nService.shared.setLanguage(value)
+            model?.setLanguage(value)
+            rebuildLocalizedMenus()
         case "expansion-enabled":
             refreshExpansionEngine()
         default:
@@ -378,7 +381,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.level = .floating
         panel.isFloatingPanel = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.hidesOnDeactivate = false
+        // Launcher contract: once activated, leaving Fulcrum dismisses the
+        // panel on every host. AppKit handles the handoff atomically here;
+        // Linux carries the explicit pre-activation guard for Wayland.
+        panel.hidesOnDeactivate = true
         panel.isReleasedWhenClosed = false
         panel.standardWindowButton(.closeButton)?.isHidden = true
         panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -579,29 +585,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the update panel; Quit here (or ⌘Q while a window is key) is the
     /// way out of the resident process — there is no Dock icon.
     private func installMenuBar(model: LauncherModel) {
+        let i18n = I18nService.shared
         let controller = RivetMenuBarController()
         controller.install(
             icon: MenuBarIcon.fulcrum,
             items: [
-                .action(label: "Open Fulcrum", identifier: "open", handler: { [weak self] in
+                .action(label: i18n.t("trayOpen"), identifier: "open", handler: { [weak self] in
                     self?.showPanel()
                 }),
-                .action(label: "Settings…", identifier: "settings", handler: { [weak self] in
+                .action(label: i18n.t("traySettings"), identifier: "settings", handler: { [weak self] in
                     self?.showSettingsWindow()
                 }),
-                .action(label: "Check for Updates…", identifier: "update", handler: { [weak self] in
+                .action(label: i18n.t("trayCheckUpdates"), identifier: "update", handler: { [weak self] in
                     guard let self else { return }
                     self.updateController?.checkForUpdates()
                     self.showUpdatePanel()
                 }),
-                .action(label: "About Fulcrum", identifier: "about", handler: { [weak self] in
+                .action(label: i18n.t("trayAbout"), identifier: "about", handler: { [weak self] in
                     self?.showAboutPanel()
                 }),
-                .action(label: "Quit Fulcrum", identifier: "quit", handler: {
+                .action(label: i18n.t("trayQuit"), identifier: "quit", handler: {
                     NSApp.terminate(nil)
                 })
             ])
         menuBar = controller
+    }
+
+    private func rebuildLocalizedMenus() {
+        installMenus()
+        if let model { installMenuBar(model: model) }
+    }
+
+    func refreshLocalizedMenus() {
+        rebuildLocalizedMenus()
     }
 
     // MARK: clipboard watcher

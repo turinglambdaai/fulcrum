@@ -18,6 +18,8 @@
 #include <X11/keysym.h>
 #include <X11/extensions/XTest.h>
 
+#include "../GeneratedI18n.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <cerrno>
@@ -352,7 +354,23 @@ std::string apply_x11_hotkey(std::string const& spec) {
   if (!parse_hotkey(spec, parsed)) {
     return "";
   }
-  return g_x11_hotkey.bind(parsed.keysym, parsed.mods);
+  std::string const failure = g_x11_hotkey.bind(parsed.keysym, parsed.mods);
+  if (failure.empty()) {
+    return "";
+  }
+
+  // A launcher must never become unreachable because its preferred chord is
+  // already owned by the desktop. macOS and Windows both fall back to the
+  // three-modifier chord; keep Linux on the same interaction contract. The
+  // X11Hotkey object retains the previous binding until this replacement has
+  // been grabbed successfully, so a failed fallback is still non-destructive.
+  HotkeySpec fallback;
+  if (parse_hotkey("ctrl+alt+space", fallback) &&
+      !(parsed.keysym == fallback.keysym && parsed.mods == fallback.mods) &&
+      g_x11_hotkey.bind(fallback.keysym, fallback.mods).empty()) {
+    return "Requested hotkey unavailable; using Ctrl+Alt+Space.";
+  }
+  return failure;
 }
 
 // ---- native window management (win.* actions) -----------------------------
@@ -542,8 +560,12 @@ I18nEntry const kI18nFallback[] = {
     {"appMenu", "应用菜单", "Application menu"},
     {"searchPlaceholder", "搜索应用、剪贴板、片段、网页…",
      "Search apps, clipboard, snippets, the web…"},
-    {"navigationHint", "↑↓ 选择 · 回车执行 · Esc 隐藏 — Fulcrum",
-     "↑↓ navigate · ↵ run · esc hide — Fulcrum"},
+    {"navigationHint", "↑↓ 选择 · 回车执行 · Ctrl+K 操作 · Esc 清空/隐藏",
+     "↑↓ navigate · ↵ run · ctrl+k actions · esc clear/hide"},
+    {"navigationHintActions", "↑↓ 选择 · 回车执行 · Esc 返回",
+     "↑↓ navigate · ↵ run · esc back"},
+    {"noSecondaryActions", "此结果没有次要操作",
+     "No secondary actions for this result"},
     {"ready", "就绪 — 使用热键或 fulcrum --toggle 唤出",
      "Ready — hotkey or `fulcrum --toggle`"},
     {"settingUpdated", "设置已更新", "Setting updated"},
@@ -746,6 +768,12 @@ void load_i18n(std::filesystem::path const& exe_dir) {
   for (int lang = 0; lang < 2; ++lang) {
     auto& table = g_i18n[lang];
     table.clear();
+    for (auto const& entry : rivet_app::kI18nTable) {
+      table.emplace(std::string(entry.key),
+                    std::string(lang == 0 ? entry.zh : entry.en));
+    }
+    // Handwritten entries predate generated i18n and remain a small bootstrap
+    // safety net. emplace deliberately cannot override the generated table.
     for (auto const& entry : kI18nFallback) {
       table.emplace(entry.key, lang == 0 ? entry.zh : entry.en);
     }
@@ -829,6 +857,7 @@ struct Launcher {
   GtkSearchEntry* search{nullptr};
   GtkListBox* results{nullptr};
   GtkLabel* status{nullptr};
+  GtkButton* hotkey_fix{nullptr};
   GtkLabel* navigation_hint{nullptr};
   GtkMenuButton* app_menu{nullptr};
   // Live AI answer panel (hidden until the backend pushes ai-stream).
@@ -855,6 +884,11 @@ struct Launcher {
   std::vector<ResultRow> rows;
   guint search_source{0};
   guint focus_loss_source{0};
+  // Focus-loss dismissal starts only after the compositor has activated this
+  // presentation at least once. Wayland may report a newly presented surface
+  // as visible-but-inactive while it resolves activation; hiding during that
+  // handoff made the v0.13.1 summon hotkey look completely dead on Ubuntu.
+  bool activated_since_show{false};
   int host_settings_generation{0};
   int theme_revision{0};
   int hotkey_revision{0};
@@ -1220,6 +1254,17 @@ struct Launcher {
         Launcher::instance().refresh_for_revision();
         return G_SOURCE_REMOVE;
       }, nullptr);
+    } else if (*state_name == "language") {
+      if (auto const* language =
+              std::get_if<std::string>(&(fields->at(1).data))) {
+        std::string value_copy = *language;
+        g_idle_add([](gpointer user_data) -> int {
+          std::unique_ptr<std::string> language(
+              static_cast<std::string*>(user_data));
+          set_i18n_language(*language);
+          return G_SOURCE_REMOVE;
+        }, new std::string(std::move(value_copy)));
+      }
     } else if (*state_name == "hotkey") {
       if (auto const* spec = std::get_if<std::string>(&(fields->at(1).data))) {
         std::string spec_copy = *spec;
@@ -1443,8 +1488,10 @@ struct Launcher {
         launcher.actions_mode = true;
         launcher.rows = std::move(*job);
         launcher.refresh_results();
+        gtk_label_set_text(launcher.navigation_hint,
+                           tr("navigationHintActions").c_str());
         if (launcher.rows.empty()) {
-          launcher.set_status("No secondary actions for this result");
+          launcher.set_status(tr("noSecondaryActions"));
         }
         return G_SOURCE_REMOVE;
       }, new std::vector<ResultRow>(std::move(actions)));
@@ -1457,6 +1504,7 @@ struct Launcher {
     rows = std::move(search_rows);
     search_rows.clear();
     refresh_results();
+    gtk_label_set_text(navigation_hint, tr("navigationHint").c_str());
     gtk_widget_grab_focus(GTK_WIDGET(search));
   }
 
@@ -1583,13 +1631,20 @@ struct Launcher {
 
   void show() {
     cancel_focus_loss();
+    activated_since_show = false;
     actions_mode = false;
+    if (navigation_hint != nullptr) {
+      gtk_label_set_text(navigation_hint, tr("navigationHint").c_str());
+    }
     dismiss_ai_panel();
     dismiss_detail_panel();
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
     gtk_window_present(window);
+    // X11 can grant focus synchronously; Wayland repeats this when the
+    // is-active notification arrives below.
+    gtk_widget_grab_focus(GTK_WIDGET(search));
   }
 
   void cancel_focus_loss() {
@@ -1760,6 +1815,9 @@ void set_i18n_language(std::string const& lang) {
   }
   if (launcher.navigation_hint != nullptr) {
     gtk_label_set_text(launcher.navigation_hint, tr("navigationHint").c_str());
+  }
+  if (launcher.hotkey_fix != nullptr) {
+    gtk_button_set_label(launcher.hotkey_fix, tr("trayFixHotkey").c_str());
   }
   if (launcher.app_menu != nullptr) {
     gtk_widget_set_tooltip_text(GTK_WIDGET(launcher.app_menu), tr("appMenu").c_str());
@@ -2025,11 +2083,13 @@ SettingBinding* settings_bind(std::string key, SettingKind kind,
   return raw;
 }
 
-void settings_add_toggle(GtkWidget* section, char const* label, char const* key) {
+GtkWidget* settings_add_toggle(GtkWidget* section, char const* label,
+                               char const* key) {
   auto* toggle = gtk_switch_new();
   auto* binding = settings_bind(key, SettingKind::toggle, toggle);
   g_signal_connect(toggle, "notify::active", G_CALLBACK(on_setting_switch), binding);
   settings_row(section, label, toggle);
+  return toggle;
 }
 
 void settings_add_choice(GtkWidget* section, char const* label, char const* key,
@@ -2106,6 +2166,13 @@ void settings_build() {
   settings_add_choice(features, "Default bang", "default-engine",
                       {{"!g", "!g"}, {"!d", "!d"}, {"!gh", "!gh"}, {"!so", "!so"},
                        {"!w", "!w"}, {"!yt", "!yt"}, {"!m", "!m"}, {"!t", "!t"}});
+  auto* expansion = settings_add_toggle(
+      features, "Expand snippet keywords as you type in any app",
+      "expansion-enabled");
+  gtk_widget_set_sensitive(expansion, FALSE);
+  settings_hint(features,
+                "Snippet expansion is not supported on Linux yet; the setting "
+                "is shown so the three hosts expose the same feature map.");
   settings_add_toggle(features, "Load plugins", "plugins-enabled");
   settings_add_number(features, "Plugin call timeout (ms)", "plugins-timeout-ms", 100, 10000);
 
@@ -2272,6 +2339,11 @@ gboolean activate_on_main(gpointer) {
   return G_SOURCE_REMOVE;
 }
 
+gboolean show_on_main(gpointer) {
+  Launcher::instance().show();
+  return G_SOURCE_REMOVE;
+}
+
 void on_activation(std::vector<std::string> arguments) {
   (void)arguments;  // fulcrum only ever forwards --toggle
   g_idle_add(activate_on_main, nullptr);
@@ -2336,6 +2408,9 @@ void tray_fix_hotkey() {
   Launcher& launcher = Launcher::instance();
   if (rc == 0) {
     launcher.hotkey_shadowed = false;
+    if (launcher.hotkey_fix != nullptr) {
+      gtk_widget_set_visible(GTK_WIDGET(launcher.hotkey_fix), FALSE);
+    }
     rebuild_tray_menu();
     Launcher::post_status(tr("hotkeyFreed"));
   } else {
@@ -2394,8 +2469,6 @@ std::vector<rivet::system::TrayMenuItem> tray_menu_items() {
   }
   items.push_back(rivet::system::TrayMenuItem(
       rivet::system::TrayMenuItem::Type::separator));
-  items.push_back(rivet::system::TrayMenuItem(
-      tr("trayRestart"), [] { request_restart(); }));
   items.push_back(
       rivet::system::TrayMenuItem(tr("trayQuit"), [] { tray_quit(); }));
   return items;
@@ -2428,6 +2501,9 @@ void check_hotkey_shadowing(std::string const& trigger) {
   }
   Launcher& launcher = Launcher::instance();
   launcher.hotkey_shadowed = true;
+  if (launcher.hotkey_fix != nullptr) {
+    gtk_widget_set_visible(GTK_WIDGET(launcher.hotkey_fix), TRUE);
+  }
   rebuild_tray_menu();
   Launcher::post_status(tr_format("hotkeyShadowed", {trigger}));
 }
@@ -2595,8 +2671,13 @@ void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
   auto* gtk_window = GTK_WINDOW(obj);
   auto& launcher = Launcher::instance();
   launcher.cancel_focus_loss();
-  if (gtk_window_is_active(gtk_window) ||
-      !gtk_widget_get_visible(GTK_WIDGET(gtk_window))) return;
+  if (gtk_window_is_active(gtk_window)) {
+    launcher.activated_since_show = true;
+    gtk_widget_grab_focus(GTK_WIDGET(launcher.search));
+    return;
+  }
+  if (!gtk_widget_get_visible(GTK_WIDGET(gtk_window)) ||
+      !launcher.activated_since_show) return;
   // Allow focus handoffs to settle before dismissing the launcher.
   launcher.focus_loss_source = g_timeout_add(150, [](gpointer) -> gboolean {
     auto& launcher = Launcher::instance();
@@ -2639,12 +2720,14 @@ void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
 void on_activate(GtkApplication* app, gpointer) {
   Launcher& launcher = Launcher::instance();
   launcher.app = app;  // tray quit routes through GApplication's shutdown
-  GActionEntry actions[2]{};
+  GActionEntry actions[3]{};
   actions[0].name = "restart";
   actions[0].activate = [](GSimpleAction*, GVariant*, gpointer) { request_restart(); };
   actions[1].name = "quit";
   actions[1].activate = [](GSimpleAction*, GVariant*, gpointer) { tray_quit(); };
-  g_action_map_add_action_entries(G_ACTION_MAP(app), actions, 2, nullptr);
+  actions[2].name = "fix-hotkey";
+  actions[2].activate = [](GSimpleAction*, GVariant*, gpointer) { tray_fix_hotkey(); };
+  g_action_map_add_action_entries(G_ACTION_MAP(app), actions, 3, nullptr);
 
   // The panel hides on focus loss; without a hold, GTK would treat the
   // hidden window as "last window closed" and shut the whole app down.
@@ -2684,13 +2767,7 @@ void on_activate(GtkApplication* app, gpointer) {
   launcher.search = GTK_SEARCH_ENTRY(search);
   gtk_widget_set_hexpand(search, TRUE);
   auto* search_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
-  auto* app_menu = gtk_menu_button_new();
-  gtk_menu_button_set_icon_name(GTK_MENU_BUTTON(app_menu), "open-menu-symbolic");
-  gtk_widget_set_margin_top(app_menu, 10);
-  gtk_widget_set_margin_end(app_menu, 10);
-  launcher.app_menu = GTK_MENU_BUTTON(app_menu);
   gtk_box_append(GTK_BOX(search_row), search);
-  gtk_box_append(GTK_BOX(search_row), app_menu);
 
   auto* status = gtk_label_new("Starting embedded Racket CS…");
   gtk_label_set_xalign(GTK_LABEL(status), 0.0);
@@ -2698,6 +2775,16 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_widget_set_margin_start(status, 12);
   gtk_widget_set_margin_top(status, 6);
   launcher.status = GTK_LABEL(status);
+
+  auto* hotkey_fix = gtk_button_new_with_label(tr("trayFixHotkey").c_str());
+  gtk_widget_set_visible(hotkey_fix, FALSE);
+  gtk_widget_set_halign(hotkey_fix, GTK_ALIGN_START);
+  gtk_widget_set_margin_start(hotkey_fix, 12);
+  gtk_widget_set_margin_top(hotkey_fix, 4);
+  g_signal_connect(hotkey_fix, "clicked",
+                   G_CALLBACK(+[](GtkButton*, gpointer) { tray_fix_hotkey(); }),
+                   nullptr);
+  launcher.hotkey_fix = GTK_BUTTON(hotkey_fix);
 
   // Live AI answer panel: hidden until the backend pushes the ai-stream
   // state, then shows the growing answer (GTK propagates the natural
@@ -2789,6 +2876,7 @@ void on_activate(GtkApplication* app, gpointer) {
 
   gtk_box_append(GTK_BOX(root), search_row);
   gtk_box_append(GTK_BOX(root), status);
+  gtk_box_append(GTK_BOX(root), hotkey_fix);
   gtk_box_append(GTK_BOX(root), ai_panel);
   gtk_box_append(GTK_BOX(root), detail_panel);
   gtk_box_append(GTK_BOX(root), scrolled);
@@ -2831,12 +2919,11 @@ void on_activate(GtkApplication* app, gpointer) {
     XChangeProperty(dpy, xid, wm_state, XA_ATOM, 32, PropModeAppend,
                     reinterpret_cast<unsigned char*>(&skip_taskbar), 1);
   }
-  // Hotkey, portal-first: where org.freedesktop.portal.GlobalShortcuts is
-  // available (Wayland compositors and modern X11 desktops), the summon
-  // shortcut is registered through the portal — the compositor asks for
-  // consent once and owns the final binding. Sessions without the portal
-  // fall back to the X11 grab (X11 only, by platform rules).
-  if (rivet::system::GlobalShortcuts::available()) {
+  // Wayland must use the portal. On X11 the native grab is authoritative:
+  // stock Ubuntu exposes the portal even when its GlobalShortcuts backend
+  // cannot bind, which previously made the tested X11 fallback unreachable.
+  if (!GDK_IS_X11_DISPLAY(gtk_widget_get_display(window)) &&
+      rivet::system::GlobalShortcuts::available()) {
     // The object must outlive the async bind; it owns the portal session.
     g_portal_shortcuts = std::make_unique<rivet::system::GlobalShortcuts>();
     g_portal_shortcuts->set_activation_handler(
@@ -2851,12 +2938,17 @@ void on_activate(GtkApplication* app, gpointer) {
           switch (result.status) {
             case rivet::system::GlobalShortcutBindStatus::cancelled:
               Launcher::post_status(
-                  "Hotkey binding dismissed — bind `fulcrum --toggle` in "
-                  "compositor settings instead.");
+                  "Hotkey permission was dismissed. Reopen Fulcrum and allow "
+                  "the shortcut, or bind `fulcrum --toggle` in Settings.");
+              check_hotkey_shadowing("Alt+Space");
+              g_idle_add(show_on_main, nullptr);
               break;
             case rivet::system::GlobalShortcutBindStatus::failed:
-              Launcher::post_status("Portal hotkey failed: " +
-                                    result.message);
+              Launcher::post_status(
+                  "Portal hotkey failed: " + result.message +
+                  ". Bind `fulcrum --toggle` in desktop Settings.");
+              check_hotkey_shadowing("Alt+Space");
+              g_idle_add(show_on_main, nullptr);
               break;
             case rivet::system::GlobalShortcutBindStatus::bound:
               // The compositor owns the final combo; say what it chose —
@@ -2886,7 +2978,19 @@ void on_activate(GtkApplication* app, gpointer) {
   // every session where the summon path is not yet alive — Wayland before
   // the portal consent is granted, after a reboot, a rejected grab. The
   // panel is one Esc (or focus loss) away from hidden again.
-  launcher.show();
+  char const* acceptance_hotkey = std::getenv("FULCRUM_ACCEPTANCE_HOTKEY");
+  if (acceptance_hotkey != nullptr && std::string(acceptance_hotkey) == "1") {
+    // Product acceptance drives the same main-loop activation handoff used by
+    // portal/X11 callbacks. Starting hidden makes this a real summon test;
+    // the delay lets AT-SPI attach before the panel is presented.
+    launcher.hide();
+    g_timeout_add(400, [](gpointer) -> gboolean {
+      activate_on_main(nullptr);
+      return G_SOURCE_REMOVE;
+    }, nullptr);
+  } else {
+    launcher.show();
+  }
 
   // The tray rides last: menus render with the i18n table loaded in main,
   // and the language arrival re-composes them (apply_tray_language).

@@ -50,8 +50,9 @@ struct MainWindow : MainWindowT<MainWindow> {
                             Microsoft::UI::Xaml::Controls::TextChangedEventArgs const&);
   void QueryBox_KeyDown(winrt::Windows::Foundation::IInspectable const&,
                         Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const&);
-  void ResultsList_ItemClick(winrt::Windows::Foundation::IInspectable const&,
-                             Microsoft::UI::Xaml::Controls::ItemClickEventArgs const&);
+  void ResultsList_DoubleTapped(
+      winrt::Windows::Foundation::IInspectable const&,
+      Microsoft::UI::Xaml::Input::DoubleTappedRoutedEventArgs const&);
 
   // Called by App.xaml.cpp after the window is shown: native-only setup that
   // needs the final HWND (topmost overlay chrome, global hotkey, clipboard
@@ -103,6 +104,7 @@ struct MainWindow : MainWindowT<MainWindow> {
   void RunSelected();
   void ShowLauncher();
   void HideLauncher();
+  void ApplyLanguage();
   void MoveSelection(int delta);
   void ApplyResults(std::vector<rivet_app::ResultRow> rows);
   // The ↵ chip on each row is visible only while that row is selected;

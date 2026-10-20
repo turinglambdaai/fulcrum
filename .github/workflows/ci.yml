@@ -36,6 +36,10 @@ jobs:
       - name: Schema baseline is compatible
         run: raco rivet schema check rivet-schema.json --json
         shell: bash
+      - name: Generated backend clients are current
+        if: runner.os == 'Linux'
+        run: raco rivet generate --check
+        shell: bash
       - name: Verify release version alignment
         run: bash scripts/check-release-version.sh
         shell: bash
@@ -44,6 +48,15 @@ jobs:
         shell: bash
       - name: Gallery data is fresh
         run: racket scripts/gen-gallery.rkt --check
+        shell: bash
+      - name: Generated i18n clients are current
+        if: runner.os == 'Linux'
+        run: |
+          raco rivet i18n
+          git diff --exit-code -- \
+            linux/GeneratedI18n.hpp \
+            macos-host/Sources/RivetHost/GeneratedI18n.swift \
+            windows/GeneratedI18n.hpp
         shell: bash
       - name: Run tests
         run: raco test tests/
@@ -103,6 +116,9 @@ jobs:
       - name: raco rivet build
         shell: bash
         run: raco rivet build
+      - name: Generated Linux client is current
+        shell: bash
+        run: git diff --exit-code -- linux/GeneratedBackend.hpp
       - name: Linux widget regression tests (private virtual display)
         run: |
           cmake --build .rivet/build/linux --target fulcrum-ui-test
@@ -119,7 +135,10 @@ jobs:
           test -f .rivet/stage/res/core.zo
 
   macos-host:
-    name: macOS host compile smoke
+    # Authoritative host graph, matching release/acceptance without signing.
+    # Source-by-source swift-frontend checks cannot resolve cross-file symbols,
+    # the generated client, Rivet packages, or the embedded Racket framework.
+    name: macOS host (official build)
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -128,15 +147,27 @@ jobs:
         with:
           version: stable
           distribution: full
-      - name: Swift syntax smoke
+          architecture: arm64
+      - name: Install Rivet (catalog)
+        run: raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+        shell: bash
+      - name: raco rivet doctor
+        run: raco rivet doctor
+        shell: bash
+      - name: raco rivet build
+        run: raco rivet build
+        shell: bash
+      - name: Generated macOS client is current
+        run: git diff --exit-code -- macos-host/Sources/RivetHost/GeneratedBackend.swift
+        shell: bash
+      - name: Verify staged host
         run: |
-          # Source-only syntax validation of the host sources without the
-          # full SwiftPM graph (which needs the staged Racket framework).
-          swiftc -version
-          for f in macos-host/Sources/RivetHost/*.swift; do
-            xcrun swift-frontend -typecheck "$f" 2>/dev/null || \
-              echo "::warning::$f needs the full swift build (skipped: missing Rivet runtime graph)"
-          done
+          set -euo pipefail
+          test -x .rivet/stage/RivetHost || { echo "staged macOS host missing" >&2; find .rivet -maxdepth 4 -print >&2; exit 1; }
+          test -d .rivet/stage/Frameworks/Racket.framework
+          test -f .rivet/stage/res/core.zo
+          echo "host binary: .rivet/stage/RivetHost"
+        shell: bash
 
   windows-host:
     # The same path the release leg takes (setup-racket → rivet pin →
@@ -163,8 +194,17 @@ jobs:
       - name: raco rivet build
         run: raco rivet build
         shell: bash
-      - name: Staged host
-        run: ls -R .rivet/stage | head -60
+      - name: Generated Windows client is current
+        run: git diff --exit-code -- windows/GeneratedBackend.hpp
+        shell: bash
+      - name: Verify staged host
+        run: |
+          set -euo pipefail
+          test -n "$(find .rivet/stage -type f -iname 'RivetHost.exe' -print -quit)" || {
+            echo "staged Windows host missing" >&2
+            find .rivet -maxdepth 4 -print >&2
+            exit 1
+          }
         shell: bash
 
   plugin-fixture:

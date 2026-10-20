@@ -79,6 +79,7 @@
 
 (define-state theme : String "system")
 (define-state hotkey : String "alt+space")
+(define-state language : String "zh")
 (define-state version : String app-version)
 
 ;; ---- Events -------------------------------------------------------------
@@ -348,7 +349,8 @@
         (settings-set! (settings!) sym next)
         (case sym
           [(theme) (state-set! theme (settings-get (settings!) 'theme))]
-          [(hotkey) (state-set! hotkey (settings-get (settings!) 'hotkey))])
+          [(hotkey) (state-set! hotkey (settings-get (settings!) 'hotkey))]
+          [(language) (state-set! language (settings-get (settings!) 'language))])
         (cons "ok" (list (cons 'notify (format "~a = ~a" sym next)))))
       (cons (format "unknown setting: ~a" key) '())))
 
@@ -1355,10 +1357,11 @@
 (define-rpc (settings-set [key String] [value String] : Bool)
   (define sym (string->symbol key))
   (settings-set! (settings!) sym (coerce-setting-value sym value))
-  ;; Reflect the two keys the host renders directly.
+  ;; Reflect the host-rendered keys immediately across every open surface.
   (case sym
     [(theme) (state-set! theme (settings-get (settings!) 'theme))]
-    [(hotkey) (state-set! hotkey (settings-get (settings!) 'hotkey))])
+    [(hotkey) (state-set! hotkey (settings-get (settings!) 'hotkey))]
+    [(language) (state-set! language (settings-get (settings!) 'language))])
   #t)
 
 ;; Readiness of the configured AI provider, for the settings window's AI
@@ -1664,5 +1667,6 @@
   (define manager (settings!))
   (state-set! theme (settings-get manager 'theme))
   (state-set! hotkey (settings-get manager 'hotkey))
+  (state-set! language (settings-get manager 'language))
   (void engine)
   (serve-fds in-fd out-fd))

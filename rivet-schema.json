@@ -575,6 +575,13 @@
       }
     },
     {
+      "name": "language",
+      "type": {
+        "kind": "scalar",
+        "name": "String"
+      }
+    },
+    {
       "name": "search-revision",
       "type": {
         "kind": "scalar",
