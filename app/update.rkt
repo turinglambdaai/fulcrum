@@ -54,6 +54,7 @@
          peek-candidate
          pending-artifact-size
          appimage-self-update?
+         package-managed-linux?
          verified-install-metadata
          updates-folder-uri
          perform-check!
@@ -217,6 +218,13 @@
 (define (appimage-self-update?)
   (and (eq? (platform-symbol) 'linux)
        (eq? (current-install-kind) 'appimage)))
+
+;; DEB/RPM (normally under /opt or /usr) are owned by dpkg/rpm and their
+;; repository/policy machinery. They must never be replaced by unpacking a
+;; tar.gz nor by running the standalone AppImage swap helper.
+(define (package-managed-linux?)
+  (and (eq? (platform-symbol) 'linux)
+       (eq? (current-install-kind) 'package-manager)))
 
 (define (verified-install-metadata)
   (define snapshot (update-state-snapshot))
