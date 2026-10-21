@@ -694,18 +694,21 @@ final class LauncherModel: ObservableObject {
     }
 
     func run(_ row: ResultRow) {
+        // Launcher update rows must use the same native CryptoKit verifier
+        // as the menu-bar update window. Invoking the Racket action here
+        // would still fail to decode its public key on packaged macOS.
+        if ["update.check", "update.download", "update.install"].contains(row.id) {
+            hide()
+            UpdateController.shared?.checkForUpdates()
+            AppDelegate.shared?.showUpdatePanel()
+            return
+        }
         guard let api else { return }
         Task { [weak self] in
             do {
                 let status = try await api.runAction(id: row.id, arg: row.arg)
                 await MainActor.run { [weak self] in
                     guard let self else { return }
-                    // Update rows drive host-native install/reveal; the
-                    // backend already did its part (state transitions).
-                    if row.id == "update.install" {
-                        UpdateController.shared?.quitAndInstall()
-                        return
-                    }
                     switch status {
                     case "ok", "launched", "copied", "opened":
                         if self.showingActions {
@@ -744,7 +747,10 @@ final class LauncherModel: ObservableObject {
                             }
                         }
                     case "quit-and-install":
-                        UpdateController.shared?.quitAndInstall()
+                        // Legacy backend status: always re-check the signed
+                        // feed through the macOS native updater first.
+                        UpdateController.shared?.checkForUpdates()
+                        AppDelegate.shared?.showUpdatePanel()
                     case "downloading":
                         self.status = I18nService.shared.t("updateDownloading")
                         self.hide()
