@@ -16,7 +16,7 @@ struct I18nEntry {
   std::string_view en;
 };
 
-inline constexpr std::array<I18nEntry, 74> kI18nTable{{
+inline constexpr std::array<I18nEntry, 75> kI18nTable{{
     {"aboutContent", "\344\270\200\351\224\256\345\215\263\350\276\276 \342\200\224 \345\272\224\347\224\250\343\200\201\345\211\252\350\264\264\346\235\277\343\200\201\347\211\207\346\256\265\343\200\201\347\252\227\345\217\243\347\256\241\347\220\206\344\270\216 BYOK AI\357\274\214\345\260\275\345\234\250\344\270\200\344\270\252\351\235\242\346\235\277", "One keystroke, everything within reach \342\200\224 apps, clipboard, snippets, window management and BYOK AI in one panel"},
     {"aboutLicense", "\344\273\245 Business Source License 1.1 \346\216\210\346\235\203\345\217\221\345\270\203", "Released under the Business Source License 1.1"},
     {"aboutReportIssue", "\351\227\256\351\242\230\345\217\215\351\246\210", "Report an Issue"},
