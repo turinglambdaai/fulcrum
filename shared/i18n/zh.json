@@ -13,6 +13,7 @@
   "updateCheckFailed": "检查更新失败：{0}",
   "updateInstallFailed": "安装更新失败：{0}。当前版本未受影响。",
   "updateNotInstalled": "当前为开发副本，自动更新不可用。",
+  "updateCancel": "取消下载",
   "updateClose": "关闭",
   "updateRetry": "重试",
   "updateOpenFolder": "打开文件夹",
