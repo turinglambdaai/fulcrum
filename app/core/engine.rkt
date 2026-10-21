@@ -55,13 +55,16 @@
 
 ;; Prepared application rows: the fuzzy fields are immutable per rebuild,
 ;; so pre-join the keywords once instead of on every keystroke for every
-;; application. Each entry is a vector (id name path keywords-joined).
+;; application. Each entry is a vector (id name path keywords-joined icon).
+;; The icon token stays part of the 8-column result-row contract: Linux
+;; consumes a freedesktop Icon name or path; macOS/Windows use native file APIs.
 (define (prepare-app-rows index)
   (for/list ([app (in-list (hash-values index))])
     (vector (application-id app)
             (application-name app)
             (application-path app)
-            (string-join (application-keywords app) " "))))
+            (string-join (application-keywords app) " ")
+            (application-icon app))))
 
 ;; Cheap first-character prefilter: a subsequence match must start
 ;; somewhere, so the query's first character has to appear (case-folded) in
@@ -157,7 +160,7 @@
           (for/list ([row (in-list top)])
             (result "app.launch" (vector-ref row 1)
                     (vector-ref row 2) "Application"
-                    (vector-ref row 0) "app" "" ""
+                    (vector-ref row 0) (vector-ref row 4) "" ""
                     (vector-ref row 3)
                     100)))
         (for/list ([row (in-list rows)]
@@ -171,7 +174,7 @@
           (and score
                (result "app.launch" (vector-ref row 1)
                        (vector-ref row 2) "Application"
-                       (vector-ref row 0) "app" "" ""
+                       (vector-ref row 0) (vector-ref row 4) "" ""
                        (vector-ref row 3)
                        (+ score 100)))))))
 
