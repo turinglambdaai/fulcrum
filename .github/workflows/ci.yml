@@ -128,6 +128,11 @@ jobs:
         run: |
           cmake --build .rivet/build/linux --target fulcrum-ui-test
           xvfb-run -a -s "-screen 0 1280x800x24 -nolisten tcp" dbus-run-session -- timeout 30s .rivet/build/linux/fulcrum-ui-test
+      - name: AppImage detached update replacement and rollback
+        shell: bash
+        run: |
+          cmake --build .rivet/build/linux --target fulcrum-appimage-handoff-test
+          timeout 45s .rivet/build/linux/fulcrum-appimage-handoff-test
       - name: Verify staged artifacts
         shell: bash
         run: |
