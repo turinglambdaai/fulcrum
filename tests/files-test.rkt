@@ -25,6 +25,42 @@
   ;; The limit holds.
   (check-equal? (length (parse-paths "/a/1\n/a/2\n/a/3\n/a/4\n" 3)) 3))
 
+(test-case "Windows Search file: URLs decode to plain paths"
+  (define parsed
+    (parse-paths
+     "file:///C:/Users/me/Reports/q3.md\nfile:///C:/Users/me/My%20Notes.md\n"))
+  (check-equal? (length parsed) 2)
+  (check-equal? (car (car parsed)) "q3.md")
+  (check-equal? (cdr (car parsed)) "C:/Users/me/Reports/q3.md")
+  (check-equal? (cdr (cadr parsed)) "C:/Users/me/My Notes.md"))
+
+(test-case "windows backend runs the index-first script inside one command"
+  (define captured #f)
+  (define result
+    (file-search/status
+     "o'brien" 8
+     #:os 'windows
+     #:resolve (lambda (program) (and (string=? program "powershell.exe") program))
+     #:run (lambda (program args #:timeout-ms [timeout-ms 3000])
+             (set! captured (cons program args))
+             "file:///C:/Users/me/obrien.txt\n")))
+  ;; The call stays a single PowerShell invocation with the 3s budget.
+  (check-equal? (car captured) "powershell.exe")
+  (check-equal? (cadr captured) "-NoProfile")
+  (check-equal? (file-search-result-status result) 'ok)
+  (check-equal? (file-search-result-hits result)
+                '(("obrien.txt" . "C:/Users/me/obrien.txt")))
+  (define script (cadddr captured))
+  ;; Index-first: SYSTEMINDEX query, then the honest scan fallback — both
+  ;; inside the same invocation so any index failure still answers.
+  (check-true (string-contains? script "SYSTEMINDEX"))
+  (check-true (string-contains? script "CONTAINS(System.FileName,"))
+  (check-true (string-contains? script "FREETEXT(System.FileName,"))
+  (check-true (string-contains? script "Get-ChildItem"))
+  ;; The query is neutralized for both SQL and PowerShell single quotes.
+  (check-false (string-contains? script "o'brien"))
+  (check-true (string-contains? script "o''brien")))
+
 (test-case "Linux find fallback reports timeout instead of an empty success"
   (define (find-only program)
     (and (string=? program "find") "/usr/bin/find"))

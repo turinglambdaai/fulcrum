@@ -16,6 +16,10 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # A VERSION-bump gate may create its tag with GITHUB_TOKEN. Those push
+  # events do not start other workflows; explicitly dispatch the same
+  # tag-driven pipeline instead.
+  workflow_dispatch:
 
 env:
   # Single pin source, same value as ci.yml (workflow-level env does not
@@ -294,3 +298,44 @@ jobs:
           cp "release/fulcrum-${VERSION}-linux-x86_64.AppImage" stable-alias/fulcrum-linux-x64.AppImage
           cp "release/fulcrum-${VERSION}-linux-aarch64.AppImage" stable-alias/fulcrum-linux-arm64.AppImage
           gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turinglambdaai/fulcrum
+
+  publish:
+    name: Verify assets and publish stable release
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify stable installers and signed feed exist before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          test "${tag#v}" != "$tag" || { echo "::error::Not a version tag"; exit 1; }
+          gh release view "$tag" --json isDraft --jq '.isDraft' | grep -Fx true
+          assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
+          version="${tag#v}"
+          for name in \
+            "fulcrum-${version}-macos-arm64.dmg" \
+            "fulcrum-${version}-macos-x64.dmg" \
+            "fulcrum-${version}-windows-x64.msi" \
+            "fulcrum-${version}-linux-amd64.deb" \
+            "fulcrum-${version}-linux-arm64.deb" \
+            "fulcrum-${version}-linux-x86_64.AppImage" \
+            "fulcrum-${version}-linux-aarch64.AppImage" \
+            "fulcrum-macos-arm64.dmg" \
+            "fulcrum-macos-x64.dmg" \
+            "fulcrum-windows-x64.msi" \
+            "fulcrum-linux-x64.deb" \
+            "fulcrum-linux-arm64.deb" \
+            "fulcrum-linux-x64.AppImage" \
+            "fulcrum-linux-arm64.AppImage" \
+            "update-manifest.json" "manifest.json" "SHA256SUMS"
+          do
+            printf '%s\n' "$assets" | grep -Fx "$name" || {
+              echo "::error::Missing release asset $name"; exit 1;
+            }
+          done
+          gh release edit "$tag" --draft=false
+          gh release view "$tag" --json isDraft --jq '.isDraft' | grep -Fx false

@@ -20,7 +20,7 @@
 - **Web 搜索 bang** —— `!g`、`!gh`、`!so`、`!w`、`!yt`、`!m`、`!d`、`!t`
 - **Quicklinks** —— 自带关键词的 URL 模板（`yt nature` 直达搜索），在启动器内一行创建
 - **窗口管理** —— 左/右半屏、最大化、近最大化、居中、还原，三平台各自原生实现
-- **文件搜索** —— `find <query>` 走 Spotlight（当前为 macOS，其他平台诚实提示）
+- **文件搜索** —— `find <query>` 走各平台索引：macOS 用 Spotlight，Windows 用 Windows Search，Linux 用 `plocate`/`locate`
 - **BYOK AI（流式）** —— 自带 OpenAI / Anthropic / Ollama 密钥：`ai summarize`、`ai clean`、`ai translate <lang>`、`ai explain`、`ai chat <msg>`、`ai <question>`——答案在面板里流式生成，完成后自动进剪贴板；密钥只存本机、绝不参与同步
 - **系统命令** —— 锁屏、睡眠、重启
 - **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)），附二十六个第一方插件，可在启动器内直接安装（查询 `gallery`）
@@ -61,7 +61,7 @@ fulcrum/
 
 ## 状态（开发者预览）
 
-开发者预览。后端已完成并通过全部测试（101 个 test case，覆盖排序、存储、插件、AI、签名更新链路），内置二十六个第一方插件的 gallery（查询 `gallery` 安装）与设置/片段同步 beta（`sync-root`）。三个宿主均对齐后端契约：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。已知的平台边界在[用户指南](docs/user-guide.zh-CN.md#疑难排查)里如实列明：文件搜索仅限 macOS；Linux 的 Wayland 粘贴到前台需要 `wtype`。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
+开发者预览。后端已完成并通过全部测试（101 个 test case，覆盖排序、存储、插件、AI、签名更新链路），内置二十六个第一方插件的 gallery（查询 `gallery` 安装）与设置/片段同步 beta（`sync-root`）。三个宿主均对齐后端契约：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。已知的平台边界在[用户指南](docs/user-guide.zh-CN.md#疑难排查)里如实列明：文件搜索依赖各平台索引（Windows 索引未开启的机器回退到有界慢扫描）；Linux 的 Wayland 粘贴到前台需要 `wtype`。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
 
 ## 开发
 

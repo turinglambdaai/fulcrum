@@ -20,8 +20,8 @@ store with revenue share stays gated per [docs/business.md](business.md)
    artifact served from `releases/latest/download/` — the exact path the
    updater already uses (GitHub 302 → objects CDN). Transport is GitHub's
    problem; integrity is ours.
-3. **The embedded gallery stays.** The eleven first-party plugins remain
-   built into the app (`gen-gallery.rkt`). That is the offline baseline,
+3. **The embedded gallery stays.** The twenty-six first-party plugins
+   remain built into the app (`gen-gallery.rkt`). That is the offline baseline,
    the fresh-install experience, and the trust anchor: a plugin source
    review always has a canonical copy.
 4. **Curated means curated.** No self-publishing, no accounts — a PR and

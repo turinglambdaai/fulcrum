@@ -46,15 +46,18 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-for _ in $(seq 1 100); do [[ -S "/tmp/.X11-unix/X${host_display#:}" ]] && break; kill -0 "$xvfb_pid" 2>/dev/null; sleep 0.05; done
+for _ in $(seq 1 400); do [[ -S "/tmp/.X11-unix/X${host_display#:}" ]] && break; kill -0 "$xvfb_pid" 2>/dev/null || break; sleep 0.05; done
 [[ -S "/tmp/.X11-unix/X${host_display#:}" ]]
-DISPLAY="$host_display" weston --backend=x11-backend.so --width=1280 --height=800 --socket="$WAYLAND_DISPLAY" --idle-time=0 --debug --log="$output/weston.log" &
+# Software rendering avoids flaky DRI3/EGL probing on headless GitHub runners.
+# This still runs a real nested Weston Wayland seat, with keyboard focus and
+# XTest input verified by the native UI acceptance below.
+DISPLAY="$host_display" weston --backend=x11-backend.so --renderer=pixman --width=1280 --height=800 --socket="$WAYLAND_DISPLAY" --idle-time=0 --debug --log="$output/weston.log" &
 weston_pid=$!
-for _ in $(seq 1 100); do [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]] && break; kill -0 "$weston_pid" 2>/dev/null; sleep 0.05; done
+for _ in $(seq 1 600); do [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]] && break; kill -0 "$weston_pid" 2>/dev/null || break; sleep 0.05; done
 [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]]
 launcher="$(command -v at-spi-bus-launcher || true)"; [[ -n "$launcher" ]] || launcher=/usr/libexec/at-spi-bus-launcher
 "$launcher" --launch-immediately >"$output/at-spi-bus.log" 2>&1 & atspi_pid=$!
-for _ in $(seq 1 100); do gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus --method org.a11y.Bus.GetAddress >/dev/null 2>&1 && break; kill -0 "$atspi_pid" 2>/dev/null; sleep 0.05; done
+for _ in $(seq 1 300); do gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus --method org.a11y.Bus.GetAddress >/dev/null 2>&1 && break; kill -0 "$atspi_pid" 2>/dev/null || break; sleep 0.05; done
 export AT_SPI_BUS_ADDRESS="$(gdbus call --session --dest org.a11y.Bus --object-path /org/a11y/bus --method org.a11y.Bus.GetAddress | sed -E "s/^\('([^']+)',\)$/\1/")"
 cd "$repo"; "$executable" >"$output/application.log" 2>&1 & app_pid=$!
 /usr/bin/python3 "$repo/scripts/e2e/linux-atspi.py" --output "$output"
