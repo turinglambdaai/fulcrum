@@ -57,6 +57,7 @@ enum GeneratedI18n {
         "updateAvailableBody": ["zh": "新版本 Fulcrum {0} 可用（{1}），是否下载并安装？", "en": "Fulcrum {0} is available ({1}). Download and install it?"],
         "updateAvailableStatus": ["zh": "发现新版本：Fulcrum v{0} — 输入 “update” 下载", "en": "Update available: Fulcrum v{0} — type \"update\" to download"],
         "updateAvailableTitle": ["zh": "发现新版本", "en": "Update Available"],
+        "updateCancel": ["zh": "取消下载", "en": "Cancel download"],
         "updateCheckFailed": ["zh": "检查更新失败：{0}", "en": "Update check failed: {0}"],
         "updateCheckNow": ["zh": "检查更新…", "en": "Check for Updates…"],
         "updateChecking": ["zh": "正在检查更新…", "en": "Checking for updates…"],
