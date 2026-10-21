@@ -141,8 +141,8 @@ final class UpdateController: ObservableObject {
         errorMessage = ""
         downloadTask = Task { [weak self] in
             do {
-                try await updater.downloadAndInstall(manifest, onProgress: { progress in
-                    Task { @MainActor [weak self] in
+                try await updater.downloadAndInstall(manifest, onProgress: { [weak self] progress in
+                    Task { @MainActor in
                         self?.percent = progress
                     }
                 })
