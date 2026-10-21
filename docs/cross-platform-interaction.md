@@ -37,7 +37,11 @@ the panel has been active once, otherwise the summon operation can erase itself.
 
 Every host exposes Open, Settings, Check for Updates, About and Quit through its
 native resident surface (menu bar or tray) and exposes Settings/About/Update as
-searchable launcher rows. Linux shows snippet expansion in Settings as disabled
+searchable launcher rows. Keep the launcher search field free of app-lifecycle
+buttons: a Linux-only Restart/Quit button beside the query duplicates the tray
+and makes a transient search surface behave unlike macOS/Windows. Restart is
+not a primary search action; Quit stays available in the tray, as on Windows.
+Platform-specific hotkey recovery remains available when GNOME owns Alt+Space. Linux shows snippet expansion in Settings as disabled
 with an explicit unsupported note until its expansion engine exists; hiding the
 feature would incorrectly suggest a different product model.
 

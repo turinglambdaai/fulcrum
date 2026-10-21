@@ -250,8 +250,6 @@ void install_shutdown_hook_once();
 // Tray menu composition (defined after Launcher). Called when the backend
 // `language` setting lands so the labels follow it without a restart.
 void apply_tray_language();
-void request_restart();
-bool g_restart_requested{false};
 
 // Settings window (defined after Launcher): the tray menu and the leading
 // settings row open it.
@@ -862,7 +860,6 @@ struct Launcher {
   GtkLabel* status{nullptr};
   GtkButton* hotkey_fix{nullptr};
   GtkLabel* navigation_hint{nullptr};
-  GtkMenuButton* app_menu{nullptr};
   // Live AI answer panel (hidden until the backend pushes ai-stream).
   GtkWidget* ai_panel{nullptr};
   GtkLabel* ai_phase{nullptr};
@@ -1835,14 +1832,6 @@ void set_i18n_language(std::string const& lang) {
   if (launcher.hotkey_fix != nullptr) {
     gtk_button_set_label(launcher.hotkey_fix, tr("trayFixHotkey").c_str());
   }
-  if (launcher.app_menu != nullptr) {
-    gtk_widget_set_tooltip_text(GTK_WIDGET(launcher.app_menu), tr("appMenu").c_str());
-    auto* menu = g_menu_new();
-    g_menu_append(menu, tr("trayRestart").c_str(), "app.restart");
-    g_menu_append(menu, tr("trayQuit").c_str(), "app.quit");
-    gtk_menu_button_set_menu_model(launcher.app_menu, G_MENU_MODEL(menu));
-    g_object_unref(menu);
-  }
   if (changed && launcher.results != nullptr) {
     auto* selected = gtk_list_box_get_selected_row(launcher.results);
     int index = selected != nullptr ? gtk_list_box_row_get_index(selected) : -1;
@@ -2397,11 +2386,6 @@ void tray_quit() {
   g_application_quit(G_APPLICATION(Launcher::instance().app));
 }
 
-void request_restart() {
-  g_restart_requested = true;
-  tray_quit();
-}
-
 // GNOME's stock "activate window menu" binding is <Alt>space — the
 // compositor consumes the summon key before the portal shortcut ever
 // sees it, and the consent UI does not resolve that for the user. When
@@ -2756,14 +2740,10 @@ void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
 void on_activate(GtkApplication* app, gpointer) {
   Launcher& launcher = Launcher::instance();
   launcher.app = app;  // tray quit routes through GApplication's shutdown
-  GActionEntry actions[3]{};
-  actions[0].name = "restart";
-  actions[0].activate = [](GSimpleAction*, GVariant*, gpointer) { request_restart(); };
-  actions[1].name = "quit";
-  actions[1].activate = [](GSimpleAction*, GVariant*, gpointer) { tray_quit(); };
-  actions[2].name = "fix-hotkey";
-  actions[2].activate = [](GSimpleAction*, GVariant*, gpointer) { tray_fix_hotkey(); };
-  g_action_map_add_action_entries(G_ACTION_MAP(app), actions, 3, nullptr);
+  // Deliberately no Restart/Quit actions in the search panel. Unlike
+  // persistent tool windows, the launcher is a transient keyboard surface;
+  // native resident menus already provide Quit, Settings and Updates.
+  // GNOME hotkey recovery stays available as a tray item or inline notice.
 
   // The panel hides on focus loss; without a hold, GTK would treat the
   // hidden window as "last window closed" and shut the whole app down.
@@ -3079,13 +3059,5 @@ int run_application() {
 }
 
 int main(int, char**) {
-  std::string const executable = executable_path().string();
-  int const status = run_application();
-  // Release the single-instance lease and stop the backend before re-exec.
-  if (g_restart_requested) {
-    execl(executable.c_str(), executable.c_str(), static_cast<char*>(nullptr));
-    std::cerr << "fulcrum: restart failed: " << g_strerror(errno) << '\n';
-    return 1;
-  }
-  return status;
+  return run_application();
 }
