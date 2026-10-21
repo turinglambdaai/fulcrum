@@ -26,7 +26,9 @@ env:
   # cross files, so this is defined here too). Contexts aren't allowed in
   # `uses:`, so the setup-embed-racket action ref must be bumped in
   # lockstep by hand.
-  RIVET_PIN: v0.12.0
+  # Provisional immutable upstream fix for signed framework links in branded
+  # DMG staging (Rivet #300). Update to tested merge commit before merging.
+  RIVET_PIN: 1cb0947ac886dc9bbbcdabee1d922bb667fadf9f
 permissions:
   contents: write
 
@@ -109,7 +111,7 @@ jobs:
             rpm desktop-file-utils
       - name: Set up embeddable Racket CS (Linux)
         if: matrix.platform == 'linux'
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@1cb0947ac886dc9bbbcdabee1d922bb667fadf9f
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own.
