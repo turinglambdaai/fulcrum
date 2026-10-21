@@ -29,7 +29,8 @@ let package = Package(
             dependencies: [
                 .product(name: "RivetRuntime", package: "rivet"),
                 .product(name: "RivetEmbedding", package: "rivet"),
-                .product(name: "RivetSystem", package: "rivet")
+                .product(name: "RivetSystem", package: "rivet"),
+                .product(name: "RivetUpdate", package: "rivet")
             ],
             path: "Sources/RivetHost",
             linkerSettings: [
