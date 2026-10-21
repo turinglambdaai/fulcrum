@@ -155,6 +155,10 @@ jobs:
           raco rivet release --development
           rm -f update-private.pem update-private.der
         shell: bash
+      - name: Verify mounted Finder DMG installer
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: bash scripts/test-macos-dmg.sh
       # Versioned + architecture-suffixed names are the release contract: the
       # channel manifest (.github/sign-manifest.rkt) pins exactly these names,
       # and the mac zip doubles as the portable build the update feed serves.
