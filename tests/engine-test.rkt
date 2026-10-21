@@ -78,6 +78,25 @@
                  "app rows stay Applications; web fallback is the only other kind")
      (check-false (member "Terminal" (map row-title rows))))))
 
+(test-case "application icon metadata survives ranking into native result rows"
+  (with-fresh-data-dir
+   (lambda ()
+     (define app (application "dterminal" "Terminal" "/bin/true"
+                              "org.gnome.Terminal" '()
+                              "/usr/share/applications/terminal.desktop"))
+     (define engine (fixture-engine #:apps (list app)))
+     (for ([query (in-list '("" "Terminal"))])
+       (define rows (engine-search engine query))
+       (define match
+         (findf (lambda (row)
+                  (and (string=? (row-kind row) "Application")
+                       (string=? (row-title row) "Terminal")))
+                rows))
+       (check-not-false match)
+       (when match
+         (check-equal? (list-ref match 5) "org.gnome.Terminal")
+         (check-equal? (row-arg match) "dterminal"))))))
+
 (test-case "calculator row appears for expressions"
   (with-fresh-data-dir
    (lambda ()
