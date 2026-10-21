@@ -142,8 +142,11 @@ int main() {
   check(gtk_list_box_row_get_index(gtk_list_box_get_selected_row(launcher.results)) == 11,
         "language refresh preserves ordinary application selection");
   set_i18n_language("en");
-  check(g_action_map_lookup_action(G_ACTION_MAP(app), "restart") != nullptr,
-        "restart is available as a native application action");
+  check(g_action_map_lookup_action(G_ACTION_MAP(app), "restart") == nullptr &&
+            g_action_map_lookup_action(G_ACTION_MAP(app), "quit") == nullptr,
+        "search UI does not expose redundant Restart/Quit app actions");
+  check(launcher.app != nullptr,
+        "the resident native tray still owns application lifecycle");
 
   auto* settings = gtk_settings_get_default();
   gchar* original_theme = nullptr;
