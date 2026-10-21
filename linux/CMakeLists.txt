@@ -49,3 +49,11 @@ add_executable(fulcrum-ui-test EXCLUDE_FROM_ALL ../tests/linux-ui-test.cpp)
 target_include_directories(fulcrum-ui-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(fulcrum-ui-test PRIVATE rivet::platform X11 X11::Xtst)
 target_compile_options(fulcrum-ui-test PRIVATE -Wall -Wextra -Wpedantic)
+
+# Headless transaction test: invokes the pinned Rivet AppImage helper
+# directly against executable fixtures (no FUSE and no GTK display).
+add_executable(fulcrum-appimage-handoff-test EXCLUDE_FROM_ALL
+  ../tests/linux-appimage-handoff-test.cpp)
+target_link_libraries(fulcrum-appimage-handoff-test PRIVATE rivet::platform)
+target_compile_options(fulcrum-appimage-handoff-test PRIVATE
+  -Wall -Wextra -Wpedantic)
