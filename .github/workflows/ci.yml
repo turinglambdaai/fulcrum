@@ -168,6 +168,19 @@ jobs:
       - name: raco rivet build
         run: raco rivet build
         shell: bash
+      - name: Smoke-test real drag-to-Applications DMG
+        shell: bash
+        env:
+          RIVET_UPDATE_BASE_URL: https://example.invalid/fulcrum-ci
+          RIVET_UPDATE_KEY_ID: ci-dmg-smoke
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm Ed25519 -out "$RUNNER_TEMP/update-private.pem"
+          openssl pkey -in "$RUNNER_TEMP/update-private.pem" -outform DER \
+            -out "$RUNNER_TEMP/update-private.der"
+          export RIVET_UPDATE_PRIVATE_KEY="$RUNNER_TEMP/update-private.der"
+          raco rivet release --development
+          bash scripts/test-macos-dmg.sh
       - name: Generated macOS client is current
         run: git diff --exit-code -- macos-host/Sources/RivetHost/GeneratedBackend.swift
         shell: bash
