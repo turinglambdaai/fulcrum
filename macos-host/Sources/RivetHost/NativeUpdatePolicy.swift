@@ -6,6 +6,7 @@ import Foundation
 /// These fields affect eligibility; an Ed25519 signature alone only proves
 /// who published the data, not that the installed app should consume it.
 enum NativeUpdatePolicy {
+    enum PolicyError: Error { case invalidPayload }
     struct Payload: Decodable {
         struct Artifact: Decodable {
             let platform: String
@@ -32,7 +33,7 @@ enum NativeUpdatePolicy {
         // Ed25519 signature over this exact wrapper's payload bytes.
         let wrapper = try JSONDecoder().decode(SignedWrapper.self, from: verifiedWrapper)
         guard let bytes = Data(base64Encoded: wrapper.payload) else {
-            throw RivetUpdateError.signatureInvalid
+            throw PolicyError.invalidPayload
         }
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -45,7 +46,7 @@ enum NativeUpdatePolicy {
         let pieces = version.split(separator: ".", omittingEmptySubsequences: false)
         guard pieces.count == 3 else { return nil }
         let nums = pieces.compactMap { part -> Int? in
-            guard !part.isEmpty, part.allSatisfy({ $0.isASCII && $0.isNumber }),
+            guard !part.isEmpty, part.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }),
                   let number = Int(part) else { return nil }
             return number
         }
