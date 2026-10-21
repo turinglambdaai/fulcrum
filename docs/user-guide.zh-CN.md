@@ -6,6 +6,19 @@
 
 ---
 
+## macOS 安装与首次启动
+
+1. 从 [官方 Releases](https://github.com/turinglambdaai/fulcrum/releases/latest) 下载 **.dmg 安装包**（.zip 主要用于应用内更新）：M 系列 Mac 选 `arm64`，Intel Mac 选 `x64`。
+2. 双击打开 DMG，在 Finder 窗口中将 **Fulcrum.app 拖到 Applications（应用程序）图标**上。如果提示覆盖旧版本，请先退出正在运行的 Fulcrum。等待拷贝完成后，推出 DMG。
+3. 从 **「应用程序」文件夹**启动 Fulcrum。即使搜索面板隐藏，它也会驻留菜单栏；可以使用 <kbd>⌥</kbd>+<kbd>Space</kbd> 或备用热键唤出。
+4. 需要粘贴到前台应用等功能时，macOS 可能请求辅助功能权限。按需在 **系统设置 → 隐私与安全性 → 辅助功能**授权，不必为了安装而预先打开所有权限。
+
+**关于 Gatekeeper：** 当前开发预览版本使用临时签名，尚未完成 Apple Developer ID 公证。如果系统阻止打开，请先确认来源是官方 Releases；[Apple 安全说明](https://support.apple.com/102445) 介绍了仅对确认可信的应用在「隐私与安全性」中执行「仍要打开」的操作。不要全局关闭 Gatekeeper，也不要批量移除隔离属性。正规签名与公证仍是单独的发布要求。
+
+**仍看到只有一个应用的旧式 DMG？** 你可能安装了旧版本。新的拖拽式 DMG 只对合并并重新发布后的安装包生效，已下载的历史包不会自动改变。
+
+---
+
 ## 一分钟上手
 
 1. 按 <kbd>Alt</kbd>+<kbd>Space</kbd>（macOS 是 <kbd>⌥</kbd>+<kbd>Space</kbd>），面板出现。
