@@ -90,6 +90,34 @@ int main() {
   check(gtk_widget_get_height(scrolled) >= 3 * gtk_widget_get_height(GTK_WIDGET(first)),
         "results viewport shows multiple candidates");
   check(has_label(GTK_WIDGET(first), "system"), "current setting badge is rendered");
+
+  // A .desktop Icon=absolute/path should create a native file icon,
+  // while an invalid entry must fall back to the generic glyph.
+  gchar* icon_dir = g_dir_make_tmp("fulcrum-icon-test-XXXXXX", nullptr);
+  check(icon_dir != nullptr, "test icon directory can be created");
+  if (icon_dir != nullptr) {
+    std::string icon_path = std::string(icon_dir) + "/app.svg";
+    char const* svg = "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'>"
+                      "<rect width='32' height='32' fill='#d97706'/></svg>";
+    check(g_file_set_contents(icon_path.c_str(), svg, -1, nullptr) != FALSE,
+          "test app icon is written");
+    auto app = parse_row({"app.launch", "Test App", "/tmp/test.desktop",
+                          "Application", "dtest", icon_path, "", ""});
+    GtkWidget* app_image = application_icon(app);
+    check(GTK_IS_IMAGE(app_image) &&
+              gtk_image_get_storage_type(GTK_IMAGE(app_image)) == GTK_IMAGE_GICON,
+          "application row renders its real desktop Icon path");
+    auto missing = parse_row({"app.launch", "Missing Icon", "/tmp/test.desktop",
+                              "Application", "dmissing",
+                              "/no/such/fulcrum/icon.svg", "", ""});
+    check(application_icon(missing) == nullptr,
+          "broken app icons allow the generic glyph fallback");
+    if (app_image) g_object_ref_sink(app_image);
+    if (app_image) g_object_unref(app_image);
+    g_remove(icon_path.c_str());
+    g_rmdir(icon_dir);
+    g_free(icon_dir);
+  }
   launcher.rows.back().badge.clear();
   launcher.refresh_results();
   pump(40);
