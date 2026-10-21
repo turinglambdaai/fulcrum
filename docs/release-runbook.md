@@ -92,6 +92,48 @@ Required secrets: `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`,
 `RIVET_UPDATE_KEY_ID`. The manifest base URL is derived from the tag, not
 a secret.
 
+## 3a. macOS drag-to-install DMG (Taskly-parity)
+
+Fulcrum now uses the **Rivet v0.12.0 branded Finder DMG** instead of the
+default single-folder disk image. `rivet.rktd` declares
+`dmg-background = assets/dmg-background.png`; its editable, reviewable
+source is `assets/dmg-background.svg`. Finder positions the 80-point app
+and Applications-link icons at (130,160) and (450,160) in a 660×400 window.
+
+On each **macOS** tagged-release runner, after installing Rivet but before
+`raco rivet release`, run:
+
+```bash
+brew install librsvg
+bash scripts/render-dmg-background.sh
+python3 scripts/check-macos-dmg-layout.py
+```
+
+The build fails if the artwork cannot be rendered or is not the expected
+1320×800 (2×) PNG; the generated raster is intentionally gitignored.
+Both `macos-arm64` and `macos-x64` run this check, and macOS CI
+validates the SVG/raster contract as well.
+
+**Release smoke test on a real macOS machine, both architectures:**
+mount the actual packaged `.dmg`, check that the Finder window displays
+Fulcrum.app and the Applications alias with the correct drag cue, drag the
+app to Applications, eject the DMG, launch the installed copy, summon it
+with the hotkey and check Accessibility permissions are requested only
+when relevant. An app started directly inside a mounted DMG is **not**
+the installed copy and must not be used as the updater acceptance path.
+
+**Signing is a separate gate.** The current release workflow explicitly
+uses `raco rivet release --development`: this produces an ad-hoc-signed
+preview, *not* a Developer ID signed and Apple-notarized public build.
+A nicer DMG cannot remove Gatekeeper warnings. Before promising a
+warning-free consumer install, wire up Rivet's production signing/
+notarization path and test `spctl`, `codesign --verify`, and stapled
+DMG validation, using securely provisioned signing credentials.
+Do not work around the absence of notarization by clearing quarantine
+or disabling Gatekeeper.
+
+---
+
 ## 4. Publish checklist
 
 - [ ] Draft release notes link the changelog section.
