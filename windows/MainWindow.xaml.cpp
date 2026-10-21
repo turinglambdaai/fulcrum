@@ -10,8 +10,8 @@
 
 #include <shellapi.h>
 #include <commctrl.h>
-#include <robuffer.h>
 #include <cstring>
+#include <map>
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 #pragma comment(lib, "comctl32.lib")
 
@@ -206,6 +206,14 @@ winrt::Microsoft::UI::Xaml::Controls::Border make_chip(
   chip.Child(label);
   return chip;
 }
+
+// IBufferByteAccess is a Windows Runtime ABI interop interface for the
+// contiguous pixels of an IBuffer. Some current Windows SDKs do not expose
+// its definition through robuffer.h; declare the documented ABI locally.
+struct __declspec(uuid("905A0FEF-BC53-11DF-8C49-001E4FC686DA"))
+    IBufferByteAccess : ::IUnknown {
+  virtual HRESULT STDMETHODCALLTYPE Buffer(BYTE** value) = 0;
+};
 
 // A Start Menu .lnk may specify its own target/embedded icon; .url and
 // .exe files also have shell-provided icons. The search backend already
