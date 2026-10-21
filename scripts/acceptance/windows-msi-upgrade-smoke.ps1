@@ -99,6 +99,17 @@ try {
   Invoke-Msi "i" $new "upgrade-new"
   Require-InstalledVersion $NewVersion
   Write-Host "PASS: major upgrade $OldVersion -> $NewVersion removed the previous registration"
+
+  # The old MSI must refuse a downgrade, preserving the working new app.
+  # This is an MSI downgrade-policy regression, not a crash recovery test.
+  $downgradeLog = Join-Path $root "blocked-downgrade.log"
+  $args = "/i `"$old`" /qn /norestart /L*v `"$downgradeLog`""
+  $downgrade = Start-Process -FilePath $msiexec -ArgumentList $args -Wait -PassThru
+  if ($downgrade.ExitCode -in @(0, 3010, 1641)) {
+    throw "Older MSI unexpectedly accepted a downgrade (exit $($downgrade.ExitCode))"
+  }
+  Require-InstalledVersion $NewVersion
+  Write-Host "PASS: older MSI downgrade rejected without damaging the newer installation"
 } finally {
   if ($installed) {
     $entries = @(Get-FulcrumInstallation)
