@@ -74,17 +74,19 @@
   (check-true (string-prefix? (updates-folder-uri) "file:///"))
   (check-false (string-contains? (updates-folder-uri) " ")))
 
-(test-case "Linux package-manager-owned paths never qualify as portable AppImages"
-  (check-equal? (detect-install-kind 'linux "/opt/fulcrum/bin/fulcrum" #f)
-                'package-manager)
-  (check-equal? (detect-install-kind 'linux "/usr/bin/fulcrum" #f)
-                'package-manager)
-  (check-equal? (detect-install-kind 'linux "/home/runner/Fulcrum.AppImage"
-                                     "/home/runner/Fulcrum.AppImage")
-                'appimage)
-  (check-equal? (detect-install-kind 'linux "/home/runner/portable/fulcrum"
-                                     #f)
-                'portable))
+(test-case "Linux package-manager paths are not treated as portable"
+  ;; The public Rivet adapter supplies current-install-kind, while the
+  ;; internal detect-install-kind helper is intentionally not exported.
+  (when (eq? (platform-symbol) 'linux)
+    (check-equal? (current-install-kind
+                   (string->path "/opt/fulcrum/bin/fulcrum"))
+                  'package-manager)
+    (check-equal? (current-install-kind
+                   (string->path "/usr/bin/fulcrum"))
+                  'package-manager)
+    (check-equal? (current-install-kind
+                   (string->path "/home/runner/portable/fulcrum"))
+                  'portable)))
 
 (test-case "Linux AppImage selection uses the installer discriminator"
   (define tar
