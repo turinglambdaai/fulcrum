@@ -1546,7 +1546,9 @@
                    [(windows)
                     "double-click the downloaded .msi and follow the installer; Fulcrum can be running during the upgrade"]
                    [else
-                    "extract the .tar.gz and replace the current Fulcrum folder, then relaunch"])
+                    (if (appimage-self-update?)
+                        "fallback: exit Fulcrum and replace the current .AppImage with this verified AppImage"
+                        "extract the .tar.gz and replace the current Fulcrum folder, then relaunch")])
                  "" "")))]
         [else
          (append
