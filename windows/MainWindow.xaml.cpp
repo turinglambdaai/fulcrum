@@ -11,6 +11,9 @@
 #include <shellapi.h>
 #include <commctrl.h>
 #include <shellscalingapi.h>
+#include <cstring>
+#include <map>
+#include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "Shcore.lib")
 
@@ -237,6 +240,74 @@ winrt::Microsoft::UI::Xaml::Controls::Border make_chip(
   return chip;
 }
 
+// IBufferByteAccess is a Windows Runtime ABI interop interface for the
+// contiguous pixels of an IBuffer. Some current Windows SDKs do not expose
+// its definition through robuffer.h; declare the documented ABI locally.
+struct __declspec(uuid("905A0FEF-BC53-11DF-8C49-001E4FC686DA"))
+    IBufferByteAccess : ::IUnknown {
+  virtual HRESULT STDMETHODCALLTYPE Buffer(BYTE** value) = 0;
+};
+
+// A Start Menu .lnk may specify its own target/embedded icon; .url and
+// .exe files also have shell-provided icons. The search backend already
+// sends their on-disk path as the Application row subtitle. Ask Shell for
+// the real large icon rather than painting the same Fluent glyph for every
+// app. WinUI images consume BGRA premultiplied pixels in a WriteableBitmap.
+//
+// Cache per path: search rebuilds rows on each keystroke, but extracting
+// shortcuts on every render would block the UI thread repeatedly.
+winrt::Microsoft::UI::Xaml::Media::Imaging::WriteableBitmap shell_app_icon(
+    std::wstring const& path) {
+  namespace imaging = winrt::Microsoft::UI::Xaml::Media::Imaging;
+  static std::map<std::wstring, imaging::WriteableBitmap> cache;
+  if (path.empty()) return nullptr;
+  if (auto it = cache.find(path); it != cache.end()) return it->second;
+
+  imaging::WriteableBitmap bitmap{nullptr};
+  SHFILEINFOW shell{};
+  if (::SHGetFileInfoW(path.c_str(), 0, &shell, sizeof(shell),
+                       SHGFI_ICON | SHGFI_LARGEICON) && shell.hIcon) {
+    constexpr int iconSize = 32;
+    BITMAPINFO dib{};
+    dib.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    dib.bmiHeader.biWidth = iconSize;
+    dib.bmiHeader.biHeight = -iconSize;  // top-down, BGRA
+    dib.bmiHeader.biPlanes = 1;
+    dib.bmiHeader.biBitCount = 32;
+    dib.bmiHeader.biCompression = BI_RGB;
+    void* pixels = nullptr;
+    HBITMAP surface = ::CreateDIBSection(nullptr, &dib, DIB_RGB_COLORS,
+                                        &pixels, nullptr, 0);
+    if (surface != nullptr && pixels != nullptr) {
+      if (HDC dc = ::CreateCompatibleDC(nullptr)) {
+        HGDIOBJ previous = ::SelectObject(dc, surface);
+        if (previous && previous != HGDI_ERROR) {
+          std::memset(pixels, 0, iconSize * iconSize * 4);
+          if (::DrawIconEx(dc, 0, 0, shell.hIcon, iconSize, iconSize, 0,
+                           nullptr, DI_NORMAL)) {
+            bitmap = imaging::WriteableBitmap(iconSize, iconSize);
+            auto access = bitmap.PixelBuffer().as<IBufferByteAccess>();
+            BYTE* destination = nullptr;
+            if (SUCCEEDED(access->Buffer(&destination)) && destination) {
+              std::memcpy(destination, pixels, iconSize * iconSize * 4);
+              bitmap.Invalidate();
+            } else {
+              bitmap = nullptr;
+            }
+          }
+          ::SelectObject(dc, previous);
+        }
+        ::DeleteDC(dc);
+      }
+      ::DeleteObject(surface);
+    }
+    ::DestroyIcon(shell.hIcon);
+  }
+  if (cache.size() >= 256) cache.clear();
+  cache.emplace(path, bitmap);
+  return bitmap;
+}
+
 struct RowContent {
   winrt::Microsoft::UI::Xaml::Controls::Grid root{nullptr};
   winrt::Microsoft::UI::Xaml::Controls::Border enter_chip{nullptr};
@@ -261,20 +332,35 @@ RowContent build_row_content(rivet_app::ResultRow const& row) {
     root.ColumnDefinitions().Append(column);
   }
 
-  // Icon tile: fixed 28pt amber-tinted square, glyph centered.
-  mxc::FontIcon icon;
-  icon.Glyph(row_glyph(row));
-  icon.FontSize(14);
-  mxc::Border icon_tile;
-  icon_tile.Width(28);
-  icon_tile.Height(28);
-  icon_tile.CornerRadius({6, 6, 6, 6});
-  icon_tile.Background(wum::SolidColorBrush{amber_color(0x1F)});
-  icon_tile.Padding({6, 6, 6, 6});
-  icon_tile.Child(icon);
-  icon_tile.VerticalAlignment(mx::VerticalAlignment::Center);
-  mx::Controls::Grid::SetColumn(icon_tile, 0);
-  root.Children().Append(icon_tile);
+  // Application rows use the icon Windows associates with the shortcut
+  // or executable. A broken/missing icon falls back to a semantic glyph,
+  // without preventing that app from appearing in results.
+  auto native_icon = row.kind == "Application"
+      ? shell_app_icon(to_wide(row.subtitle)) : nullptr;
+  if (native_icon) {
+    mxc::Image image;
+    image.Source(native_icon);
+    image.Width(28);
+    image.Height(28);
+    image.Stretch(wum::Stretch::Uniform);
+    image.VerticalAlignment(mx::VerticalAlignment::Center);
+    mx::Controls::Grid::SetColumn(image, 0);
+    root.Children().Append(image);
+  } else {
+    mxc::FontIcon icon;
+    icon.Glyph(row_glyph(row));
+    icon.FontSize(14);
+    mxc::Border icon_tile;
+    icon_tile.Width(28);
+    icon_tile.Height(28);
+    icon_tile.CornerRadius({6, 6, 6, 6});
+    icon_tile.Background(wum::SolidColorBrush{amber_color(0x1F)});
+    icon_tile.Padding({6, 6, 6, 6});
+    icon_tile.Child(icon);
+    icon_tile.VerticalAlignment(mx::VerticalAlignment::Center);
+    mx::Controls::Grid::SetColumn(icon_tile, 0);
+    root.Children().Append(icon_tile);
+  }
 
   // Title + muted subtitle stacked.
   auto const& subtitle = row.subtitle.empty() ? row.kind : row.subtitle;
