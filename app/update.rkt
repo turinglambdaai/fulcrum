@@ -235,7 +235,7 @@
                       'sha256 (update-artifact-sha256 artifact)
                       'rollbackAllowed (update-manifest-rollback-allowed? manifest)
                       'installer (symbol->string
-                                  (update-artifact-installer artifact))))))))
+                                  (update-artifact-installer artifact)))))))))
 
 ;; The updates directory as a file:// URI the hosts can shell-open (Finder,
 ;; Explorer, and xdg-open all speak it).
