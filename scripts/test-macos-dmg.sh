@@ -37,5 +37,19 @@ test -f "$mount/.DS_Store" || {
 test -x "${apps[0]}/Contents/MacOS/fulcrum" || {
   echo "::error::Installed app executable missing" >&2; exit 1;
 }
-codesign --verify --strict "${apps[0]}/Contents/MacOS/fulcrum"
-echo "Branded Finder DMG has one app, Applications link, wallpaper, icon layout and code signature."
+# Check the outer app bundle, not only its Mach-O executable: the bundle
+# seals embedded frameworks and resources. If verification fails, collect
+# nested-code diagnostics but keep the test red (never bypass signature checks).
+if ! codesign --verify --strict --verbose=4 "${apps[0]}"; then
+  echo "::error::Mounted DMG contains an app with an invalid code signature" >&2
+  framework="${apps[0]}/Contents/Frameworks/Racket.framework"
+  echo "::group::Nested Racket framework diagnostics" >&2
+  ls -la "$framework" "$framework/Versions" || true
+  find "$framework" -maxdepth 3 \( -name Info.plist -o -name Racket \) -print || true
+  codesign --display --verbose=4 "$framework" 2>&1 || true
+  codesign --verify --strict --verbose=4 "$framework" 2>&1 || true
+  codesign --verify --strict --verbose=4 "${apps[0]}/Contents/MacOS/fulcrum" 2>&1 || true
+  echo "::endgroup::" >&2
+  exit 1
+fi
+echo "Branded Finder DMG has one app, Applications link, wallpaper, icon layout and a strictly verified app signature."
