@@ -156,6 +156,12 @@ jobs:
       - name: Install Rivet (catalog)
         run: raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
+      - name: Verify macOS Finder DMG artwork
+        run: |
+          brew install librsvg
+          bash scripts/render-dmg-background.sh
+          python3 scripts/check-macos-dmg-layout.py
+        shell: bash
       - name: raco rivet doctor
         run: raco rivet doctor
         shell: bash
