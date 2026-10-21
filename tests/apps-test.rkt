@@ -86,6 +86,8 @@
      (check-true (and (member "Second Section Wins" names) #t))
      (define fulcrum (findf (lambda (a) (string=? (application-name a) "Fulcrum")) apps))
      (check-equal? (application-exec fulcrum) "/usr/bin/fulcrum %U")
+     (check-equal? (application-icon fulcrum) "fulcrum"
+                   "freedesktop Icon key is retained for GTK native rendering")
      (check-true (and (member "launcher" (application-keywords fulcrum)) #t))
      ;; Deterministic ids across rebuilds.
      (check-equal? (map application-id apps)
