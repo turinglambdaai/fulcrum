@@ -457,7 +457,7 @@
                                  (case (system-type 'os)
                                    [(macosx) "File search needs mdfind (Spotlight CLI)"]
                                    [(windows) "File search needs PowerShell"]
-                                   [else "File search needs locate or find"])
+                                   [else "File search needs locate or find — install plocate for indexed results"])
                                  "no search tool on PATH — install one and this turns into real results"
                                  "File" "" "doc" "" "Unavailable"
                                  "find file search"

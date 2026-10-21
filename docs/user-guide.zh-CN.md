@@ -74,7 +74,7 @@ add link yt https://youtube.com/search?q={query}
 
 ### 找文件
 
-`find 发票` 通过 Spotlight 搜文件名（macOS）。其他平台会诚实提示需要系统搜索索引。
+`find 发票` 走各平台自己的索引搜文件名：macOS 用 Spotlight，Windows 用 Windows Search（索引未开启的机器回退到有界慢扫描），Linux 用 `plocate`/`locate`。Linux 上装了 `plocate` 就快；一个搜索工具都没有时，Fulcrum 会如实说明。
 
 ### 系统命令
 
@@ -208,7 +208,7 @@ Fulcrum 只发三种网络请求：更新检查（签名、节流）、你主动
 - **插件用任何语言。** Raycast 只收 TypeScript。Fulcrum 接受任何读 stdin 写 JSON 的程序——Python、Go、Rust、shell 脚本。
 - **专注，不臃肿。** Fulcrum 把启动器的事做好，不试图变成窗口管理器、笔记应用或 AI 聊天机器人。
 
-**还没做到的（诚实清单）：** 插件生态年轻（26 个内置 vs Raycast 商店的 2500+）；剪贴板只收文本；文件搜索仅限 macOS；片段自动展开不支持 Linux。
+**还没做到的（诚实清单）：** 插件生态年轻（26 个内置 vs Raycast 商店的 2500+）；剪贴板只收文本；片段自动展开不支持 Linux。
 
 ---
 
