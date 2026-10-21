@@ -156,6 +156,12 @@ jobs:
       - name: Install Rivet (catalog)
         run: raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
+      - name: Native update policy regression
+        run: |
+          swiftc macos-host/Sources/RivetHost/NativeUpdatePolicy.swift \
+            macos-host/Tests/main.swift -o /tmp/fulcrum-update-policy-test
+          /tmp/fulcrum-update-policy-test
+        shell: bash
       - name: raco rivet doctor
         run: raco rivet doctor
         shell: bash
