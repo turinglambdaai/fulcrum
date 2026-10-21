@@ -42,6 +42,8 @@ final class UpdateController: ObservableObject {
     private static let publicKeyBase64 = "R5cgPk4fzhCeRdQbp1XofrfSYcCCtb9nKK4OqqWOVdc="
     private static let keyID = "fulcrum-2026-10"
     private static let lastCheckKey = "fulcrum.native-update.last-check"
+    private static let rolloutBucketKey = "fulcrum.native-update.rollout-bucket"
+    private static let maximumManifestBytes = 4 * 1024 * 1024
 
     private let updater: RivetUpdateService?
 
@@ -108,10 +110,13 @@ final class UpdateController: ObservableObject {
             return
         }
         do {
-            switch try await updater.check() {
-            case .upToDate:
-                phase = .upToDate
-            case .available(let manifest):
+            // The native CryptoKit verifier authenticates the signed
+            // payload, then we apply the same eligibility gates as Racket's
+            // select-update: app ID, stable channel, minimum version,
+            // sticky rollout bucket, architecture and zip installer.
+            // RivetUpdateService.check() only compares versions, and must
+            // not decide installation eligibility by itself.
+            if let manifest = try await fetchEligibleManifest() {
                 guard let artifact = manifest.artifact(forPlatform: "macos") else {
                     throw RivetUpdateError.manifestMissing
                 }
@@ -123,11 +128,70 @@ final class UpdateController: ObservableObject {
                 if !manual {
                     AppDelegate.shared?.showUpdatePanel()
                 }
+            } else {
+                phase = .upToDate
             }
         } catch {
             errorMessage = t("updateCheckFailed", Self.cleanError(error))
             phase = .failed
         }
+    }
+
+    private static func stickyRolloutBucket() -> Int {
+        let defaults = UserDefaults.standard
+        if let bucket = defaults.object(forKey: rolloutBucketKey) as? Int,
+           (0..<100).contains(bucket) {
+            return bucket
+        }
+        // Platform-specific persistence; preserve the backend's sticky
+        // per-installation rollout semantics across launches.
+        let bucket = Int.random(in: 0..<100)
+        defaults.set(bucket, forKey: rolloutBucketKey)
+        return bucket
+    }
+
+    private func fetchEligibleManifest() async throws -> RivetUpdateManifest? {
+        let (wrapperBytes, response) = try await URLSession.shared.data(from: Self.feedURL)
+        guard let http = response as? HTTPURLResponse,
+              http.statusCode == 200,
+              wrapperBytes.count > 0,
+              wrapperBytes.count <= Self.maximumManifestBytes else {
+            throw RivetUpdateError.manifestMissing
+        }
+
+        // Must authenticate THIS wrapper before inspecting the policy JSON.
+        let signedManifest = try RivetUpdateService.verifyManifest(
+            wrapperBytes, keyBase64: Self.publicKeyBase64, keyID: Self.keyID)
+        let policy = try NativeUpdatePolicy.decodeAuthenticatedPayload(
+            from: wrapperBytes)
+        // The parser consumed the same signed payload; never trust a policy
+        // view with a version different from RivetUpdate's install object.
+        guard policy.version == signedManifest.version else {
+            throw RivetUpdateError.signatureInvalid
+        }
+        guard let artifact = signedManifest.artifact(forPlatform: "macos") else {
+            return nil
+        }
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"]
+            as? String ?? "0.0.0"
+        guard NativeUpdatePolicy.eligible(
+            policy,
+            installedVersion: current,
+            arch: RivetUpdateManifest.hostArchitecture,
+            rolloutBucket: Self.stickyRolloutBucket()) else {
+            return nil
+        }
+        // The source and installer selection must describe the same signed
+        // asset; no implicit fallback from the installable zip to a DMG.
+        guard policy.artifacts.contains(where: {
+            $0.platform == "macos" &&
+            $0.architecture == RivetUpdateManifest.hostArchitecture &&
+            $0.installer == "zip" && $0.component == nil &&
+            $0.url == artifact.url && $0.size == artifact.size
+        }) else {
+            throw RivetUpdateError.manifestMissing
+        }
+        return signedManifest
     }
 
     /// RivetUpdate verifies the signed archive's size, SHA-256 and bundle
@@ -148,11 +212,28 @@ final class UpdateController: ObservableObject {
                 })
                 // Success normally terminates the app from RivetUpdate's
                 // swap handoff; never claim an install if it returned.
+            } catch is CancellationError {
+                self?.phase = .idle
             } catch {
-                self?.errorMessage = Self.cleanError(error)
-                self?.phase = .failed
+                if Task.isCancelled {
+                    self?.phase = .idle
+                } else {
+                    self?.errorMessage = Self.cleanError(error)
+                    self?.phase = .failed
+                }
             }
+            self?.downloadTask = nil
         }
+    }
+
+    /// RivetUpdate's delegate downloader observes task cancellation.
+    /// Only allow cancellation during transfer, before install handoff.
+    func cancelDownload() {
+        guard phase == .downloading, percent < 100 else { return }
+        downloadTask?.cancel()
+        phase = .idle
+        pendingManifest = nil
+        percent = 0
     }
 
     static func cleanError(_ error: Error) -> String {
