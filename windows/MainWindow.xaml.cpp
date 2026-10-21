@@ -15,6 +15,8 @@
 #include <map>
 #include <winrt/Microsoft.UI.Xaml.Media.Imaging.h>
 #pragma comment(lib, "comctl32.lib")
+// DrawIconEx/CreateDIBSection/CreateCompatibleDC live in GDI32.
+#pragma comment(lib, "Gdi32.lib")
 #pragma comment(lib, "Shcore.lib")
 
 #include <fstream>
