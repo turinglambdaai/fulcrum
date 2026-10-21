@@ -105,10 +105,18 @@ struct UpdatePanelView: View {
             ProgressView(value: Double(controller.percent), total: 100)
                 .progressViewStyle(.linear)
                 .tint(FulcrumTheme.accent)
-            Button(controller.t("updateClose")) {
-                // This only dismisses the panel. The verified transaction
-                // continues until RivetUpdate performs the relaunch.
-                controller.panelVisible = false
+            HStack(spacing: 12) {
+                if controller.percent < 100 {
+                    Button(controller.t("updateCancel")) {
+                        controller.cancelDownload()
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+                Button(controller.t("updateClose")) {
+                    // Dismissing does not cancel a verified transaction;
+                    // Cancel explicitly stops the transfer.
+                    controller.panelVisible = false
+                }
             }
         }
         .frame(minHeight: 120)
