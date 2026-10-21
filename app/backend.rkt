@@ -1509,7 +1509,10 @@
            (list (cons 1.0 "update")
                  (cons 0.6 "check for updates install new version software")
                  (cons 0.3 (format "fulcrum v~a" (or version ""))))))
-      (case phase
+      ;; UpdateState phases are serialized as strings, not symbols. Match
+      ;; the wire representation explicitly so download/install rows can
+      ;; actually be reached (case on symbols silently fell through).
+      (case (string->symbol phase)
         [(downloading)
          (list (update-row
                 "update.progress"
