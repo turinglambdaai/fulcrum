@@ -1522,9 +1522,15 @@
                (update-row "update.check" "Check for updates again"
                            "re-fetch the signed channel manifest now" "" ""))]
         [(downloaded)
-         (append
-          (if (or (memq (system-type 'os) '(macosx windows))
-                  (appimage-self-update?))
+         (if (package-managed-linux?)
+             (list (update-row
+                    "update.hint"
+                    "Upgrade Fulcrum through your Linux package manager"
+                    "Use your distribution's apt/dnf upgrade or install the official DEB/RPM with dpkg/rpm; never overwrite /opt or /usr with a tarball"
+                    "" ""))
+             (append
+              (if (or (memq (system-type 'os) '(macosx windows))
+                      (appimage-self-update?))
               (list (update-row
                      "update.install"
                      (format "Quit and install Fulcrum v~a" (or version "?"))
@@ -1552,17 +1558,23 @@
                     (if (appimage-self-update?)
                         "fallback: exit Fulcrum and replace the current .AppImage with this verified AppImage"
                         "extract the .tar.gz and replace the current Fulcrum folder, then relaunch")])
-                 "" "")))]
+                 "" ""))))]
         [else
          (append
           (if version
-              (list (update-row
-                     "update.download"
-                     (format "Download Fulcrum v~a" version)
-                     (format "~a · ↵ downloads in the background"
-                             (format-bytes
-                              (or (update-candidate-size) 0)))
-                     "" "Download"))
+              (if (package-managed-linux?)
+                  (list (update-row
+                         "update.hint"
+                         (format "Fulcrum v~a available via package manager" version)
+                         "Upgrade with your distro's apt/dnf workflow; use signed DEB/RPM packages, never extract tar.gz over /opt or /usr"
+                         "" ""))
+                  (list (update-row
+                         "update.download"
+                         (format "Download Fulcrum v~a" version)
+                         (format "~a · ↵ downloads in the background"
+                                 (format-bytes
+                                  (or (update-candidate-size) 0)))
+                         "" "Download")))
               '())
           (list (update-row
                  "update.check"
@@ -1609,6 +1621,9 @@
                                "unknown reason"))
                    '())])]
     [(update.download)
+     (when (package-managed-linux?)
+       (error 'update.download
+              "package-managed Fulcrum must be upgraded via apt/dnf or an official DEB/RPM; direct tarball replacement is disabled"))
      (with-handlers
          ([exn:fail? (lambda (e)
                        (set-update-error! (exn-message e))
