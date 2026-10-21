@@ -26,7 +26,8 @@ function Get-FulcrumInstallation {
   @(
     foreach ($registryPath in $uninstallPaths) {
       Get-ItemProperty -Path $registryPath -ErrorAction SilentlyContinue |
-        Where-Object { $_.DisplayName -eq "Fulcrum" }
+        Where-Object { $_.PSObject.Properties["DisplayName"] -and
+                       $_.DisplayName -eq "Fulcrum" }
     }
   )
 }
