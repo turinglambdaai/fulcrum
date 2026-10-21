@@ -13,6 +13,7 @@
   "updateCheckFailed": "Update check failed: {0}",
   "updateInstallFailed": "Install failed: {0}. The running version is unaffected.",
   "updateNotInstalled": "This is a development copy; in-app updates are unavailable.",
+  "updateCancel": "Cancel download",
   "updateClose": "Close",
   "updateRetry": "Retry",
   "updateOpenFolder": "Open Folder",
