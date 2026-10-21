@@ -6,6 +6,19 @@ Press one key. Everything on your computer is within reach.
 
 ---
 
+## Install and first launch on macOS
+
+1. Download the **.dmg installer**, not the portable **.zip** (the ZIP is primarily for the signed in-app update feed). Select `arm64` for Apple Silicon M-series Macs and `x64` for Intel Macs. Only use the [official releases page](https://github.com/turinglambdaai/fulcrum/releases/latest).
+2. Double-click the DMG, then **drag Fulcrum.app onto the Applications icon** in the Finder window. If prompted to replace an earlier copy, close that copy first. Wait for copying to finish and eject the DMG.
+3. Launch **Applications → Fulcrum**. It runs from the menu bar even when its search panel is hidden; summon it with <kbd>⌥</kbd>+<kbd>Space</kbd> or the fallback configured hotkey.
+4. If a feature needs Accessibility (for example paste into the previous app), macOS may ask you to enable Fulcrum in **System Settings → Privacy & Security → Accessibility**. Grant the permission only when you intend to use that feature.
+
+**About Gatekeeper:** Current developer-preview builds are ad-hoc signed, not Developer ID notarized. If macOS refuses to launch the app, first make sure the downloaded file came from the official release. Apple's [security guidance](https://support.apple.com/102445) explains the optional, narrowly scoped **Open Anyway** exception under **Privacy & Security**. Don't disable Gatekeeper system-wide or remove quarantine flags. Fully signed, notarized builds are a separate release requirement.
+
+**If the installer shows only a single app:** you likely have an older release. The drag-to-Applications Finder layout will appear in a new release after the installer-artwork change lands; existing downloaded DMGs cannot change retroactively.
+
+---
+
 ## Your first minute
 
 1. Press <kbd>Alt</kbd>+<kbd>Space</kbd> (macOS: <kbd>⌥</kbd>+<kbd>Space</kbd>). A panel appears.
