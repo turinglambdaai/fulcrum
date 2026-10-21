@@ -10,7 +10,9 @@
 
 #include <shellapi.h>
 #include <commctrl.h>
+#include <shellscalingapi.h>
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "Shcore.lib")
 
 #include <fstream>
 #include <iterator>
@@ -30,8 +32,39 @@ constexpr int kTrayMenuUpdates = 5;
 
 constexpr int kHotkeyIdPrimary = 0xF11C;  // Alt+Space
 constexpr int kHotkeyIdFallback = 0xF11D; // Ctrl+Alt+Space
-constexpr int kWindowWidth = 680;
+constexpr int kWindowWidth = 680;  // WinUI device-independent pixels (96 DPI)
 constexpr int kWindowHeight = 460;
+
+// WinUI lays out in DIPs, but SetWindowPos receives physical pixels. Use
+// the target monitor's effective DPI, not the DPI of the monitor where the
+// window was last parked. Also pick the pointer's work area on every summon:
+// SPI_GETWORKAREA only describes the primary display on multi-monitor desks.
+void position_launcher(HWND hwnd) {
+  if (hwnd == nullptr) return;
+  POINT cursor{};
+  HMONITOR monitor = ::GetCursorPos(&cursor)
+      ? ::MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST)
+      : ::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  if (!::GetMonitorInfoW(monitor, &info)) return;
+  RECT const& work = info.rcWork;
+  int const workWidth = work.right - work.left;
+  int const workHeight = work.bottom - work.top;
+  if (workWidth <= 0 || workHeight <= 0) return;
+
+  UINT dpiX = 96;
+  UINT dpiY = 96;
+  if (FAILED(::GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY))) {
+    dpiX = ::GetDpiForWindow(hwnd);
+    dpiY = dpiX;
+  }
+  int const width = std::min(workWidth, ::MulDiv(kWindowWidth, dpiX, 96));
+  int const height = std::min(workHeight, ::MulDiv(kWindowHeight, dpiY, 96));
+  int const x = work.left + (workWidth - width) / 2;
+  int const y = work.top + (workHeight - height) / 4;
+  ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
+}
 
 bool is_acceptance_run() {
   wchar_t value[8]{};
@@ -852,19 +885,7 @@ void MainWindow::FinishNativeSetup() {
       this->HideLauncher();
     });
   }
-  RECT work{};
-  ::SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
-  int const width = work.right - work.left < kWindowWidth
-                        ? work.right - work.left
-                        : kWindowWidth;
-  int const height = work.bottom - work.top < kWindowHeight
-                         ? work.bottom - work.top
-                         : kWindowHeight;
-  int const x = work.left + ((work.right - work.left) - width) / 2;
-  int const y = work.top + ((work.bottom - work.top) - height) / 4;
-  if (hwnd != nullptr) {
-    ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
-  }
+  position_launcher(hwnd);
 
   // Bootstrap hotkey (Alt+Space, honest fallback) so the launcher works
   // before the backend answers; PullHostSettings re-binds from the stored
@@ -1033,6 +1054,9 @@ void MainWindow::ShowLauncher() {
   DismissDetailPanel();
   QueryBox().Text(L"");
   SearchAsync(std::wstring(L""));
+  // Re-evaluate pointer monitor and DPI for every summon; users may have
+  // moved between displays or changed scaling since app startup.
+  position_launcher(::FindWindowW(nullptr, L"Fulcrum"));
   this->Activate();
   // The hotkey path runs in a WM_HOTKEY handler, which grants the
   // foreground right; claiming it explicitly also covers the tray-open
