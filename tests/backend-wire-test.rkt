@@ -294,9 +294,13 @@
 (define-values (usv use _usev) (call-rpc 42 (list "update-state")))
 (check! "update-state no error" use #f)
 (check! "update-state error shape"
-        (and (list? usv) (= (length usv) 5)
+        (and (list? usv) (= (length usv) 8)
              (string=? (list-ref usv 0) "error")
-             (string-contains? (or (list-ref usv 2) "") "127.0.0.1"))
+             (string-contains? (or (list-ref usv 2) "") "127.0.0.1")
+             ;; No trusted install ticket must survive a failed check.
+             (equal? (list-ref usv 5) 'null)
+             (eq? (list-ref usv 6) #f)
+             (equal? (list-ref usv 7) 'null))
         #t)
 
 ;; update rows: the idle surface offers exactly the check row — no
