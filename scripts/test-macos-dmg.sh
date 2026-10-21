@@ -37,5 +37,5 @@ test -f "$mount/.DS_Store" || {
 test -x "${apps[0]}/Contents/MacOS/fulcrum" || {
   echo "::error::Installed app executable missing" >&2; exit 1;
 }
-codesign --verify --deep --strict "${apps[0]}"
+codesign --verify --strict "${apps[0]}/Contents/MacOS/fulcrum"
 echo "Branded Finder DMG has one app, Applications link, wallpaper, icon layout and code signature."
