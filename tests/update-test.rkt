@@ -74,6 +74,18 @@
   (check-true (string-prefix? (updates-folder-uri) "file:///"))
   (check-false (string-contains? (updates-folder-uri) " ")))
 
+(test-case "Linux package-manager-owned paths never qualify as portable AppImages"
+  (check-equal? (detect-install-kind 'linux "/opt/fulcrum/bin/fulcrum" #f)
+                'package-manager)
+  (check-equal? (detect-install-kind 'linux "/usr/bin/fulcrum" #f)
+                'package-manager)
+  (check-equal? (detect-install-kind 'linux "/home/runner/Fulcrum.AppImage"
+                                     "/home/runner/Fulcrum.AppImage")
+                'appimage)
+  (check-equal? (detect-install-kind 'linux "/home/runner/portable/fulcrum"
+                                     #f)
+                'portable))
+
 (test-case "Linux AppImage selection uses the installer discriminator"
   (define tar
     (update-artifact 'linux 'x64
