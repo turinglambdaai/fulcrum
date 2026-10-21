@@ -34,7 +34,7 @@ test -s "$mount/.background/background.png" || {
 test -f "$mount/.DS_Store" || {
   echo "::error::DMG lacks Finder icon layout metadata" >&2; exit 1;
 }
-test -x "${apps[0]}/Contents/MacOS/RivetHost" || {
+test -x "${apps[0]}/Contents/MacOS/fulcrum" || {
   echo "::error::Installed app executable missing" >&2; exit 1;
 }
 codesign --verify --deep --strict "${apps[0]}"
