@@ -114,8 +114,8 @@ int main() {
           "broken app icons allow the generic glyph fallback");
     if (app_image) g_object_ref_sink(app_image);
     if (app_image) g_object_unref(app_image);
-    g_remove(icon_path.c_str());
-    g_rmdir(icon_dir);
+    std::filesystem::remove(icon_path);
+    std::filesystem::remove(icon_dir);
     g_free(icon_dir);
   }
   launcher.rows.back().badge.clear();
