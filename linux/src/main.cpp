@@ -1182,7 +1182,12 @@ struct Launcher {
         try {
           auto const state = api_raw->update_state().get();
           if (state.phase == "downloaded") {
-            post_status(tr("updateDownloadedStatusLinux"));
+            if (auto const* image = std::getenv("APPIMAGE");
+                image != nullptr && *image != '\0') {
+              post_status("AppImage verified — type update and choose Quit and install");
+            } else {
+              post_status(tr("updateDownloadedStatusLinux"));
+            }
             break;
           }
           if (state.phase == "error") {
