@@ -6,6 +6,36 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-10-20
+
+### Fixed
+
+- **Reliable Ubuntu summon on X11 and Wayland.** Prefer native X11
+  grabs, forward user-event timestamps to the compositor, protect newly
+  presented launchers until first activation, and show actionable portal
+  and GNOME shortcut-conflict recovery. Cover activation and keyboard
+  focus in packaged acceptance.
+- **Honest Linux file search.** Distinguish zero matches from missing search
+  tools and scan timeouts, and recommend an indexed `plocate` installation
+  when the unindexed fallback is too slow.
+- **Three-platform interaction parity.** Converge focus-loss, click-to-select
+  and double-click-to-run, Escape/actions grammar, native resident-menu
+  entries and visible language changes across macOS, Windows and Linux.
+  Make macOS CI build the actual native host and fail generated-client drift.
+- **Consistent native launcher styling.** Align 680×460 panel geometry,
+  native search typography, result density, amber row accents and selection
+  affordances; add GNOME-owned Alt+Space conflict/retry regression coverage.
+- **Localized settings labels.** Reuse the shared bilingual settings
+  translations in the three native settings windows, including live changes
+  of the active language. Native OS-specific help remains platform-idiomatic.
+
+### Verification
+
+All platform CI and packaged-product acceptance jobs must pass before
+the version tag is created. The release's signed channel manifest and
+checksums are assembled by the existing tag-driven workflow.
+
+
 ## [0.13.1] - 2026-10-20
 
 ### Fixed
