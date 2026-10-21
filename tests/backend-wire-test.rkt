@@ -298,9 +298,9 @@
              (string=? (list-ref usv 0) "error")
              (string-contains? (or (list-ref usv 2) "") "127.0.0.1")
              ;; No trusted install ticket must survive a failed check.
-             (equal? (list-ref usv 5) 'null)
+             (void? (list-ref usv 5))
              (eq? (list-ref usv 6) #f)
-             (equal? (list-ref usv 7) 'null))
+             (void? (list-ref usv 7)))
         #t)
 
 ;; update rows: the idle surface offers exactly the check row — no
