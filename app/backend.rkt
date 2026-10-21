@@ -122,7 +122,12 @@
    [percent : Int64]
    [message : (Optional String)]
    [downloaded-path : (Optional String)]
-   [available-version : (Optional String)]))
+   [available-version : (Optional String)]
+   ;; Fields below are exposed only after Rivet verified the downloaded
+   ;; artifact and only while the signed candidate is still current.
+   [artifact-sha256 : (Optional String)]
+   [rollback-allowed : Bool]
+   [installer : (Optional String)]))
 
 ;; Live AI answer wire shape. `text` is the answer so far while running and
 ;; the full answer when done; `error` is filled only for phase "error".
@@ -1470,12 +1475,16 @@
 
 (define-rpc (update-state : UpdateState)
   (define s (update-state-snapshot))
+  (define verified (verified-install-metadata))
   (UpdateState
    (hash-ref s 'phase "idle")
    (hash-ref s 'percent 0)
    (nullable (hash-ref s 'message #f))
    (nullable (hash-ref s 'downloadedPath #f))
-   (nullable (hash-ref s 'availableVersion #f))))
+   (nullable (hash-ref s 'availableVersion #f))
+   (nullable (and verified (hash-ref verified 'sha256 #f)))
+   (and verified (hash-ref verified 'rollbackAllowed #f) #t)
+   (nullable (and verified (hash-ref verified 'installer #f)))))
 
 ;; ---- updates-as-rows ------------------------------------------------------
 ;;
@@ -1511,13 +1520,16 @@
                            "re-fetch the signed channel manifest now" "" ""))]
         [(downloaded)
          (append
-          (if (memq (system-type 'os) '(macosx windows))
+          (if (or (memq (system-type 'os) '(macosx windows))
+                  (appimage-self-update?))
               (list (update-row
                      "update.install"
                      (format "Quit and install Fulcrum v~a" (or version "?"))
                      (case (system-type 'os)
                        [(windows)
                         "runs the verified MSI, upgrades in place, and relaunches"]
+                       [(unix)
+                        "atomically replaces the verified AppImage, relaunches, and restores on failure"]
                        [else
                         "swaps the downloaded bundle in place and relaunches"])
                      "" "Install"))
@@ -1600,12 +1612,16 @@
        (cons "downloading"
              (list (cons 'notify "Update download started"))))]
     [(update.install)
-     ;; Native hosts own the last mile. macOS swaps the verified app bundle;
-     ;; Windows hands the verified MSI to Rivet's MsiHandoff helper. Linux
-     ;; remains install-shape-aware and does not bypass package-manager ownership.
-     (if (memq (system-type 'os) '(macosx windows))
+     ;; A native handoff is allowed only after the candidate was verified.
+     ;; Linux AppImages use the pinned Rivet external atomic transaction;
+     ;; portable tarballs and package-manager installations stay manual.
+     (define verified (verified-install-metadata))
+     (if (and verified
+              (or (memq (system-type 'os) '(macosx windows))
+                  (and (appimage-self-update?)
+                       (string=? (hash-ref verified 'installer "") "appimage"))))
          (cons "quit-and-install" '())
-         (cons "in-app install is unavailable for this Linux install; open the updates folder instead" '()))]
+         (cons "no verified installable update for this installation; check again or open the updates folder" '()))]
     [(update.reveal)
      (cons "ok" (list (cons 'open-url (updates-folder-uri))))]
     [(update.hint) (cons "ok" '())]
