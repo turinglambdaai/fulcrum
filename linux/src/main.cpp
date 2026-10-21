@@ -78,11 +78,11 @@ ResultRow parse_row(std::vector<std::string> const& cells) {
 // One stylesheet drives the panel look — glass background, amber (#D97706)
 // rows, the ↵ chip on the selected row only — the same design tokens the
 // macOS host renders through vibrancy and the Windows host through Desktop
-// Acrylic. GNOME compositors do not blur, so the glass is an alpha
-// background: KWin and other blurring compositors upgrade it to frosted
-// glass for free, and a session without a compositor degrades to a solid
-// panel. Re-applied when the backend pushes the theme state, because the
-// dark variant picks its own glass tone.
+// Acrylic. GTK4 does not guarantee a blurred background: GNOME can show
+// sharp window text and icons directly through a transparent launcher.
+// Keep the surface almost opaque so results remain legible even without a
+// compositor; rounded corners, border and selection retain the family look.
+// Re-applied when the backend pushes the theme state.
 
 static GtkCssProvider* g_panel_css = nullptr;
 
@@ -95,7 +95,7 @@ static void apply_panel_css() {
   char const* glass_css = dark
       ? R"CSS(
 window.fulcrum-window {
-  background-color: rgba(28,28,30,0.88);
+  background-color: rgba(28,28,30,0.98);
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.10);
   color: #f2f2f2;
@@ -103,7 +103,7 @@ window.fulcrum-window {
 )CSS"
       : R"CSS(
 window.fulcrum-window {
-  background-color: rgba(250,250,249,0.92);
+  background-color: rgba(250,250,249,0.98);
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.10);
   color: #1d1d1f;
