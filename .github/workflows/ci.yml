@@ -14,7 +14,7 @@ concurrency:
 # Contexts aren't allowed in `uses:`, so the setup-embed-racket action
 # refs must be bumped in lockstep by hand.
 env:
-  RIVET_PIN: v0.12.0
+  RIVET_PIN: 761a6ba8bbe7e378c06270f33883a54a109eb7f3
 jobs:
   backend:
     name: Backend tests (${{ matrix.os }})
@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@761a6ba8bbe7e378c06270f33883a54a109eb7f3
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own.
