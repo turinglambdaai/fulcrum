@@ -15,12 +15,46 @@
          rivet/distribution
          racket/file
          racket/path
+         racket/runtime-path
          racket/string
          racket/tcp
+         net/base64
          "../app/update.rkt"
          (only-in "../app/core/settings.rkt" make-settings-manager))
 
 (use-all-factories!)
+
+(define-runtime-path update-backend-source "../app/update.rkt")
+(define-runtime-path native-updater-source "../macos-host/Sources/RivetHost/UpdateController.swift")
+
+;; The macOS host uses CryptoKit, which consumes raw Ed25519 public bytes.
+;; The Racket backend uses DER SPKI. They must always be the same trust root:
+;; a mismatch would make a signed release verify on one host and fail on
+;; the others, even if both key formats parse independently.
+(test-case "native macOS updater trusts the same Ed25519 key as the backend"
+  (define backend (file->string update-backend-source))
+  (define native (file->string native-updater-source))
+  (define der-match
+    (regexp-match #px"current-update-public-key-hex\\s+\"([0-9a-fA-F]+)\""
+                  backend))
+  (define native-match
+    (regexp-match #px"publicKeyBase64\\s*=\\s*\"([A-Za-z0-9+/=]+)\""
+                  native))
+  (check-not-false der-match)
+  (check-not-false native-match)
+  (when (and der-match native-match)
+    (define der-hex (cadr der-match))
+    (check-equal? (string-length der-hex) 88)
+    (when (= (string-length der-hex) 88)
+      (define key-hex (substring der-hex 24))
+      (define key-bytes
+        (apply bytes
+               (for/list ([i (in-range 0 (string-length key-hex) 2)])
+                 (string->number (substring key-hex i (+ i 2)) 16))))
+      (check-equal? (bytes->string/utf-8 (base64-encode key-bytes #""))
+                    (cadr native-match))))
+  (check-true (regexp-match? #px"keyID\\s*=\\s*\"fulcrum-2026-10\"" native))
+  (check-true (regexp-match? #px"update-key-id\\s+\"fulcrum-2026-10\"" backend)))
 
 ;; ---------- platform identity ---------------------------------------------
 
