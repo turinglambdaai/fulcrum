@@ -9,7 +9,9 @@
 #include <unistd.h>
 
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
+#include <iterator>
 #include <fstream>
 #include <functional>
 #include <iostream>
