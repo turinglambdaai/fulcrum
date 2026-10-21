@@ -26,3 +26,6 @@ Thumbs.db
 
 # Racket compilation artifacts
 compiled/
+
+# Rendered from the editable SVG just before macOS release packaging.
+assets/dmg-background.png
