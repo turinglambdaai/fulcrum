@@ -371,7 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: panel
 
     private func installPanel(model: LauncherModel) {
-        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 680, height: 440),
+        let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 680, height: 460),
                             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
                             backing: .buffered, defer: false)
         panel.titleVisibility = .hidden
@@ -405,12 +405,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func centerOnActiveScreen(_ panel: NSPanel) {
-        let screens = NSScreen.screens
-        let screen = screens.first { $0 == NSScreen.main } ?? screens.first ?? NSScreen.main
+        // Follow the pointer's monitor on each summon, including displays
+        // with negative global origins. NSScreen.main can still describe the
+        // previously active app's screen when the launcher hotkey fires.
+        let pointer = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(pointer) }
+            ?? NSScreen.main ?? NSScreen.screens.first
         guard let visible = screen?.visibleFrame else { return }
         let size = panel.frame.size
-        let x = visible.midX - size.width / 2
-        let y = visible.maxY - size.height / 4 - size.height
+        let x = max(visible.minX, visible.midX - size.width / 2)
+        // AppKit's origin is bottom-left. Place the panel a quarter of the
+        // free vertical space below the work area's top, like Windows/X11.
+        let freeHeight = max(0, visible.height - size.height)
+        let y = visible.minY + freeHeight * 0.75
         panel.setFrameOrigin(NSPoint(x: x, y: y))
     }
 
