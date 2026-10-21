@@ -243,6 +243,41 @@ static char const* row_icon_name(ResultRow const& row) {
   return pick_icon({"application-x-executable-symbolic"});
 }
 
+// Desktop-entry Icon values are supplied by the backend in column 5 of
+// application rows. GTK resolves themed names (e.g. org.gnome.Terminal) and
+// absolute icon file paths; a missing or broken icon falls back to the same
+// semantic glyph as other hosts. Do not pass an arbitrary relative path to
+// the filesystem: freedesktop only specifies an absolute path or theme name.
+static GtkWidget* application_icon(ResultRow const& row) {
+  if (row.kind != "Application" || row.icon.empty() || row.icon == "app") {
+    return nullptr;
+  }
+  GtkWidget* image = nullptr;
+  if (g_path_is_absolute(row.icon.c_str())) {
+    if (g_file_test(row.icon.c_str(), G_FILE_TEST_IS_REGULAR)) {
+      GFile* file = g_file_new_for_path(row.icon.c_str());
+      GIcon* file_icon = g_file_icon_new(file);
+      image = gtk_image_new_from_gicon(file_icon);
+      g_object_unref(file_icon);
+      g_object_unref(file);
+    }
+  } else {
+    GtkIconTheme* theme =
+        gtk_icon_theme_get_for_display(gdk_display_get_default());
+    if (theme != nullptr &&
+        gtk_icon_theme_has_icon(theme, row.icon.c_str())) {
+      image = gtk_image_new_from_icon_name(row.icon.c_str());
+    }
+  }
+  if (image != nullptr) {
+    gtk_image_set_pixel_size(GTK_IMAGE(image), 28);
+    gtk_widget_set_size_request(image, 28, 28);
+    gtk_widget_set_valign(image, GTK_ALIGN_CENTER);
+    gtk_widget_add_css_class(image, "fulcrum-app-icon");
+  }
+  return image;
+}
+
 // Rivet's POSIX shutdown plumbing (defined after Launcher). Installed once
 // the embedded runtime has booted — see on_backend_ready for the ordering.
 void install_shutdown_hook_once();
@@ -1395,10 +1430,17 @@ struct Launcher {
       auto* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
       gtk_widget_set_valign(box, GTK_ALIGN_CENTER);
 
-      if (char const* icon_name = row_icon_name(row)) {
-        auto* icon = gtk_image_new_from_icon_name(icon_name);
-        gtk_image_set_pixel_size(GTK_IMAGE(icon), 16);
-        gtk_widget_add_css_class(icon, "fulcrum-row-icon");
+      // Application entries get their real themed or file icon. Only
+      // missing icons use the generic amber-tinted semantic fallback.
+      GtkWidget* icon = application_icon(row);
+      if (icon == nullptr) {
+        if (char const* icon_name = row_icon_name(row)) {
+          icon = gtk_image_new_from_icon_name(icon_name);
+          gtk_image_set_pixel_size(GTK_IMAGE(icon), 16);
+          gtk_widget_add_css_class(icon, "fulcrum-row-icon");
+        }
+      }
+      if (icon != nullptr) {
         gtk_box_append(GTK_BOX(box), icon);
       }
 
