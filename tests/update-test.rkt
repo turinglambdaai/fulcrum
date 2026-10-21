@@ -204,6 +204,45 @@
   (delete-directory/files data-dir)
   (delete-file payload-file))
 
+(test-case "native install handoff receives digest and rollback ONLY after a verified download"
+  (define payload (make-bytes 4096 17))
+  (define source (make-temporary-file "fulcrum-appimage-ticket-~a"))
+  (call-with-output-file source #:exists 'truncate
+    (lambda (out) (write-bytes payload out)))
+  (define sha (sha256-file/hex source))
+  (define-values (port stop) (open-fake-feed! payload))
+  (define dir (make-temporary-file "fulcrum-appimage-ticket-data-~a" 'directory))
+  (define old-override (getenv "FULCRUM_DATA_DIR"))
+  (dynamic-wind
+    (lambda () (putenv "FULCRUM_DATA_DIR" (path->string dir)))
+    (lambda ()
+      (parameterize ([current-update-version "0.0.0"]
+                     [current-update-settings #f])
+        (reset-update-state!)
+        (install-candidate!
+         (candidate-for
+          (format "http://127.0.0.1:~a/fulcrum-9.9.9-macos-arm64.zip" port)
+          sha (bytes-length payload)))
+        (check-false (verified-install-metadata))
+        (start-download! dir)
+        (check-equal? (wait-for-phase! '("downloaded") 15000) "downloaded")
+        (define ticket (verified-install-metadata))
+        (check-true (hash? ticket))
+        (check-equal? (hash-ref ticket 'sha256) sha)
+        (check-true (hash-ref ticket 'rollbackAllowed))
+        (check-equal? (hash-ref ticket 'installer) "zip")
+        ;; A different/currently removed downloaded artifact must never
+        ;; inherit the previous authenticated digest.
+        (define path (hash-ref (update-state-snapshot) 'downloadedPath))
+        (delete-file path)
+        (check-false (verified-install-metadata))
+        (reset-update-state!)
+        (check-false (verified-install-metadata))))
+    (lambda () (putenv "FULCRUM_DATA_DIR" (or old-override ""))))
+  (stop)
+  (delete-directory/files dir)
+  (delete-file source))
+
 (test-case "a hash mismatch lands in the error phase with no trusted file"
   (define payload (make-bytes 1000 1))
   (define-values (port stop) (open-fake-feed! payload))
