@@ -94,9 +94,11 @@ applied to whatever window was in front before you summoned Fulcrum.
 
 ### Find files
 
-`find invoice` searches file names through Spotlight (macOS). On
-Windows and Linux this honestly reports that it needs the platform
-search index.
+`find invoice` searches file names over the platform's own index:
+Spotlight on macOS, Windows Search on Windows (with a bounded slow
+scan as fallback on machines where the index is off), and
+`plocate`/`locate` on Linux. Install `plocate` on Linux and it gets
+fast; with no search tool at all, Fulcrum says so honestly.
 
 ### System commands
 
@@ -309,7 +311,7 @@ Themes. Dark mode.
 
 **Not yet (honest list):** the extension ecosystem is young (26
 first-party plugins vs. Raycast's 2,500+ store extensions); clipboard
-history is text only (no images); file search is macOS only; snippet
+history is text only (no images); snippet
 auto-expansion does not work on Linux.
 
 ---

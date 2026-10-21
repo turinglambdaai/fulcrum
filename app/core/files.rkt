@@ -3,7 +3,9 @@
 ;; File search — per-platform, always available on desktop:
 ;;   macOS: Spotlight (`mdfind -name`) — millisecond responses, deep index
 ;;   Linux: `locate -i` (the mlocate/plocate index) or `find` as fallback
-;;   Windows: PowerShell `Get-ChildItem -Recurse` (bounded depth)
+;;   Windows: the Windows Search index (SYSTEMINDEX) when the service is
+;;     up, falling back in-process to a bounded `Get-ChildItem -Recurse`
+;;     scan when it is not
 ;; Claims `find <query>` queries so it never clutters unrelated searches.
 ;; Opening a result uses the platform opener, the same side-effect path
 ;; application launches use.
@@ -13,6 +15,7 @@
          racket/list
          racket/path
          racket/string
+         net/uri-codec
          "proc.rkt")
 
 (provide (struct-out file-search-result)
@@ -40,6 +43,14 @@
 
 ;; ---- search ---------------------------------------------------------------
 
+;; Windows Search returns file: URLs (file:///C:/Users/me/a%20b/x.md);
+;; every other backend emits plain filesystem paths. Decode URL form
+;; into a plain path; leave anything else untouched.
+(define (file-url->path line)
+  (if (string-prefix? line "file:")
+      (uri-decode (regexp-replace #px"^file:/+" line ""))
+      line))
+
 ;; Universal path-list parser: newline-separated absolute paths →
 ;; (name path) pairs, bounded and deduplicated. Works for mdfind, locate,
 ;; find, and PowerShell output alike.
@@ -52,8 +63,9 @@
                           (filter (lambda (s)
                                     (string-contains? s "/"))
                                   (string-split output "\n")))])
-          (cons (path->string (file-name-from-path (string->path line)))
-                line)))
+          (define path (file-url->path line))
+          (cons (path->string (file-name-from-path (string->path path)))
+                path)))
        limit)))
 
 (define (take-min xs n)
@@ -82,8 +94,7 @@
                       [(powershell)
                        (values "powershell.exe"
                                (list "-NoProfile" "-Command"
-                                     (format "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter '*~a*' -File | Select-Object -First 8 -ExpandProperty FullName"
-                                             query)))])])
+                                     (windows-find-script query)))])])
         (define output (runner program args #:timeout-ms 3000))
         (if (false? output)
             (file-search-result '() 'timeout backend)
@@ -92,6 +103,47 @@
 ;; Compatibility API for callers that only need hits.
 (define (file-search query [limit 8])
   (file-search-result-hits (file-search/status query limit)))
+
+;; ---- windows: index-first search script -----------------------------------
+
+;; One PowerShell invocation, two tiers inside the same 3-second budget:
+;;   1. the Windows Search index (SYSTEMINDEX) — filename prefix match,
+;;      then FREETEXT for the mid-word case; millisecond-fast when the
+;;      service is healthy
+;;   2. a bounded Get-ChildItem scan of the user profile — the honest
+;;      fallback when the index is off, empty or errors
+;; The script is defensive on purpose: any index failure lands in the
+;; catch and the scan still answers. Two query spellings travel in the
+;; script: $q is the raw text (the scan's -Filter wants it literal) and
+;; $qs is SQL-escaped for the index queries. Both are embedded as
+;; PowerShell single-quoted literals, where a literal ' is written '' —
+;; so a filename like o'brien arrives intact at every layer without
+;; breaking out of anything.
+(define (windows-find-script query)
+  (define (ps-literal s) (string-replace s "'" "''"))
+  (define raw-q (regexp-replace* #px"[\u000d\u000a\u0000]" query " "))
+  (define sql-q (string-replace raw-q "'" "''"))
+  (string-append
+   "$ErrorActionPreference='SilentlyContinue';"
+   "$out=@();"
+   "$q='" (ps-literal raw-q) "';"
+   "$qs='" (ps-literal sql-q) "';"
+   "try{"
+   "$c=New-Object System.Data.OleDb.OleDbConnection(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
+   "$c.Open();$cmd=$c.CreateCommand();"
+   "$cmd.CommandText=\"SELECT TOP 8 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
+   "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close();"
+   "if($out.Count -eq 0){"
+   "$cmd.CommandText=\"SELECT TOP 8 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$qs`\"') AND SCOPE='file:'\";"
+   "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close()"
+   "}"
+   "$c.Close()"
+   "}catch{};"
+   "if($out.Count -gt 0){"
+   "$out|Select-Object -First 8|ForEach-Object{[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
+   "}else{"
+   "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 8 -ExpandProperty FullName"
+   "}"))
 
 (define (opener-for-platform)
   (case (system-type 'os)
