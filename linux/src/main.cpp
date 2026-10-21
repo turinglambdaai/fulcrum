@@ -43,6 +43,7 @@
 
 #include "GeneratedBackend.hpp"
 #include "system_services.hpp"
+#include "update_handoff.hpp"
 #include "x11_hotkey.hpp"
 
 namespace {
@@ -1498,11 +1499,19 @@ struct Launcher {
     }
   }
 
+  struct AppImageTicket {
+    std::filesystem::path verified_path;
+    std::string version;
+    std::string signed_sha256;
+    bool rollback_allowed{false};
+  };
+
   struct RunOutcome {
     bool success{false};
     std::string status;
     std::string action_id;
     std::string arg;
+    std::optional<AppImageTicket> appimage_ticket;
   };
 
   void show_actions_for_selection() {
@@ -1573,6 +1582,24 @@ struct Launcher {
       boxed->arg = row.arg;
       try {
         boxed->status = api_raw->run_action(row.id, row.arg).get();
+        if (boxed->status == "quit-and-install" &&
+            row.id == "update.install") {
+          // The signed manifest remains backend-owned. Never derive a
+          // handoff digest from the downloaded file itself: an attacker
+          // could change the file after its initial authenticated download.
+          auto state = api_raw->update_state().get();
+          if (state.phase != "downloaded" || !state.downloaded_path ||
+              !state.available_version || !state.artifact_sha256 ||
+              !state.installer || *state.installer != "appimage") {
+            throw std::runtime_error(
+                "signed AppImage install ticket is missing; check updates again");
+          }
+          boxed->appimage_ticket = AppImageTicket{
+              std::filesystem::path(*state.downloaded_path),
+              *state.available_version,
+              *state.artifact_sha256,
+              state.rollback_allowed};
+        }
         boxed->success = boxed->status == "ok" ||
                          boxed->status == "launched" ||
                          boxed->status == "copied" ||
@@ -1581,7 +1608,9 @@ struct Launcher {
                          boxed->status == "detail" ||
                          boxed->status == "stay" ||
                          boxed->status == "downloading" ||
-                         boxed->status == "delegated";
+                         boxed->status == "delegated" ||
+                         (boxed->status == "quit-and-install" &&
+                          boxed->appimage_ticket.has_value());
       } catch (std::exception const& e) {
         boxed->status = e.what();
       }
@@ -1658,6 +1687,39 @@ struct Launcher {
             // mirrors its progress into the status bar.
             Launcher::instance().hide();
             Launcher::instance().start_update_progress_poll();
+            return G_SOURCE_REMOVE;
+          }
+          if (job->status == "quit-and-install" &&
+              job->action_id == "update.install") {
+            try {
+              auto* running_image = std::getenv("APPIMAGE");
+              if (running_image == nullptr || *running_image == '\0') {
+                throw std::runtime_error(
+                    "AppImage replacement is only available from an AppImage");
+              }
+              auto const& ticket = *job->appimage_ticket;
+              std::filesystem::path const target(running_image);
+              if (!target.is_absolute() ||
+                  !std::filesystem::is_regular_file(target)) {
+                throw std::runtime_error(
+                    "cannot locate the running AppImage installation");
+              }
+              rivet::update::AppImageHandoffOptions options;
+              options.version = ticket.version;
+              options.artifact_sha256 = ticket.signed_sha256;
+              options.rollback_allowed = ticket.rollback_allowed;
+              // The first-party helper detaches before our GTK process
+              // exits. It waits for this PID, so shutdown releases the
+              // SingleInstanceLease before replacing the live executable.
+              rivet::update::AppImageHandoff::LaunchReplacement(
+                  "site.jrtx.fulcrum", ticket.verified_path, target,
+                  {}, 30, options);
+              g_application_quit(
+                  G_APPLICATION(Launcher::instance().app));
+            } catch (std::exception const& e) {
+              Launcher::instance().set_status(
+                  std::string("AppImage update install failed: ") + e.what());
+            }
             return G_SOURCE_REMOVE;
           }
           if (Launcher::instance().actions_mode) {
@@ -3187,6 +3249,21 @@ void on_activate(GtkApplication* app, gpointer) {
   // The tray rides last: menus render with the i18n table loaded in main,
   // and the language arrival re-composes them (apply_tray_language).
   build_tray();
+  // Report a failed or interrupted process-external AppImage transaction
+  // on the next working launch, rather than silently hiding the error.
+  if (auto const* image = std::getenv("APPIMAGE"); image && *image) {
+    try {
+      rivet::update::AppImageHandoff::CleanupStaleAttempts(
+          "site.jrtx.fulcrum");
+      if (auto previous = rivet::update::AppImageHandoff::ConsumeFailure(
+              "site.jrtx.fulcrum")) {
+        launcher.set_status(
+            "Previous AppImage update failed: " + previous->message);
+      }
+    } catch (std::exception const& e) {
+      launcher.set_status(std::string("Update recovery warning: ") + e.what());
+    }
+  }
 }
 
 void on_shutdown(GApplication*, gpointer) {
