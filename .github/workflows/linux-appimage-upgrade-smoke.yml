@@ -22,7 +22,7 @@ env:
 
 jobs:
   installed-upgrade:
-    name: Official AppImage upgrade ($\{{ matrix.arch }})
+    name: Official AppImage upgrade (${{ matrix.arch }})
     strategy:
       fail-fast: false
       matrix:
@@ -31,14 +31,14 @@ jobs:
             runner: ubuntu-24.04
           - arch: arm64
             runner: ubuntu-24.04-arm
-    runs-on: $\{{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
         uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@761a6ba8bbe7e378c06270f33883a54a109eb7f3
       - name: Install Rivet (pinned source)
-        run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#\${RIVET_PIN}"
+        run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
       - name: Install native and headless GUI dependencies
         run: |
           sudo apt-get update
@@ -53,4 +53,4 @@ jobs:
           raco rivet build
           cmake --build .rivet/build/linux --target fulcrum-appimage-real-upgrade-test
       - name: Verify official release artifacts and perform real old-to-new upgrade
-        run: bash scripts/acceptance/linux-appimage-upgrade-smoke.sh "$\{{ matrix.arch }}"
+        run: bash scripts/acceptance/linux-appimage-upgrade-smoke.sh "${{ matrix.arch }}"
