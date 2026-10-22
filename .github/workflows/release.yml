@@ -31,6 +31,7 @@ env:
   RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -49,6 +50,33 @@ jobs:
           bash scripts/check-release-version.sh "${{ github.ref_name }}"
           PACKAGE_VERSION="$(tr -d '\r\n' < VERSION)"
           grep -q "^## \[${PACKAGE_VERSION}\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## [${PACKAGE_VERSION}]' section"; exit 1; }
+
+
+      # Manual tag pushes and workflow_dispatch must not bypass the same
+      # exact-commit CI + packaged Product Acceptance gate as VERSION bumps.
+      # Stable tags require a main push; prerelease tags may use verified PR
+      # runs for a release-candidate branch.
+      - name: Require green CI and Product Acceptance for tagged commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" == *-rc.* ]]; then
+            allowed_event='(.event == "push" or .event == "pull_request")'
+          else
+            allowed_event='(.event == "push" and .head_branch == "main")'
+          fi
+          for workflow in ci.yml acceptance.yml; do
+            count="$(gh api "repos/$GH_REPO/actions/workflows/$workflow/runs?head_sha=$GITHUB_SHA&per_page=100" \
+              --jq "[.workflow_runs[] | select(.head_sha == \"$GITHUB_SHA\" and .conclusion == \"success\" and .status == \"completed\" and $allowed_event)] | length")"
+            if [[ "$count" -lt 1 ]]; then
+              echo "::error::$workflow has no successful trusted run for tagged commit $GITHUB_SHA"
+              exit 1
+            fi
+            echo "$workflow: trusted green run found for $GITHUB_SHA"
+          done
 
   package:
     name: Package (${{ matrix.platform }}-${{ matrix.arch }})
