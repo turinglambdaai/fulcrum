@@ -25,6 +25,42 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Creating a VERSION bump otherwise creates an immutable tag and
+      # dispatches publishing automatically. Fail BEFORE minting the tag
+      # unless the publisher explicitly approves and provisions credentials.
+      - name: Preflight stable release approval and required signing credentials
+        shell: bash
+        env:
+          RELEASE_APPROVED: ${{ vars.FULCRUM_STABLE_RELEASE_APPROVED }}
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_APP_SPECIFIC_PASSWORD: ${{ secrets.MACOS_APP_SPECIFIC_PASSWORD }}
+          WINDOWS_CERTIFICATE_PFX: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+          LINUX_SIGN_PRIVATE_KEY: ${{ secrets.LINUX_SIGN_PRIVATE_KEY }}
+          LINUX_SIGN_KEY_ID: ${{ secrets.LINUX_SIGN_KEY_ID }}
+          RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
+          RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_APPROVED" == "true" ]] || {
+            echo "::error::Set FULCRUM_STABLE_RELEASE_APPROVED=true only after release approval; no tag was created"
+            exit 1
+          }
+          for name in MACOS_CERTIFICATE_P12 MACOS_CERTIFICATE_PASSWORD MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID MACOS_APP_SPECIFIC_PASSWORD WINDOWS_CERTIFICATE_PFX WINDOWS_CERTIFICATE_PASSWORD WINDOWS_TIMESTAMP_URL LINUX_SIGN_PRIVATE_KEY LINUX_SIGN_KEY_ID RIVET_UPDATE_PRIVATE_KEY RIVET_UPDATE_KEY_ID; do
+            [[ -n "${!name:-}" ]] || {
+              echo "::error::Required production release secret or variable $name is missing; no tag was created"
+              exit 1
+            }
+          done
+          [[ "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] || {
+            echo "::error::The configured update key ID differs from the client trust root"
+            exit 1
+          }
       - name: Await successful main CI and Product Acceptance for this SHA
         env:
           GH_TOKEN: ${{ github.token }}
