@@ -22,6 +22,7 @@
          ai-keys-path
          ai-memory-path
          recents-path
+         rates-path
          plugins-dir
          plugin-prefs-path
          plugin-secrets-path
@@ -92,6 +93,12 @@
 
 (define (recents-path)
   (build-path (data-dir) "recents.json"))
+
+;; Daily currency-rate cache for the inline converter. A cache, not a
+;; setting or a secret: safe to delete, never synced, refreshed in the
+;; background at most hourly.
+(define (rates-path)
+  (build-path (data-dir) "rates.json"))
 
 (define (plugins-dir)
   (build-path (ensure-data-dir!) "plugins"))
