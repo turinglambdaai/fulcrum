@@ -99,6 +99,111 @@ void stop_relaunched_app(fs::path const& target) {
   for (pid_t pid : pids) ::kill(pid, SIGKILL);
 }
 
+void real_failed_upgrade(fs::path const& old_release,
+                         fs::path const& failed_release,
+                         std::string const& expected_sha,
+                         std::string const& expected_version) {
+  if (!old_release.is_absolute() || !failed_release.is_absolute()) {
+    throw std::runtime_error("release artifact paths must be absolute");
+  }
+  if (!fs::is_regular_file(old_release) || !fs::is_regular_file(failed_release)) {
+    throw std::runtime_error("old and failed-candidate AppImages must exist");
+  }
+  auto const old_sha = file_digest(old_release);
+  if (expected_sha.size() != 64 || file_digest(failed_release) != expected_sha) {
+    throw std::runtime_error("failed candidate does not match its test manifest digest");
+  }
+  if (old_sha == expected_sha) {
+    throw std::runtime_error("old and failed candidate must be different artifacts");
+  }
+
+  std::string templ = "/tmp/fulcrum-real-appimage-rollback-XXXXXX";
+  std::vector<char> temp(templ.begin(), templ.end());
+  temp.push_back('\0');
+  char* made = ::mkdtemp(temp.data());
+  if (!made) throw std::runtime_error("mkdtemp failed");
+  fs::path const root(made);
+  fs::path const state = root / "state";
+  fs::path const install = root / "install";
+  fs::path const updates = root / "updates";
+  fs::create_directories(state);
+  fs::create_directories(install);
+  fs::create_directories(updates);
+  fs::path const target = install / "Fulcrum.AppImage";
+  fs::path const candidate = updates / failed_release.filename();
+  fs::copy_file(old_release, target);
+  fs::copy_file(failed_release, candidate);
+  fs::permissions(target, fs::perms::owner_read | fs::perms::owner_write |
+                         fs::perms::owner_exec | fs::perms::group_read |
+                         fs::perms::group_exec);
+  fs::permissions(candidate, fs::perms::owner_read | fs::perms::owner_write |
+                             fs::perms::owner_exec | fs::perms::group_read |
+                             fs::perms::group_exec);
+  if (::setenv("XDG_STATE_HOME", state.c_str(), 1) != 0) {
+    fs::remove_all(root);
+    throw std::runtime_error("could not isolate XDG_STATE_HOME");
+  }
+
+  constexpr char const* application_id = "site.jrtx.fulcrum.real-rollback-test";
+  pid_t const caller = ::fork();
+  if (caller < 0) {
+    fs::remove_all(root);
+    throw std::runtime_error("fork failed");
+  }
+  if (caller == 0) {
+    try {
+      rivet::update::AppImageHandoffOptions options;
+      options.version = expected_version;
+      // Test-only signed-manifest stand-in: this digest authenticates the
+      // deliberately corrupted fixture so we exercise launch-failure rollback.
+      options.artifact_sha256 = expected_sha;
+      options.rollback_allowed = true;
+      options.settle_seconds = 2;
+      rivet::update::AppImageHandoff::LaunchReplacement(
+          application_id, candidate, target, {}, 10, options);
+      ::_exit(0);
+    } catch (...) {
+      ::_exit(42);
+    }
+  }
+
+  int status = 0;
+  if (::waitpid(caller, &status, 0) != caller ||
+      !WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    stop_relaunched_app(target);
+    fs::remove_all(root);
+    throw std::runtime_error("could not start detached rollback handoff");
+  }
+
+  auto const journal = fs::path(target.string() + ".rivet-handoff-journal");
+  auto const backup = fs::path(target.string() + ".rivet-backup");
+  bool journal_seen = false;
+  try {
+    wait_for([&] {
+      if (fs::exists(journal)) journal_seen = true;
+      if (!journal_seen || !fs::is_regular_file(target) ||
+          fs::exists(journal) || fs::exists(backup)) return false;
+      return file_digest(target) == old_sha;
+    }, "unlaunchable real AppImage candidate must restore the previous release");
+    auto const failure =
+        rivet::update::AppImageHandoff::ConsumeFailure(application_id);
+    if (!failure) {
+      throw std::runtime_error("rollback completed without a recoverable failure marker");
+    }
+    if (file_digest(target) != old_sha) {
+      throw std::runtime_error("previous AppImage digest changed during rollback");
+    }
+    std::cout << "PASS: unlaunchable candidate rolled back to the old AppImage; "
+              << "failure marker surfaced: " << failure->message << "\n";
+  } catch (...) {
+    stop_relaunched_app(target);
+    fs::remove_all(root);
+    throw;
+  }
+  stop_relaunched_app(target);
+  fs::remove_all(root);
+}
+
 void real_upgrade(fs::path const& old_release,
                   fs::path const& new_release,
                   std::string const& expected_sha,
@@ -211,13 +316,20 @@ void real_upgrade(fs::path const& old_release,
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 6 || std::string(argv[1]) != "--real-upgrade") {
+  if (argc != 6) {
     std::cerr << "usage: " << argv[0]
-              << " --real-upgrade OLD_APPIMAGE NEW_APPIMAGE EXPECTED_SHA256 NEW_VERSION\n";
+              << " --real-upgrade|--real-failed-upgrade OLD_APPIMAGE CANDIDATE_APPIMAGE EXPECTED_SHA256 NEW_VERSION\n";
     return 2;
   }
   try {
-    real_upgrade(fs::absolute(argv[2]), fs::absolute(argv[3]), argv[4], argv[5]);
+    if (std::string(argv[1]) == "--real-upgrade") {
+      real_upgrade(fs::absolute(argv[2]), fs::absolute(argv[3]), argv[4], argv[5]);
+    } else if (std::string(argv[1]) == "--real-failed-upgrade") {
+      real_failed_upgrade(fs::absolute(argv[2]), fs::absolute(argv[3]), argv[4], argv[5]);
+    } else {
+      std::cerr << "unknown AppImage test mode: " << argv[1] << "\n";
+      return 2;
+    }
     return 0;
   } catch (std::exception const& e) {
     std::cerr << "real AppImage upgrade failed: " << e.what() << "\n";
