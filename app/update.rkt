@@ -53,6 +53,9 @@
          install-candidate!
          peek-candidate
          pending-artifact-size
+         appimage-self-update?
+         package-managed-linux?
+         verified-install-metadata
          updates-folder-uri
          perform-check!
          start-download!
@@ -206,6 +209,41 @@
   (define candidate (unbox candidate-box))
   (and candidate
        (update-artifact-size (update-candidate-artifact candidate))))
+
+;; Host handoff ticket: never trust a path or digest supplied by the UI.
+;; The ticket comes exclusively from the currently selected, signed manifest
+;; candidate after the backend completed size/SHA-256 verification and atomically
+;; renamed its .partial file to the downloadable final path. Only expose it
+;; while the verified download is committed; a fresh update check resets it.
+(define (appimage-self-update?)
+  (and (eq? (platform-symbol) 'linux)
+       (eq? (current-install-kind) 'appimage)))
+
+;; DEB/RPM (normally under /opt or /usr) are owned by dpkg/rpm and their
+;; repository/policy machinery. They must never be replaced by unpacking a
+;; tar.gz nor by running the standalone AppImage swap helper.
+(define (package-managed-linux?)
+  (and (eq? (platform-symbol) 'linux)
+       (eq? (current-install-kind) 'package-manager)))
+
+(define (verified-install-metadata)
+  (define snapshot (update-state-snapshot))
+  (define candidate (peek-candidate))
+  (and candidate
+       (string=? (hash-ref snapshot 'phase "idle") "downloaded")
+       (let ([path (hash-ref snapshot 'downloadedPath #f)])
+         (and (string? path)
+              (file-exists? path)
+              (let ([artifact (update-candidate-artifact candidate)]
+                    [manifest (update-candidate-manifest candidate)])
+                (and (equal? (simple-form-path path)
+                             (simple-form-path
+                              (destination-path (data-dir) candidate)))
+                     (hasheq
+                      'sha256 (update-artifact-sha256 artifact)
+                      'rollbackAllowed (update-manifest-rollback-allowed? manifest)
+                      'installer (symbol->string
+                                  (update-artifact-installer artifact)))))))))
 
 ;; The updates directory as a file:// URI the hosts can shell-open (Finder,
 ;; Explorer, and xdg-open all speak it).

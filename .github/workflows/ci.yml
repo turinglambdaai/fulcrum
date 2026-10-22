@@ -14,8 +14,8 @@ concurrency:
 # Contexts aren't allowed in `uses:`, so the setup-embed-racket action
 # refs must be bumped in lockstep by hand.
 env:
-  # Merged immutable upstream fix for signed framework links in branded
-  # DMG staging (Rivet #300). Pinned to the tested merge commit.
+  # Unified immutable upstream revision containing AppImage handoff,
+  # branded-DMG signature preservation, and macOS update rollback safety.
   RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 jobs:
   backend:
@@ -130,6 +130,11 @@ jobs:
         run: |
           cmake --build .rivet/build/linux --target fulcrum-ui-test
           xvfb-run -a -s "-screen 0 1280x800x24 -nolisten tcp" dbus-run-session -- timeout 30s .rivet/build/linux/fulcrum-ui-test
+      - name: AppImage detached update replacement and rollback
+        shell: bash
+        run: |
+          cmake --build .rivet/build/linux --target fulcrum-appimage-handoff-test
+          timeout 45s .rivet/build/linux/fulcrum-appimage-handoff-test
       - name: Verify staged artifacts
         shell: bash
         run: |

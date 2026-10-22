@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 env:
-  # Merged immutable upstream fix for signed framework links in branded
-  # DMG staging (Rivet #300). Pinned to the tested merge commit.
+  # Unified immutable upstream revision containing AppImage handoff,
+  # branded-DMG signature preservation, and macOS update rollback safety.
   RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 
 jobs:

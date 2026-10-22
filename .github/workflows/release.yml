@@ -22,12 +22,14 @@ on:
   workflow_dispatch:
 
 env:
+  # Immutable Rivet merge commit includes the crash-safe AppImageHandoff
+  # accepted as upstream #291; v0.12.0 does not contain that API.
   # Single pin source, same value as ci.yml (workflow-level env does not
   # cross files, so this is defined here too). Contexts aren't allowed in
   # `uses:`, so the setup-embed-racket action ref must be bumped in
   # lockstep by hand.
-  # Merged immutable upstream fix for signed framework links in branded
-  # DMG staging (Rivet #300). Pinned to the tested merge commit.
+  # Unified immutable upstream revision containing AppImage handoff,
+  # branded-DMG signature preservation, and macOS update rollback safety.
   RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 permissions:
   contents: write
