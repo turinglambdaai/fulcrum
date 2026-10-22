@@ -128,6 +128,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installMenus()
         installClipboardWatcher(model: launcherModel)
         launcherModel.start()
+        #if FULCRUM_UPDATE_E2E_TESTING
+        if CommandLine.arguments.contains("--update-e2e-install") {
+            updater.runUpdateE2ETest()
+        }
+        #endif
         if ProcessInfo.processInfo.environment["FULCRUM_ACCEPTANCE"] == "1" {
             showPanel()
         }
@@ -246,7 +251,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.rebuildLocalizedMenus()
                 }
             }
+            #if FULCRUM_UPDATE_E2E_TESTING
+            if !CommandLine.arguments.contains("--update-e2e-install") {
+                self?.updateController?.silentStartupCheck()
+            }
+            #else
             self?.updateController?.silentStartupCheck()
+            #endif
         }
     }
 
