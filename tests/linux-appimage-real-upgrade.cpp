@@ -139,6 +139,7 @@ void real_upgrade(fs::path const& old_release,
   fs::permissions(candidate, fs::perms::owner_read | fs::perms::owner_write |
                              fs::perms::owner_exec | fs::perms::group_read |
                              fs::perms::group_exec);
+  auto const old_target_time = fs::last_write_time(target);
   if (::setenv("XDG_STATE_HOME", state.c_str(), 1) != 0) {
     fs::remove_all(root);
     throw std::runtime_error("could not isolate XDG_STATE_HOME");
@@ -175,11 +176,18 @@ void real_upgrade(fs::path const& old_release,
 
   auto const journal = fs::path(target.string() + ".rivet-handoff-journal");
   auto const backup = fs::path(target.string() + ".rivet-backup");
+  bool journal_seen = false;
   try {
     wait_for([&] {
-      return fs::is_regular_file(target) &&
-             file_digest(target) == expected_sha &&
-             !fs::exists(journal) && !fs::exists(backup);
+      if (fs::exists(journal)) journal_seen = true;
+      if (!fs::is_regular_file(target) || fs::exists(journal) ||
+          fs::exists(backup)) return false;
+      // Avoid re-hashing a 30 MB image every 100 ms. The journal or a changed
+      // target timestamp tells us the atomic replacement has actually run.
+      if (!journal_seen && fs::last_write_time(target) == old_target_time) {
+        return false;
+      }
+      return file_digest(target) == expected_sha;
     }, "official v" + expected_version +
        " AppImage must replace the older release, launch, and commit");
     if (auto failure = rivet::update::AppImageHandoff::ConsumeFailure(application_id)) {
