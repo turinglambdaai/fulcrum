@@ -6,6 +6,24 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-10-22
+
+### Added
+
+- **Portable snippets backup and restore.** Discoverable `export snippets <file.json>` and `import snippets <file.json>` commands write a versioned JSON bundle and validate its contents before merging. IDs and timestamps survive round trips; exports refuse to overwrite existing files.
+- **Native installed-update paths.** macOS supports authenticated update-to-installed-app handoff with rollback; Windows has verified MSI upgrade and failure/retry coverage; Linux x64/arm64 AppImages support atomic replacement, relaunch health checks, and rollback. DEB/RPM installations remain package-manager-managed and portable archives require manual handling.
+- **macOS drag-to-Applications DMG.** Installer artwork and package-layout checks cover Apple Silicon and Intel release shapes.
+
+### Security and release engineering
+
+- **Production release gates.** Stable builds require macOS Developer ID signing and notarization, Windows Authenticode/timestamping, Linux artifact signatures and an independently Ed25519-signed update feed. Missing publisher credentials or release approval fail closed; development signing cannot silently become a stable release.
+- **Candidate isolation.** RC tags publish only as prereleases and never replace stable download aliases or the stable update channel.
+- **Verified update regression.** CI covers the real signed Windows manifest and MSI download/ticket path, native Windows installer lifecycle, macOS signed-feed installation, and Linux AppImage success/rollback on both architectures. Exact-tagged-commit CI and Product Acceptance are required before release packaging.
+
+### Release verification
+
+- Publisher-owned production signing credentials, real signed/notarized tagged artifacts, clean-install checks and final Windows UI-to-native MSI handoff acceptance remain mandatory before promoting this version to stable. A green developer CI run alone is not release approval.
+
 ## [0.13.2] - 2026-10-20
 
 ### Fixed
