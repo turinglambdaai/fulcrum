@@ -12,7 +12,7 @@ permissions:
 env:
   # Merged immutable upstream fix for signed framework links in branded
   # DMG staging (Rivet #300). Pinned to the tested merge commit.
-  RIVET_PIN: a94dc171f2713e776bfb97faff46cde001edd4e7
+  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 
 jobs:
   windows:
@@ -99,7 +99,7 @@ jobs:
       - name: Remember full Racket command path
         run: echo "FULL_RACKET_BIN=$(dirname "$(command -v raco)")" >> "$GITHUB_ENV"
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a94dc171f2713e776bfb97faff46cde001edd4e7
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@4cd374f3f783a58306026381a64fc83c0e23ff48
       - name: Run executable product acceptance
         run: PATH="$FULL_RACKET_BIN:$PATH" dbus-run-session -- raco rivet acceptance --json
       - name: Require generated Linux client to be current
