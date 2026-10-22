@@ -6,8 +6,11 @@
 ;; CRUD, and search; hosts render them and request copies through events.
 ;; Same durability rule as every other store: atomic JSON snapshots.
 
-(require racket/contract
+(require json
+         racket/contract
+         racket/file
          racket/list
+         racket/path
          racket/string
          "../core/fuzzy.rkt"
          "../core/sync.rkt"
@@ -23,7 +26,9 @@
          snippet-list
          snippet-search
          snippet-by-keyword
-         snippet-count)
+         snippet-count
+         snippet-export!
+         snippet-import!)
 
 (struct snippet (id name keyword text ts) #:transparent)
 
@@ -139,3 +144,118 @@
 (define/contract (snippet-count store)
   (-> snippet-store? exact-nonnegative-integer?)
   (length (snippet-store-items store)))
+
+
+;; ---- portable bundles --------------------------------------------------
+;;
+;; Export never replaces another file. Import validates the entire versioned
+;; bundle and checks keyword claims before mutating the store. IDs/timestamps
+;; survive a round-trip; imports merge by ID rather than wiping local data.
+
+(define snippet-bundle-format "fulcrum-snippets")
+(define snippet-bundle-version 1)
+(define max-bundle-bytes (* 32 1024 1024))
+
+(define (snippet->json s)
+  (hasheq 'id (snippet-id s)
+          'name (snippet-name s)
+          'keyword (snippet-keyword s)
+          'text (snippet-text s)
+          'ts (snippet-ts s)))
+
+(define/contract (snippet-export! store destination)
+  (-> snippet-store? string? exact-nonnegative-integer?)
+  (unless (non-empty-string? (string-trim destination))
+    (raise-argument-error 'snippet-export! "non-empty path" destination))
+  (define path (expand-user-path (string->path destination)))
+  (define parent (or (path-only path) (current-directory)))
+  (unless (directory-exists? parent)
+    (raise-user-error 'snippet-export! "destination directory does not exist"))
+  (when (or (file-exists? path) (directory-exists? path))
+    (raise-user-error 'snippet-export! "destination already exists (refusing to overwrite)"))
+  (define snapshot
+    (call-with-semaphore (snippet-store-lock store)
+      (lambda () (map snippet->json (snippet-list store)))))
+  (define tmp (make-temporary-file "fulcrum-snippets-~a.json" #f parent))
+  (dynamic-wind
+    void
+    (lambda ()
+      (call-with-output-file tmp
+        (lambda (out)
+          (write-json (hasheq 'format snippet-bundle-format
+                              'version snippet-bundle-version
+                              'snippets snapshot) out))
+        #:exists 'replace)
+      (rename-file-or-directory tmp path))
+    (lambda ()
+      (when (file-exists? tmp) (delete-file tmp))))
+  (length snapshot))
+
+(define (json->snippet entry)
+  (unless (hash? entry)
+    (raise-user-error 'snippet-import! "invalid snippet entry"))
+  (define id (hash-ref entry 'id #f))
+  (define name (hash-ref entry 'name #f))
+  (define keyword (hash-ref entry 'keyword #f))
+  (define text (hash-ref entry 'text #f))
+  (define ts (hash-ref entry 'ts #f))
+  (unless (and (string? id)
+               (<= 1 (string-length id) 128)
+               (string? name)
+               (non-empty-string? (string-trim name))
+               (<= (string-length name) max-name-chars)
+               (string? keyword)
+               (<= (string-length keyword) max-keyword-chars)
+               (string? text)
+               (<= (string-length text) max-text-chars)
+               (real? ts)
+               (<= 0 ts))
+    (raise-user-error 'snippet-import! "invalid snippet field or length"))
+  (snippet id name keyword text ts))
+
+(define (check-snippet-claims! entries)
+  (define ids (make-hash))
+  (define keywords (make-hash))
+  (for ([s (in-list entries)])
+    (when (hash-has-key? ids (snippet-id s))
+      (raise-user-error 'snippet-import! "duplicate snippet ID"))
+    (hash-set! ids (snippet-id s) #t)
+    (unless (string=? (snippet-keyword s) "")
+      (define key (string-foldcase (snippet-keyword s)))
+      (when (hash-has-key? keywords key)
+        (raise-user-error 'snippet-import!
+                          (format "duplicate keyword: ~a" (snippet-keyword s))))
+      (hash-set! keywords key #t))))
+
+(define/contract (snippet-import! store source)
+  (-> snippet-store? string? exact-nonnegative-integer?)
+  (unless (non-empty-string? (string-trim source))
+    (raise-argument-error 'snippet-import! "non-empty path" source))
+  (define path (expand-user-path (string->path source)))
+  (when (> (file-size path) max-bundle-bytes)
+    (raise-user-error 'snippet-import! "bundle exceeds 32 MiB limit"))
+  ;; read-json-file deliberately swallows errors for cache stores; portable
+  ;; user-supplied imports must instead reject malformed or truncated JSON.
+  (define bundle (call-with-input-file path read-json))
+  (unless (and (hash? bundle)
+               (equal? (hash-ref bundle 'format #f) snippet-bundle-format)
+               (equal? (hash-ref bundle 'version #f) snippet-bundle-version)
+               (list? (hash-ref bundle 'snippets #f))
+               (<= (length (hash-ref bundle 'snippets)) 10000))
+    (raise-user-error 'snippet-import! "unsupported or malformed bundle"))
+  (define incoming (map json->snippet (hash-ref bundle 'snippets)))
+  (check-snippet-claims! incoming)
+  (call-with-semaphore
+   (snippet-store-lock store)
+   (lambda ()
+     (define ids (for/hash ([s (in-list incoming)])
+                   (values (snippet-id s) #t)))
+     (define retained
+       (filter (lambda (s) (not (hash-has-key? ids (snippet-id s))))
+               (snippet-store-items store)))
+     (define merged (append incoming retained))
+     ;; Also catch keyword collisions with entries already on the machine.
+     (check-snippet-claims! merged)
+     (set-snippet-store-items! store merged)
+     (persist! store)))
+  (length incoming))
