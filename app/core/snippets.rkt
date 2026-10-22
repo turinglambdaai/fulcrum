@@ -221,11 +221,11 @@
       (raise-user-error 'snippet-import! "duplicate snippet ID"))
     (hash-set! ids (snippet-id s) #t)
     (unless (string=? (snippet-keyword s) "")
-      (define key (string-foldcase (snippet-keyword s)))
-      (when (hash-has-key? keywords key)
-        (raise-user-error 'snippet-import!
-                          (format "duplicate keyword: ~a" (snippet-keyword s))))
-      (hash-set! keywords key #t))))
+      (let ([key (string-foldcase (snippet-keyword s))])
+        (when (hash-has-key? keywords key)
+          (raise-user-error 'snippet-import!
+                            (format "duplicate keyword: ~a" (snippet-keyword s))))
+        (hash-set! keywords key #t)))))
 
 (define/contract (snippet-import! store source)
   (-> snippet-store? string? exact-nonnegative-integer?)
