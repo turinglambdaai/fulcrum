@@ -83,6 +83,20 @@ function Invoke-Msi([string]$verb, [string]$msiOrGuid, [string]$label) {
   }
 }
 
+function Invoke-ExpectedMsiFailure([string]$msi, [string]$label) {
+  $log = Join-Path $root "$label.log"
+  $argLine = "/i `"$msi`" /qn /norestart /L*v `"$log`""
+  Write-Host "Running deliberately invalid MSI: $label"
+  $process = Start-Process -FilePath $msiexec -ArgumentList $argLine -Wait -PassThru
+  if ($process.ExitCode -in @(0, 3010, 1641)) {
+    if (Test-Path $log) {
+      Get-Content $log -Tail 45 | ForEach-Object { Write-Host $_ }
+    }
+    throw "Invalid MSI unexpectedly succeeded ($($process.ExitCode))"
+  }
+  Write-Host "PASS: invalid MSI rejected with exit code $($process.ExitCode)"
+}
+
 $installed = $false
 try {
   if (@(Get-FulcrumInstallation).Count -gt 0) {
@@ -95,6 +109,17 @@ try {
   Invoke-Msi "i" $old "install-old"
   $installed = $true
   Require-InstalledVersion $OldVersion
+
+  # Corrupt the MSI database header but keep the previously installed product
+  # untouched. A subsequent valid retry must still upgrade successfully.
+  $broken = Join-Path $root "deliberately-invalid.msi"
+  Copy-Item -LiteralPath $new -Destination $broken
+  $bytes = [System.IO.File]::ReadAllBytes($broken)
+  $bytes[0] = 0
+  [System.IO.File]::WriteAllBytes($broken, $bytes)
+  Invoke-ExpectedMsiFailure $broken "invalid-upgrade"
+  Require-InstalledVersion $OldVersion
+  Write-Host "PASS: failed upgrade preserved the old installation; retrying the valid MSI"
 
   Invoke-Msi "i" $new "upgrade-new"
   Require-InstalledVersion $NewVersion
