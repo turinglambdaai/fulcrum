@@ -46,3 +46,9 @@ raco rivet acceptance --json
   空测试、跳过 UI 或测试中的强杀进程当作成功证据。
 - 发现某平台无法完成同一产品场景时，先修产品或上游 Rivet；临时 workaround
   必须可删除、被测试覆盖，并在 PR 中明确说明边界。
+
+## 组合定位（Portfolio placement）
+
+- 轨道与授权：轨道 2 消费买断（消费线第一棒）；授权形态：BUSL-1.1 → MIT（2030-09-28 或各版首发四周年，先到者）；商业归属：适合收费——免费核心已完整，Pro 走买断 + 更新窗；Pro 边界待设计（候选：工作流/自定义命令、主题、高级剪贴板）。护城河是原生性能 + 本地隐私 + 工作流生态，不是收费墙。
+- 组合归属唯一权威：[PORTFOLIO.md](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)（turinglambdaai.github.io 仓库）。改归属/授权先改权威档，再同步本节。
+- 纪律：价格只进本仓 `PRICING.md`，且收费开始时才发布；README 与产品站不做价格预告。

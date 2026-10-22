@@ -68,6 +68,25 @@ int main() {
   XInitThreads();
   load_i18n(executable_path().parent_path());
   gtk_init();
+  // Pure positioning checks exercise coordinate math independent of a
+  // particular CI virtual monitor topology. Negative origins and smaller
+  // work areas are common with laptop + external-display setups.
+  GdkRectangle work{0, 30, 1920, 1000};
+  auto top = upper_quarter_placement(work, 680, 460);
+  check(top.x == 620 && top.y == 165,
+        "launcher sits at top quarter of usable work area, not screen center");
+  GdkRectangle left_monitor{-1920, 0, 1920, 1080};
+  auto negative = upper_quarter_placement(left_monitor, 680, 460);
+  check(negative.x == -1300 && negative.y == 155,
+        "left-hand monitors preserve negative global X coordinates");
+  check(monitor_contains_point(left_monitor, -1000, 500) &&
+            !monitor_contains_point(work, -1000, 500),
+        "pointer monitor selection respects multi-monitor boundaries");
+  GdkRectangle small{100, 50, 500, 400};
+  auto small_pos = upper_quarter_placement(small, 500, 400);
+  check(small_pos.x == 100 && small_pos.y == 50,
+        "small work areas do not produce a negative placement offset");
+
   auto* app = gtk_application_new("site.jrtx.fulcrum.ui-test",
                                    G_APPLICATION_NON_UNIQUE);
   g_application_register(G_APPLICATION(app), nullptr, nullptr);
@@ -75,6 +94,18 @@ int main() {
   auto& launcher = Launcher::instance();
   // The test executable has no adjacent runtime: startup stops before boot.
   check(launcher.api == nullptr, "UI fixture does not start the backend");
+  // Check that the live X11 window actually advertises its program-chosen
+  // position to the WM. The helper runs on every summon, not just startup.
+  launcher.show();
+  auto* placement_surface = gtk_native_get_surface(GTK_NATIVE(launcher.window));
+  auto* xdisplay = gdk_x11_display_get_xdisplay(
+      gtk_widget_get_display(GTK_WIDGET(launcher.window)));
+  auto const xid = gdk_x11_surface_get_xid(placement_surface);
+  XSizeHints hints{};
+  long supplied = 0;
+  check(XGetWMNormalHints(xdisplay, xid, &hints, &supplied) != 0 &&
+            (hints.flags & USPosition) != 0,
+        "X11 summon sets the WM's USPosition hint");
   launcher.rows.clear();
   for (int i = 0; i < 12; ++i) {
     launcher.rows.push_back(parse_row({"settings.set", "Option " + std::to_string(i),
@@ -90,6 +121,34 @@ int main() {
   check(gtk_widget_get_height(scrolled) >= 3 * gtk_widget_get_height(GTK_WIDGET(first)),
         "results viewport shows multiple candidates");
   check(has_label(GTK_WIDGET(first), "system"), "current setting badge is rendered");
+
+  // A .desktop Icon=absolute/path should create a native file icon,
+  // while an invalid entry must fall back to the generic glyph.
+  gchar* icon_dir = g_dir_make_tmp("fulcrum-icon-test-XXXXXX", nullptr);
+  check(icon_dir != nullptr, "test icon directory can be created");
+  if (icon_dir != nullptr) {
+    std::string icon_path = std::string(icon_dir) + "/app.svg";
+    char const* svg = "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32'>"
+                      "<rect width='32' height='32' fill='#d97706'/></svg>";
+    check(g_file_set_contents(icon_path.c_str(), svg, -1, nullptr) != FALSE,
+          "test app icon is written");
+    auto app = parse_row({"app.launch", "Test App", "/tmp/test.desktop",
+                          "Application", "dtest", icon_path, "", ""});
+    GtkWidget* app_image = application_icon(app);
+    check(GTK_IS_IMAGE(app_image) &&
+              gtk_image_get_storage_type(GTK_IMAGE(app_image)) == GTK_IMAGE_GICON,
+          "application row renders its real desktop Icon path");
+    auto missing = parse_row({"app.launch", "Missing Icon", "/tmp/test.desktop",
+                              "Application", "dmissing",
+                              "/no/such/fulcrum/icon.svg", "", ""});
+    check(application_icon(missing) == nullptr,
+          "broken app icons allow the generic glyph fallback");
+    if (app_image) g_object_ref_sink(app_image);
+    if (app_image) g_object_unref(app_image);
+    std::filesystem::remove(icon_path);
+    std::filesystem::remove(icon_dir);
+    g_free(icon_dir);
+  }
   launcher.rows.back().badge.clear();
   launcher.refresh_results();
   pump(40);
@@ -142,8 +201,11 @@ int main() {
   check(gtk_list_box_row_get_index(gtk_list_box_get_selected_row(launcher.results)) == 11,
         "language refresh preserves ordinary application selection");
   set_i18n_language("en");
-  check(g_action_map_lookup_action(G_ACTION_MAP(app), "restart") != nullptr,
-        "restart is available as a native application action");
+  check(g_action_map_lookup_action(G_ACTION_MAP(app), "restart") == nullptr &&
+            g_action_map_lookup_action(G_ACTION_MAP(app), "quit") == nullptr,
+        "search UI does not expose redundant Restart/Quit app actions");
+  check(launcher.app != nullptr,
+        "the resident native tray still owns application lifecycle");
 
   auto* settings = gtk_settings_get_default();
   gchar* original_theme = nullptr;

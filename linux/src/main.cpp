@@ -78,11 +78,11 @@ ResultRow parse_row(std::vector<std::string> const& cells) {
 // One stylesheet drives the panel look — glass background, amber (#D97706)
 // rows, the ↵ chip on the selected row only — the same design tokens the
 // macOS host renders through vibrancy and the Windows host through Desktop
-// Acrylic. GNOME compositors do not blur, so the glass is an alpha
-// background: KWin and other blurring compositors upgrade it to frosted
-// glass for free, and a session without a compositor degrades to a solid
-// panel. Re-applied when the backend pushes the theme state, because the
-// dark variant picks its own glass tone.
+// Acrylic. GTK4 does not guarantee a blurred background: GNOME can show
+// sharp window text and icons directly through a transparent launcher.
+// Keep the surface almost opaque so results remain legible even without a
+// compositor; rounded corners, border and selection retain the family look.
+// Re-applied when the backend pushes the theme state.
 
 static GtkCssProvider* g_panel_css = nullptr;
 
@@ -95,7 +95,7 @@ static void apply_panel_css() {
   char const* glass_css = dark
       ? R"CSS(
 window.fulcrum-window {
-  background-color: rgba(28,28,30,0.88);
+  background-color: rgba(28,28,30,0.98);
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.10);
   color: #f2f2f2;
@@ -103,7 +103,7 @@ window.fulcrum-window {
 )CSS"
       : R"CSS(
 window.fulcrum-window {
-  background-color: rgba(250,250,249,0.92);
+  background-color: rgba(250,250,249,0.98);
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.10);
   color: #1d1d1f;
@@ -243,6 +243,41 @@ static char const* row_icon_name(ResultRow const& row) {
   return pick_icon({"application-x-executable-symbolic"});
 }
 
+// Desktop-entry Icon values are supplied by the backend in column 5 of
+// application rows. GTK resolves themed names (e.g. org.gnome.Terminal) and
+// absolute icon file paths; a missing or broken icon falls back to the same
+// semantic glyph as other hosts. Do not pass an arbitrary relative path to
+// the filesystem: freedesktop only specifies an absolute path or theme name.
+static GtkWidget* application_icon(ResultRow const& row) {
+  if (row.kind != "Application" || row.icon.empty() || row.icon == "app") {
+    return nullptr;
+  }
+  GtkWidget* image = nullptr;
+  if (g_path_is_absolute(row.icon.c_str())) {
+    if (g_file_test(row.icon.c_str(), G_FILE_TEST_IS_REGULAR)) {
+      GFile* file = g_file_new_for_path(row.icon.c_str());
+      GIcon* file_icon = g_file_icon_new(file);
+      image = gtk_image_new_from_gicon(file_icon);
+      g_object_unref(file_icon);
+      g_object_unref(file);
+    }
+  } else {
+    GtkIconTheme* theme =
+        gtk_icon_theme_get_for_display(gdk_display_get_default());
+    if (theme != nullptr &&
+        gtk_icon_theme_has_icon(theme, row.icon.c_str())) {
+      image = gtk_image_new_from_icon_name(row.icon.c_str());
+    }
+  }
+  if (image != nullptr) {
+    gtk_image_set_pixel_size(GTK_IMAGE(image), 28);
+    gtk_widget_set_size_request(image, 28, 28);
+    gtk_widget_set_valign(image, GTK_ALIGN_CENTER);
+    gtk_widget_add_css_class(image, "fulcrum-app-icon");
+  }
+  return image;
+}
+
 // Rivet's POSIX shutdown plumbing (defined after Launcher). Installed once
 // the embedded runtime has booted — see on_backend_ready for the ordering.
 void install_shutdown_hook_once();
@@ -250,12 +285,14 @@ void install_shutdown_hook_once();
 // Tray menu composition (defined after Launcher). Called when the backend
 // `language` setting lands so the labels follow it without a restart.
 void apply_tray_language();
-void request_restart();
-bool g_restart_requested{false};
 
 // Settings window (defined after Launcher): the tray menu and the leading
 // settings row open it.
 void show_settings_window();
+
+// Original X11 pointer-monitor integration: @linyubin, PR #61.
+// Work-area parity / GDK monitor lifetime fixes: maintainers.
+void place_panel_on_pointer_monitor(GtkWindow* panel);
 
 std::filesystem::path executable_path() {
   return std::filesystem::read_symlink("/proc/self/exe");
@@ -862,7 +899,6 @@ struct Launcher {
   GtkLabel* status{nullptr};
   GtkButton* hotkey_fix{nullptr};
   GtkLabel* navigation_hint{nullptr};
-  GtkMenuButton* app_menu{nullptr};
   // Live AI answer panel (hidden until the backend pushes ai-stream).
   GtkWidget* ai_panel{nullptr};
   GtkLabel* ai_phase{nullptr};
@@ -1398,10 +1434,17 @@ struct Launcher {
       auto* box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
       gtk_widget_set_valign(box, GTK_ALIGN_CENTER);
 
-      if (char const* icon_name = row_icon_name(row)) {
-        auto* icon = gtk_image_new_from_icon_name(icon_name);
-        gtk_image_set_pixel_size(GTK_IMAGE(icon), 16);
-        gtk_widget_add_css_class(icon, "fulcrum-row-icon");
+      // Application entries get their real themed or file icon. Only
+      // missing icons use the generic amber-tinted semantic fallback.
+      GtkWidget* icon = application_icon(row);
+      if (icon == nullptr) {
+        if (char const* icon_name = row_icon_name(row)) {
+          icon = gtk_image_new_from_icon_name(icon_name);
+          gtk_image_set_pixel_size(GTK_IMAGE(icon), 16);
+          gtk_widget_add_css_class(icon, "fulcrum-row-icon");
+        }
+      }
+      if (icon != nullptr) {
         gtk_box_append(GTK_BOX(box), icon);
       }
 
@@ -1643,6 +1686,10 @@ struct Launcher {
     dismiss_detail_panel();
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
+    // Position before mapping to avoid showing the launcher on the wrong
+    // monitor for a frame. Wayland compositor positioning remains unchanged.
+    gtk_widget_realize(GTK_WIDGET(window));
+    place_panel_on_pointer_monitor(window);
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
     auto* display = gtk_widget_get_display(GTK_WIDGET(window));
     if (GDK_IS_X11_DISPLAY(display)) {
@@ -1834,14 +1881,6 @@ void set_i18n_language(std::string const& lang) {
   }
   if (launcher.hotkey_fix != nullptr) {
     gtk_button_set_label(launcher.hotkey_fix, tr("trayFixHotkey").c_str());
-  }
-  if (launcher.app_menu != nullptr) {
-    gtk_widget_set_tooltip_text(GTK_WIDGET(launcher.app_menu), tr("appMenu").c_str());
-    auto* menu = g_menu_new();
-    g_menu_append(menu, tr("trayRestart").c_str(), "app.restart");
-    g_menu_append(menu, tr("trayQuit").c_str(), "app.quit");
-    gtk_menu_button_set_menu_model(launcher.app_menu, G_MENU_MODEL(menu));
-    g_object_unref(menu);
   }
   if (changed && launcher.results != nullptr) {
     auto* selected = gtk_list_box_get_selected_row(launcher.results);
@@ -2346,7 +2385,133 @@ void show_settings_window() {
   gtk_window_present(g_settings_form->window);
 }
 
+// ---- X11 launcher monitor placement --------------------------------------
+//
+// The pointer-monitor summon fix originated in @linyubin's #61. X11 WMs
+// otherwise tend to map a utility window onto a default monitor.
+
+struct PanelPlacement { int x; int y; };
+
+PanelPlacement upper_quarter_placement(GdkRectangle const& work,
+                                       int width, int height) {
+  // GDK/X11 uses a top-left origin. Same proportion as WinUI/AppKit:
+  // a quarter of the free height below the screen's usable top edge.
+  return {work.x + std::max(0, work.width - width) / 2,
+          work.y + std::max(0, work.height - height) / 4};
+}
+
+bool monitor_contains_point(GdkRectangle const& g, int x, int y) {
+  return x >= g.x && x < g.x + g.width &&
+         y >= g.y && y < g.y + g.height;
+}
+
+// _NET_WORKAREA is a virtual-desktop-wide rectangle on X11. Intersect it
+// with the chosen monitor as a best-effort allowance for docks/top panels;
+// a WM with no usable EWMH property falls back to full monitor geometry.
+GdkRectangle usable_x11_monitor_area(Display* dpy, Window root,
+                                     GdkRectangle const& monitor) {
+  Atom atom = XInternAtom(dpy, "_NET_WORKAREA", True);
+  if (atom == None) return monitor;
+  Atom type = None;
+  int format = 0;
+  unsigned long count = 0, bytes_left = 0;
+  unsigned char* bytes = nullptr;
+  GdkRectangle work = monitor;
+  int status = XGetWindowProperty(dpy, root, atom, 0, 4, False, XA_CARDINAL,
+                                  &type, &format, &count, &bytes_left, &bytes);
+  if (status == Success && type == XA_CARDINAL && format == 32 &&
+      count >= 4 && bytes != nullptr) {
+    auto* values = reinterpret_cast<unsigned long const*>(bytes);
+    // Xlib stores 32-bit property values in native unsigned longs.
+    auto wx = static_cast<std::int32_t>(values[0]);
+    auto wy = static_cast<std::int32_t>(values[1]);
+    auto ww = static_cast<std::uint32_t>(values[2]);
+    auto wh = static_cast<std::uint32_t>(values[3]);
+    if (ww > 0 && wh > 0 && ww <= 100000 && wh <= 100000) {
+      auto left = std::max<std::int64_t>(monitor.x, wx);
+      auto top = std::max<std::int64_t>(monitor.y, wy);
+      auto right = std::min<std::int64_t>(
+          static_cast<std::int64_t>(monitor.x) + monitor.width,
+          static_cast<std::int64_t>(wx) + ww);
+      auto bottom = std::min<std::int64_t>(
+          static_cast<std::int64_t>(monitor.y) + monitor.height,
+          static_cast<std::int64_t>(wy) + wh);
+      if (right > left && bottom > top) {
+        work = {static_cast<int>(left), static_cast<int>(top),
+                static_cast<int>(right - left),
+                static_cast<int>(bottom - top)};
+      }
+    }
+  }
+  if (bytes != nullptr) XFree(bytes);
+  return work;
+}
+
+void place_panel_on_pointer_monitor(GtkWindow* panel) {
+  auto* widget = GTK_WIDGET(panel);
+  auto* display = gtk_widget_get_display(widget);
+  // Wayland forbids client-controlled toplevel coordinates.
+  if (!GDK_IS_X11_DISPLAY(display)) return;
+  auto* xdisplay = gdk_x11_display_get_xdisplay(GDK_X11_DISPLAY(display));
+  Window root = DefaultRootWindow(xdisplay);
+  GListModel* monitors = gdk_display_get_monitors(display);
+  if (monitors == nullptr) return;
+  guint count = g_list_model_get_n_items(monitors);
+  if (count == 0) return;  // monitor hotplug / session shutdown
+
+  Window root_return = None, child = None;
+  int pointer_x = 0, pointer_y = 0, win_x = 0, win_y = 0;
+  unsigned int mask = 0;
+  bool pointer_known =
+      XQueryPointer(xdisplay, root, &root_return, &child,
+                    &pointer_x, &pointer_y, &win_x, &win_y, &mask) != False;
+
+  GdkMonitor* chosen = nullptr;
+  for (guint i = 0; i < count; ++i) {
+    auto* candidate = GDK_MONITOR(g_list_model_get_item(monitors, i));
+    if (candidate == nullptr) continue;
+    GdkRectangle g{};
+    gdk_monitor_get_geometry(candidate, &g);
+    if (pointer_known && monitor_contains_point(g, pointer_x, pointer_y)) {
+      chosen = candidate;
+      break;
+    }
+    g_object_unref(candidate);
+  }
+  if (chosen == nullptr)
+    chosen = GDK_MONITOR(g_list_model_get_item(monitors, 0));
+  if (chosen == nullptr) return;
+
+  GdkRectangle geometry{};
+  gdk_monitor_get_geometry(chosen, &geometry);
+  g_object_unref(chosen);  // get_item() owns a reference for every summon
+  if (geometry.width <= 0 || geometry.height <= 0) return;
+
+  GdkRectangle usable = usable_x11_monitor_area(xdisplay, root, geometry);
+  // Reset the preferred dimensions on each summon. Do not strand a tiny
+  // window after switching from a small monitor to a larger one.
+  int const width = std::min(680, usable.width);
+  int const height = std::min(460, usable.height);
+  gtk_window_set_default_size(panel, width, height);
+  PanelPlacement pos = upper_quarter_placement(usable, width, height);
+
+  auto* surface = gtk_native_get_surface(GTK_NATIVE(panel));
+  if (!GDK_IS_X11_SURFACE(surface)) return;
+  Window xid = gdk_x11_surface_get_xid(GDK_X11_SURFACE(surface));
+  XSizeHints hints{};
+  long supplied = 0;
+  if (!XGetWMNormalHints(xdisplay, xid, &hints, &supplied))
+    hints.flags = 0;
+  hints.flags |= USPosition;
+  hints.x = pos.x;
+  hints.y = pos.y;
+  XSetWMNormalHints(xdisplay, xid, &hints);
+  XMoveWindow(xdisplay, xid, pos.x, pos.y);
+  XFlush(xdisplay);
+}
+
 // ---- X11 global hotkey ----------------------------------------------------
+
 
 std::string install_x11_hotkey(GdkDisplay* display) {
   if (GDK_IS_X11_DISPLAY(display) == 0) {
@@ -2395,11 +2560,6 @@ void tray_quit() {
   // A real quit: GApplication's shutdown path stops the backend, and the
   // shutdown hook keeps SIGTERM equivalent.
   g_application_quit(G_APPLICATION(Launcher::instance().app));
-}
-
-void request_restart() {
-  g_restart_requested = true;
-  tray_quit();
 }
 
 // GNOME's stock "activate window menu" binding is <Alt>space — the
@@ -2756,14 +2916,10 @@ void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
 void on_activate(GtkApplication* app, gpointer) {
   Launcher& launcher = Launcher::instance();
   launcher.app = app;  // tray quit routes through GApplication's shutdown
-  GActionEntry actions[3]{};
-  actions[0].name = "restart";
-  actions[0].activate = [](GSimpleAction*, GVariant*, gpointer) { request_restart(); };
-  actions[1].name = "quit";
-  actions[1].activate = [](GSimpleAction*, GVariant*, gpointer) { tray_quit(); };
-  actions[2].name = "fix-hotkey";
-  actions[2].activate = [](GSimpleAction*, GVariant*, gpointer) { tray_fix_hotkey(); };
-  g_action_map_add_action_entries(G_ACTION_MAP(app), actions, 3, nullptr);
+  // Deliberately no Restart/Quit actions in the search panel. Unlike
+  // persistent tool windows, the launcher is a transient keyboard surface;
+  // native resident menus already provide Quit, Settings and Updates.
+  // GNOME hotkey recovery stays available as a tray item or inline notice.
 
   // The panel hides on focus loss; without a hold, GTK would treat the
   // hidden window as "last window closed" and shut the whole app down.
@@ -3079,13 +3235,5 @@ int run_application() {
 }
 
 int main(int, char**) {
-  std::string const executable = executable_path().string();
-  int const status = run_application();
-  // Release the single-instance lease and stop the backend before re-exec.
-  if (g_restart_requested) {
-    execl(executable.c_str(), executable.c_str(), static_cast<char*>(nullptr));
-    std::cerr << "fulcrum: restart failed: " << g_strerror(errno) << '\n';
-    return 1;
-  }
-  return status;
+  return run_application();
 }
