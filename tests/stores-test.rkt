@@ -4,7 +4,8 @@
 ;; fresh tmpdir so runs never touch real user data and never observe each
 ;; other's state.
 
-(require racket/file
+(require json
+         racket/file
          racket/list
          rackunit
          "../app/core/clipboard.rkt"
@@ -103,3 +104,57 @@
      (define reloaded (make-snippet-store (snippets-path)))
      (check-equal? (snippet-count reloaded) 1)
      (check-equal? (snippet-keyword (car (snippet-list reloaded))) "sig"))))
+
+
+(test-case "portable snippets export/import preserves IDs, timestamps and contents"
+  (with-fresh-data-dir
+   (lambda ()
+     (define original (make-snippet-store (snippets-path)))
+     (define a (snippet-save! original "Greeting" "Hello\nworld" "hi"))
+     (define b (snippet-save! original "Closing" "Best regards" "bye"))
+     (define bundle (build-path (data-dir) "portable-snippets.json"))
+     (check-equal? (snippet-export! original (path->string bundle)) 2)
+     (define exported (call-with-input-file bundle read-json))
+     (check-equal? (hash-ref exported 'format) "fulcrum-snippets")
+     (check-equal? (hash-ref exported 'version) 1)
+     (define elsewhere (build-path (data-dir) "restored.json"))
+     (define restored (make-snippet-store elsewhere))
+     (check-equal? (snippet-import! restored (path->string bundle)) 2)
+     (check-equal? (snippet-list restored) (snippet-list original))
+     (check-equal? (snippet-id (snippet-by-keyword restored "HI")) (snippet-id a))
+     (check-equal? (snippet-ts (snippet-ref restored (snippet-id b))) (snippet-ts b))
+     ;; Reimport is idempotent and never duplicates the same identities.
+     (check-equal? (snippet-import! restored (path->string bundle)) 2)
+     (check-equal? (snippet-count restored) 2)
+     (check-exn exn:fail? (lambda () (snippet-export! original (path->string bundle))))
+     (check-equal? (snippet-count original) 2))))
+
+(test-case "malformed or conflicting snippet bundles never partially import"
+  (with-fresh-data-dir
+   (lambda ()
+     (define store (make-snippet-store (snippets-path)))
+     (define local (snippet-save! store "Local" "precious" "claimed"))
+     (define path (build-path (data-dir) "unsafe.json"))
+     (define (put value)
+       (call-with-output-file path
+         (lambda (out) (write-json value out))
+         #:exists 'replace))
+     (define (bundle items)
+       (hasheq 'format "fulcrum-snippets" 'version 1 'snippets items))
+     (define (entry id keyword text)
+       (hasheq 'id id 'name id 'keyword keyword 'text text 'ts 123))
+     (put (bundle (list (entry "other" "free" "valid")
+                        (entry "collision" "CLAIMED" "unsafe"))))
+     (check-exn exn:fail? (lambda () (snippet-import! store (path->string path))))
+     (check-equal? (snippet-list store) (list local))
+     ;; Invalid fields and duplicate IDs reject an entire bundle.
+     (put (bundle (list (entry "new" "new" "ok")
+                        (hasheq 'id "bad" 'name "Bad" 'keyword "oops" 'text 3 'ts 1))))
+     (check-exn exn:fail? (lambda () (snippet-import! store (path->string path))))
+     (put (bundle (list (entry "dup" "x" "a") (entry "dup" "y" "b"))))
+     (check-exn exn:fail? (lambda () (snippet-import! store (path->string path))))
+     (call-with-output-file path
+       (lambda (out) (display "{\"format\":" out))
+       #:exists 'replace)
+     (check-exn exn:fail? (lambda () (snippet-import! store (path->string path))))
+     (check-equal? (snippet-list store) (list local)))))

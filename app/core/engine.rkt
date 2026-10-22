@@ -409,6 +409,29 @@
             '()))
       (lambda (query) '())))
 
+
+;; A deliberately explicit file path: neither operation silently reads from
+;; or overwrites a default location. Rows only appear for the exact grammar.
+(define (snippet-transfer-provider engine)
+  (if (engine-snippets engine)
+      (lambda (query)
+        (define lowered (string-downcase query))
+        (for/list ([entry (in-list
+                           '(("export snippets" "snip.export" "Export snippets")
+                             ("import snippets" "snip.import" "Import snippets")))]
+                   #:when (or (string=? lowered (car entry))
+                              (string-prefix? lowered
+                                              (string-append (car entry) " "))))
+          (define path (string-trim (substring query (string-length (car entry)))))
+          (result (if (string=? path "") "noop" (cadr entry))
+                  (caddr entry)
+                  (if (string=? path "")
+                      (format "~a <file.json> · enter a local path" (car entry))
+                      (format "↵ ~a" path))
+                  "Snippet" path "snippet" "" (if (string=? path "") "" "File")
+                  (car entry) 150)))
+      (lambda (query) '())))
+
 ;; ---- window management ---------------------------------------------------
 ;;
 ;; Rows only rank; execution is the host's (it can see other apps'
@@ -678,6 +701,7 @@
    ((quicklinks-provider engine) query)
    ((add-link-provider engine) query)
    ((add-snippet-provider engine) query)
+   ((snippet-transfer-provider engine) query)
    ((web-provider engine) query)
    ((system-provider engine) query)
    ((plugins-provider engine) query)
@@ -838,6 +862,21 @@
               (cons "ok" (list (cons 'notify
                                      (format "Snippet saved: ~a" (snippet-name s))))))
             (cons "invalid snippet payload" '()))))]
+    [(or (string=? id "snip.export") (string=? id "snip.import"))
+     (finish
+      (with-handlers ([exn:fail?
+                       (lambda (e)
+                         (cons (format "snippet transfer failed: ~a" (exn-message e)) '()))])
+        (if (not (engine-snippets engine))
+            (cons "snippet store unavailable" '())
+            (let ([count (if (string=? id "snip.export")
+                             (snippet-export! (engine-snippets engine) arg)
+                             (snippet-import! (engine-snippets engine) arg))])
+              (cons "ok" (list (cons 'notify
+                                     (format "~a ~a snippets"
+                                             (if (string=? id "snip.export")
+                                                 "Exported" "Imported")
+                                             count))))))))]
     [(string=? id "link.open") (finish (link-open! engine arg))]
     [(string=? id "link.save") (finish (link-save!-from-payload engine arg))]
     [(string=? id "link.delete") (finish (link-delete!-action engine arg))]

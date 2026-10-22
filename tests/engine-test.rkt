@@ -287,3 +287,32 @@
      ;; Unknown clip id is loud.
      (check-true (string-contains? (car (engine-run engine "clip.pin" "nope"))
                                    "not found")))))
+
+
+(test-case "snippet import/export one-line commands and error reporting"
+  (with-fresh-data-dir
+   (lambda ()
+     (define engine (fixture-engine))
+     (snippet-save! (engine-snippets engine) "Sample" "Body" "samp")
+     (define path (path->string (build-path (data-dir) "bundle.json")))
+     (define hint (engine-search engine "export snippets"))
+     (check-equal? (row-id (car hint)) "noop")
+     (define rows (engine-search engine (string-append "export snippets " path)))
+     (define export-row (findf (lambda (r) (equal? (row-id r) "snip.export")) rows))
+     (check-not-false export-row)
+     (check-equal? (row-arg export-row) path)
+     (check-equal? (car (engine-run engine "snip.export" (row-arg export-row))) "ok")
+     (check-true (file-exists? (string->path path)))
+     (check-true (string-contains?
+                  (car (engine-run engine "snip.export" path))
+                  "failed"))
+     (snippet-delete! (engine-snippets engine)
+                      (snippet-id (snippet-by-keyword (engine-snippets engine) "samp")))
+     (define imported (engine-search engine (string-append "import snippets " path)))
+     (define import-row (findf (lambda (r) (equal? (row-id r) "snip.import")) imported))
+     (check-not-false import-row)
+     (check-equal? (car (engine-run engine "snip.import" (row-arg import-row))) "ok")
+     (check-equal? (snippet-count (engine-snippets engine)) 1)
+     (check-true (string-contains?
+                  (car (engine-run engine "snip.import" "/nonexistent/fulcrum-bundle.json"))
+                  "failed")))))
