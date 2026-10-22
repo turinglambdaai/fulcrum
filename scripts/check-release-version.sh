@@ -21,8 +21,10 @@ fail() {
 
 if [[ -n "$TAG" ]]; then
   TAG_VERSION="${TAG#v}"
-  [[ "$TAG_VERSION" == "$VERSION" ]] || \
-    fail "tag '$TAG' does not match VERSION '$VERSION'"
+  VERSION_PATTERN="${VERSION//./\\.}"
+  [[ "$TAG_VERSION" == "$VERSION" ||
+     "$TAG_VERSION" =~ ^${VERSION_PATTERN}-rc\.[1-9][0-9]*$ ]] || \
+    fail "tag '$TAG' must be v$VERSION or v$VERSION-rc.N"
 fi
 
 # The Rivet app manifest carries the product version on this tree.

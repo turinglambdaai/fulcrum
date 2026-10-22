@@ -26,8 +26,9 @@ repo-root `VERSION` file to the same value. Update `CHANGELOG.md` with a
 section named exactly after the new version — the tag validator rejects a
 tag whose version has no matching changelog section.
 `scripts/check-release-version.sh` (run in CI and every release packaging
-job) enforces `VERSION == rivet.rktd == tag`; `.github/sign-manifest.rkt`
-reads the version from `rivet.rktd` when composing the channel manifest.
+job) enforces `VERSION == rivet.rktd`; a stable tag is `v<VERSION>`, while a
+candidate tag may be `v<VERSION>-rc.N`. `.github/sign-manifest.rkt` reads the
+numeric package version from `rivet.rktd` when composing the channel manifest.
 
 For the developer preview on the `main` branch this is enough; production
 steps continue below.
@@ -83,7 +84,29 @@ x64, Windows x64, Linux x64):
    existing version URL. The app itself fetches `manifest.json` under its
    `update-base-url` setting (default
    `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
-   so publishing the draft puts the update feed live.
+   so only publishing a non-prerelease release changes the stable feed.
+
+### Release candidates
+
+An RC tag uses `v<VERSION>-rc.N`, but `VERSION`, `rivet.rktd`, native package
+metadata and artifact names keep the numeric `VERSION`. This is intentional:
+WiX MSI and RPM package versions cannot safely use a SemVer prerelease suffix.
+Create the version bump on a release-candidate branch, let that exact commit
+pass CI and Product Acceptance, then tag that commit. Do not merge the numeric
+version bump to `main`, because the main-branch version gate would create a
+stable tag automatically.
+
+The workflow marks an RC as a GitHub prerelease, never uploads the versionless
+stable aliases, and explicitly sets `make_latest=false`. Therefore
+`releases/latest/download/update-manifest.json` and all stable download buttons
+continue resolving to the last stable release. The RC still carries its own
+tag-pinned signed manifest for inspection and manual installation.
+
+Because the installed native package version is numeric, an RC consumes that
+number. To test online update from the RC, the next candidate or stable release
+must increment the numeric version (for example, candidate package `0.13.3`
+updates to stable `0.13.4`); republishing `0.13.3` as stable would correctly be
+treated as the same version and would not exercise an update.
 
 Required secrets: `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`,
 `MACOS_NOTARY_PROFILE`, `APPLE_ID`/`APPLE_TEAM_ID` (notarytool),
