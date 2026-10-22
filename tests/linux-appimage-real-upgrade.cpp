@@ -178,23 +178,29 @@ void real_failed_upgrade(fs::path const& old_release,
   auto const journal = fs::path(target.string() + ".rivet-handoff-journal");
   auto const backup = fs::path(target.string() + ".rivet-backup");
   bool journal_seen = false;
+  std::string failure_message;
   try {
     wait_for([&] {
       if (fs::exists(journal)) journal_seen = true;
       if (!journal_seen || !fs::is_regular_file(target) ||
-          fs::exists(journal) || fs::exists(backup)) return false;
-      return file_digest(target) == old_sha;
-    }, "unlaunchable real AppImage candidate must restore the previous release");
-    auto const failure =
-        rivet::update::AppImageHandoff::ConsumeFailure(application_id);
-    if (!failure) {
+          fs::exists(journal) || fs::exists(backup) ||
+          file_digest(target) != old_sha) return false;
+      // The helper writes failure.txt just after removing the journal. Wait
+      // for that marker too, instead of racing the final write.
+      auto const failure =
+          rivet::update::AppImageHandoff::ConsumeFailure(application_id);
+      if (!failure) return false;
+      failure_message = failure->message;
+      return true;
+    }, "unlaunchable real AppImage candidate must restore the previous release and report failure");
+    if (failure_message.empty()) {
       throw std::runtime_error("rollback completed without a recoverable failure marker");
     }
     if (file_digest(target) != old_sha) {
       throw std::runtime_error("previous AppImage digest changed during rollback");
     }
     std::cout << "PASS: unlaunchable candidate rolled back to the old AppImage; "
-              << "failure marker surfaced: " << failure->message << "\n";
+              << "failure marker surfaced: " << failure_message << "\n";
   } catch (...) {
     stop_relaunched_app(target);
     fs::remove_all(root);
