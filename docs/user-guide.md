@@ -70,6 +70,21 @@ Street, New York`. No shortcuts to remember. Toggle this in
 `settings` → `expansion-enabled` (macOS and Windows only; Linux
 compositors do not allow the required input monitoring).
 
+To back up or move your snippets without enabling sync, use the launcher:
+
+```text
+export snippets /path/to/fulcrum-snippets.json
+import snippets /path/to/fulcrum-snippets.json
+```
+
+Both commands require an explicit local file path. Export creates a
+versioned JSON bundle and refuses to overwrite an existing file. Import
+validates the whole bundle before merging by snippet ID, preserves original
+IDs and timestamps, and rejects conflicting keywords without changing
+existing snippets. Keep exports private: the JSON contains your snippet text.
+Portable import/export is available on all three platforms; automatic
+expansion still requires macOS or Windows.
+
 Snippets also sync across machines via the [Sync beta](#sync-beta).
 
 ### Search the web
