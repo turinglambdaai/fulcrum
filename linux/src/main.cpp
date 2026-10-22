@@ -596,7 +596,6 @@ I18nEntry const kI18nFallback[] = {
     {"trayCheckUpdates", "检查更新…", "Check for Updates…"},
     {"trayAbout", "关于 Fulcrum", "About Fulcrum"},
     {"trayQuit", "退出 Fulcrum", "Quit Fulcrum"},
-    {"trayRestart", "重启 Fulcrum", "Restart Fulcrum"},
     {"appMenu", "应用菜单", "Application menu"},
     {"searchPlaceholder", "搜索应用、剪贴板、片段、网页…",
      "Search apps, clipboard, snippets, the web…"},

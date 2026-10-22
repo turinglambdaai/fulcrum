@@ -1408,17 +1408,18 @@ void MainWindow::QueryBox_KeyDown(
         args.Handled(true);
         break;
       }
-      // A finished AI answer or a plugin detail dismisses before
-      // anything else.
-      if (AiPanel().Visibility() ==
-          winrt::Microsoft::UI::Xaml::Visibility::Visible) {
-        DismissAiPanel();
-        args.Handled(true);
-        break;
-      }
+      // The Esc ladder from docs/cross-platform-interaction.md: a plugin
+      // detail view dismisses before a finished AI answer, matching the
+      // macOS and Linux hosts.
       if (DetailPanel().Visibility() ==
           winrt::Microsoft::UI::Xaml::Visibility::Visible) {
         DismissDetailPanel();
+        args.Handled(true);
+        break;
+      }
+      if (AiPanel().Visibility() ==
+          winrt::Microsoft::UI::Xaml::Visibility::Visible) {
+        DismissAiPanel();
         args.Handled(true);
         break;
       }

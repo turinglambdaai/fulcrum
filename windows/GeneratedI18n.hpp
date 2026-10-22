@@ -16,7 +16,7 @@ struct I18nEntry {
   std::string_view en;
 };
 
-inline constexpr std::array<I18nEntry, 75> kI18nTable{{
+inline constexpr std::array<I18nEntry, 74> kI18nTable{{
     {"aboutContent", "\344\270\200\351\224\256\345\215\263\350\276\276 \342\200\224 \345\272\224\347\224\250\343\200\201\345\211\252\350\264\264\346\235\277\343\200\201\347\211\207\346\256\265\343\200\201\347\252\227\345\217\243\347\256\241\347\220\206\344\270\216 BYOK AI\357\274\214\345\260\275\345\234\250\344\270\200\344\270\252\351\235\242\346\235\277", "One keystroke, everything within reach \342\200\224 apps, clipboard, snippets, window management and BYOK AI in one panel"},
     {"aboutLicense", "\344\273\245 Business Source License 1.1 \346\216\210\346\235\203\345\217\221\345\270\203", "Released under the Business Source License 1.1"},
     {"aboutReportIssue", "\351\227\256\351\242\230\345\217\215\351\246\210", "Report an Issue"},
@@ -63,7 +63,6 @@ inline constexpr std::array<I18nEntry, 75> kI18nTable{{
     {"trayFixHotkey", "\344\277\256\345\244\215 Alt+Space \345\206\262\347\252\201", "Fix Alt+Space conflict"},
     {"trayOpen", "\346\211\223\345\274\200 Fulcrum", "Open Fulcrum"},
     {"trayQuit", "\351\200\200\345\207\272 Fulcrum", "Quit Fulcrum"},
-    {"trayRestart", "\351\207\215\345\220\257 Fulcrum", "Restart Fulcrum"},
     {"traySettings", "\350\256\276\347\275\256\342\200\246", "Settings\342\200\246"},
     {"updateAvailableBody", "\346\226\260\347\211\210\346\234\254 Fulcrum {0} \345\217\257\347\224\250\357\274\210{1}\357\274\211\357\274\214\346\230\257\345\220\246\344\270\213\350\275\275\345\271\266\345\256\211\350\243\205\357\274\237", "Fulcrum {0} is available ({1}). Download and install it?"},
     {"updateAvailableStatus", "\345\217\221\347\216\260\346\226\260\347\211\210\346\234\254\357\274\232Fulcrum v{0} \342\200\224 \350\276\223\345\205\245 \342\200\234update\342\200\235 \344\270\213\350\275\275", "Update available: Fulcrum v{0} \342\200\224 type \"update\" to download"},
