@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'scripts/acceptance/windows-msi-upgrade-smoke.ps1'
+      - 'scripts/acceptance/windows-signed-feed-smoke.rkt'
       - '.github/workflows/windows-msi-upgrade-smoke.yml'
 
 permissions:
@@ -17,6 +18,18 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Install Racket (CS)
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          version: stable
+          distribution: full
+          architecture: x64
+      - name: Install pinned Rivet updater dependencies
+        shell: bash
+        run: raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#4cd374f3f783a58306026381a64fc83c0e23ff48'
+      - name: Verify official signed update discovery and MSI payload
+        shell: bash
+        run: racket scripts/acceptance/windows-signed-feed-smoke.rkt
       - name: Verify official MSI checksum and real installed major upgrade
         shell: pwsh
         run: |

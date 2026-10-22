@@ -50,6 +50,10 @@ jobs:
       - name: Verify release version alignment
         run: bash scripts/check-release-version.sh
         shell: bash
+      - name: Verify stable release cannot silently use development signing
+        if: runner.os == 'Linux'
+        run: bash scripts/check-release-workflow.sh
+        shell: bash
       - name: Compile backend
         run: raco make app/core/*.rkt app/update.rkt app/backend.rkt
         shell: bash

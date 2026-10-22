@@ -26,8 +26,9 @@ repo-root `VERSION` file to the same value. Update `CHANGELOG.md` with a
 section named exactly after the new version — the tag validator rejects a
 tag whose version has no matching changelog section.
 `scripts/check-release-version.sh` (run in CI and every release packaging
-job) enforces `VERSION == rivet.rktd == tag`; `.github/sign-manifest.rkt`
-reads the version from `rivet.rktd` when composing the channel manifest.
+job) enforces `VERSION == rivet.rktd`; a stable tag is `v<VERSION>`, while a
+candidate tag may be `v<VERSION>-rc.N`. `.github/sign-manifest.rkt` reads the
+numeric package version from `rivet.rktd` when composing the channel manifest.
 
 For the developer preview on the `main` branch this is enough; production
 steps continue below.
@@ -66,10 +67,10 @@ git push origin v0.1.0
 x64, Windows x64, Linux x64):
 
 1. validates the tag against `VERSION`, `rivet.rktd` and the changelog;
-2. `raco rivet build` + `raco rivet package --production` (platform
-   signing from secrets);
-3. `raco rivet release` — installer (DMG / MSI), Ed25519-signed update
-   manifest, CycloneDX SBOM, third-party notices;
+2. provisions platform signing credentials from the repository secret store;
+3. runs `raco rivet release` followed by `raco rivet verify --production`
+   to build and verify the signed/notarized installer, update manifest,
+   CycloneDX SBOM and third-party notices;
 4. renames artifacts to the versioned, architecture-suffixed release names
    (`fulcrum-<version>-macos-<arch>.dmg` / `.zip`,
    `fulcrum-<version>-windows-x64.msi`,
@@ -83,14 +84,65 @@ x64, Windows x64, Linux x64):
    existing version URL. The app itself fetches `manifest.json` under its
    `update-base-url` setting (default
    `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
-   so publishing the draft puts the update feed live.
+   so only publishing a non-prerelease release changes the stable feed.
 
-Required secrets: `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`,
-`MACOS_NOTARY_PROFILE`, `APPLE_ID`/`APPLE_TEAM_ID` (notarytool),
-`WINDOWS_CERTIFICATE_PFX`, `WINDOWS_CERTIFICATE_PASSWORD`,
-`RIVET_UPDATE_PRIVATE_KEY` (the DER file, PEM-wrapped),
-`RIVET_UPDATE_KEY_ID`. The manifest base URL is derived from the tag, not
-a secret.
+### Release candidates
+
+An RC tag uses `v<VERSION>-rc.N`, but `VERSION`, `rivet.rktd`, native package
+metadata and artifact names keep the numeric `VERSION`. This is intentional:
+WiX MSI and RPM package versions cannot safely use a SemVer prerelease suffix.
+Create the version bump on a release-candidate branch, let that exact commit
+pass CI and Product Acceptance, then tag that commit. Do not merge the numeric
+version bump to `main`, because the main-branch version gate would create a
+stable tag automatically.
+
+The workflow marks an RC as a GitHub prerelease, never uploads the versionless
+stable aliases, and explicitly sets `make_latest=false`. Therefore
+`releases/latest/download/update-manifest.json` and all stable download buttons
+continue resolving to the last stable release. The RC still carries its own
+tag-pinned signed manifest for inspection and manual installation.
+
+Because the installed native package version is numeric, an RC consumes that
+number. To test online update from the RC, the next candidate or stable release
+must increment the numeric version (for example, candidate package `0.13.3`
+updates to stable `0.13.4`); republishing `0.13.3` as stable would correctly be
+treated as the same version and would not exercise an update.
+
+Required **GitHub Actions secrets** (configure before creating any signed
+stable or RC tag):
+
+- `MACOS_CERTIFICATE_P12`: base64 of the Developer ID Application P12,
+  `MACOS_CERTIFICATE_PASSWORD`, `MACOS_SIGN_IDENTITY` (full
+  `Developer ID Application: …` name), `APPLE_ID`, `APPLE_TEAM_ID`,
+  `MACOS_APP_SPECIFIC_PASSWORD` for `notarytool`. Both architecture jobs
+  import into temporary keychains and save a `fulcrum-notary` profile.
+- `WINDOWS_CERTIFICATE_PFX`: base64 of an Authenticode code-signing PFX
+  and `WINDOWS_CERTIFICATE_PASSWORD`. Set the repository **variable**
+  `WINDOWS_TIMESTAMP_URL` to a working RFC 3161 service URL.
+  Certificates requiring interactive hardware-backed signing need a
+  separately provisioned trusted runner; do not export hardware keys.
+- `LINUX_SIGN_PRIVATE_KEY`: PEM-encoded **artifact signing** Ed25519
+  private key and `LINUX_SIGN_KEY_ID`. This is separate from the update
+  feed signing key. Production Linux release ships the detached signature
+  `fulcrum-<version>-linux-<arch>.tar.gz.sig`; DEB/RPM repository metadata
+  signing is not implied by this signature.
+- `RIVET_UPDATE_PRIVATE_KEY`: PEM Ed25519 feed signing private key, plus
+  `RIVET_UPDATE_KEY_ID=fulcrum-2026-10`. The ID and its public key must
+  match the trust root embedded in shipped clients.
+
+Before merging any `VERSION` bump, set the repository variable
+`FULCRUM_STABLE_RELEASE_APPROVED=true` **only when you intend to ship**.
+`version-release.yml` checks this authorization and the presence of all
+credentials **before creating the immutable tag**. Set it back to `false`
+after publishing. Manually pushed stable tags are also blocked at the draft
+promotion step unless this variable is `true`. Without approval, the
+version-bump workflow fails and does not create a tag.
+
+Private key files are only materialized under the ephemeral runner temp
+directory, never committed. All missing identities/signatures/notary
+credentials **fail closed**: a stable tag must never silently fall back to
+`release --development`. The manifest base URL is derived from the tag,
+not a secret.
 
 ## 3a. macOS drag-to-install DMG (Taskly-parity)
 
@@ -122,13 +174,15 @@ with the hotkey and check Accessibility permissions are requested only
 when relevant. An app started directly inside a mounted DMG is **not**
 the installed copy and must not be used as the updater acceptance path.
 
-**Signing is a separate gate.** The current release workflow explicitly
-uses `raco rivet release --development`: this produces an ad-hoc-signed
-preview, *not* a Developer ID signed and Apple-notarized public build.
-A nicer DMG cannot remove Gatekeeper warnings. Before promising a
-warning-free consumer install, wire up Rivet's production signing/
-notarization path and test `spctl`, `codesign --verify`, and stapled
-DMG validation, using securely provisioned signing credentials.
+**Signing is a separate gate.** Stable tagged releases now invoke
+`raco rivet release` and `raco rivet verify --production`, after temporary
+Developer ID identity and `notarytool` profile setup. The release fails
+if its Apple certificate, notary credentials, signed bundle, stapled DMG
+or Gatekeeper verification is unavailable. Local CI's
+`release --development` is **only** an unsigned installer smoke test;
+it is never proof of stable-release trust. Validate the final artifacts
+with `codesign --verify --deep --strict`, `spctl --assess`, and
+`xcrun stapler validate` on actual installed apps and DMGs.
 Do not work around the absence of notarization by clearing quarantine
 or disabling Gatekeeper.
 
@@ -137,8 +191,12 @@ or disabling Gatekeeper.
 ## 4. Publish checklist
 
 - [ ] Draft release notes link the changelog section.
-- [ ] `manifest.json` verifies with the **public** key:
-      `raco rivet verify --production` on a machine with only the public key.
+- [ ] `manifest.json` verifies against the embedded **Ed25519 feed
+      public key**; `raco rivet verify --production` is a separate
+      platform-package/signature verification, not a manifest verifier.
+- [ ] Both macOS DMGs and installed apps pass Developer ID, Gatekeeper,
+      notarization and stapling checks; Windows MSI/EXE pass Authenticode
+      verification; both Linux tarballs have verified detached signatures.
 - [ ] Install the signed artifact on a clean VM for each OS; run one
       search, one clipboard copy, one plugin query, one update check.
 - [ ] In-app update check reports the new version on the previous release.
