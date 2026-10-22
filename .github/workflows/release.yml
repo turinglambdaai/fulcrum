@@ -7,11 +7,9 @@ name: Release
 # ecosystem) on both x64 and arm64 — each with a .sha256 checksum, a combined
 # SHA256SUMS, and the signed stable-channel manifest (update-manifest.json;
 # a byte-identical manifest.json rides along while pre-0.8.0 clients are in
-# the field). `raco rivet release --development` exercises the full release
-# flow (package, launch smoke, installer) without platform production signing;
-# production trust rides on the Ed25519-signed channel manifest. The secrets
-# from docs/release-runbook.md switch on Authenticode / Developer ID +
-# notarization later via `raco rivet release`.
+# the field). Stable tags MUST use `raco rivet release` with Windows
+# Authenticode, macOS Developer ID/notarization, Linux Ed25519, and the
+# independent Ed25519 signed update channel; missing secrets stop publishing.
 
 on:
   push:
@@ -137,27 +135,102 @@ jobs:
           brew install librsvg
           bash scripts/render-dmg-background.sh
           python3 scripts/check-macos-dmg-layout.py
-      # `raco rivet release --development` = package + launch smoke + the
-      # platform installer (msi/dmg/tar.gz) + a per-platform update manifest
-      # discarded here in favor of the composed channel manifest signed
-      # centrally below. The release flow requires the update environment to
-      # be set even though that manifest is discarded, so the channel key is
-      # plumbed through here too.
-      - name: Release (development strength)
+      # Production code-signing and notarization are mandatory for stable
+      # tags. Credentials only enter trusted tag runners, never PR jobs.
+      - name: Configure macOS Developer ID and notary profile
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_APP_SPECIFIC_PASSWORD: ${{ secrets.MACOS_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD MACOS_SIGN_IDENTITY APPLE_ID APPLE_TEAM_ID MACOS_APP_SPECIFIC_PASSWORD; do
+            if [[ -z "${!key:-}" ]]; then echo "::error::Production macOS credential $key is missing"; exit 1; fi
+          done
+          [[ "$MACOS_SIGN_IDENTITY" == "Developer ID Application:"* ]] || {
+            echo "::error::Expected an Apple Developer ID Application signing identity"; exit 1;
+          }
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/fulcrum-signing.XXXXXX")"
+          chmod 700 "$signing_dir"
+          keychain="$signing_dir/fulcrum.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 -D > "$signing_dir/identity.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security default-keychain -d user -s "$keychain"
+          security import "$signing_dir/identity.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain"
+          security find-identity -p codesigning -v "$keychain" | grep -F "$MACOS_SIGN_IDENTITY"
+          rm -f "$signing_dir/identity.p12"
+          xcrun notarytool store-credentials "fulcrum-notary" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$MACOS_APP_SPECIFIC_PASSWORD" --keychain "$keychain"
+          echo "RIVET_MACOS_SIGN_IDENTITY=$MACOS_SIGN_IDENTITY" >> "$GITHUB_ENV"
+          echo "RIVET_MACOS_NOTARY_PROFILE=fulcrum-notary" >> "$GITHUB_ENV"
+      - name: Configure Windows Authenticode identity
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PFX_BASE64)) { throw "Missing WINDOWS_CERTIFICATE_PFX (base64-encoded PFX secret)" }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) { throw "Missing WINDOWS_CERTIFICATE_PASSWORD" }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) { throw "Missing WINDOWS_TIMESTAMP_URL repository variable" }
+          $pfx = Join-Path $env:RUNNER_TEMP 'fulcrum-production-signing.pfx'
+          [System.IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE_PFX_BASE64))
+          "RIVET_WINDOWS_SIGN_PFX=$pfx" >> $env:GITHUB_ENV
+          "RIVET_WINDOWS_TIMESTAMP_URL=$env:WINDOWS_TIMESTAMP_URL" >> $env:GITHUB_ENV
+      - name: Configure Linux Ed25519 artifact signing
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          LINUX_SIGN_PRIVATE_KEY_PEM: ${{ secrets.LINUX_SIGN_PRIVATE_KEY }}
+          LINUX_SIGN_KEY_ID: ${{ secrets.LINUX_SIGN_KEY_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "$LINUX_SIGN_PRIVATE_KEY_PEM" && -n "$LINUX_SIGN_KEY_ID" ]] || {
+            echo "::error::Linux production signing secrets are missing"; exit 1;
+          }
+          key_dir="$(mktemp -d "$RUNNER_TEMP/fulcrum-linux-signing.XXXXXX")"
+          chmod 700 "$key_dir"
+          printf '%s\n' "$LINUX_SIGN_PRIVATE_KEY_PEM" > "$key_dir/private.pem"
+          openssl pkey -in "$key_dir/private.pem" -outform DER -out "$key_dir/private.der"
+          openssl pkey -in "$key_dir/private.pem" -pubout -outform DER -out "$key_dir/public.der"
+          rm -f "$key_dir/private.pem"
+          echo "RIVET_LINUX_SIGN_PRIVATE_KEY=$key_dir/private.der" >> "$GITHUB_ENV"
+          echo "RIVET_LINUX_SIGN_PUBLIC_KEY=$key_dir/public.der" >> "$GITHUB_ENV"
+          echo "RIVET_LINUX_SIGN_KEY_ID=$LINUX_SIGN_KEY_ID" >> "$GITHUB_ENV"
+      # The channel manifest is separately Ed25519-signed. Build and verify
+      # production-signed artifacts first; only then stage anything for publish.
+      - name: Release (production signed)
         env:
           RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
-          RIVET_UPDATE_KEY_ID: fulcrum-2026-10
+          RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
           RIVET_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
-          # Lets appimagetool (itself an AppImage) run on the runner while
-          # rivet assembles the AppImage's GTK4 dependency closure.
+          RIVET_WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
           set -euo pipefail
-          printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY_PEM" > update-private.pem
-          openssl pkey -in update-private.pem -outform DER -out update-private.der
-          export RIVET_UPDATE_PRIVATE_KEY="$PWD/update-private.der"
-          raco rivet release --development
-          rm -f update-private.pem update-private.der
+          [[ -n "$RIVET_UPDATE_PRIVATE_KEY_PEM" && "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] || {
+            echo "::error::Required Ed25519 update key and pinned key ID are missing"; exit 1;
+          }
+          key_dir="$(mktemp -d "$RUNNER_TEMP/fulcrum-update-signing.XXXXXX")"
+          chmod 700 "$key_dir"
+          trap 'rm -rf "$key_dir"' EXIT
+          printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY_PEM" > "$key_dir/private.pem"
+          openssl pkey -in "$key_dir/private.pem" -outform DER -out "$key_dir/private.der"
+          rm -f "$key_dir/private.pem"
+          export RIVET_UPDATE_PRIVATE_KEY="$key_dir/private.der"
+          raco rivet release
+          raco rivet verify --production
         shell: bash
       - name: Verify mounted Finder DMG installer
         if: matrix.platform == 'macos'
@@ -196,6 +269,11 @@ jobs:
               ;;
             linux)
               mv dist/fulcrum-*-linux-*.tar.gz "fulcrum-${VERSION}-linux-${ARCH}.tar.gz"
+              # Rivet's production Ed25519 signature must accompany the
+              # renamed deterministic tarball, not be lost in dist/.
+              signature="dist/fulcrum-${VERSION}-linux-${ARCH}.tar.gz.sig"
+              test -s "$signature"
+              mv "$signature" "fulcrum-${VERSION}-linux-${ARCH}.tar.gz.sig"
               # rivet's portable zip (with its own sidecar) joins the set.
               test -f "dist/fulcrum-${VERSION}-linux-${ARCH}.zip"
               test -f "dist/fulcrum-${VERSION}-linux-${ARCH}.zip.sha256"
