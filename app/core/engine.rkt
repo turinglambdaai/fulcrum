@@ -429,7 +429,7 @@
                       (format "~a <file.json> · enter a local path" (car entry))
                       (format "↵ ~a" path))
                   "Snippet" path "snippet" "" (if (string=? path "") "" "File")
-                  (car entry) 150))
+                  (car entry) 150)))
       (lambda (query) '())))
 
 ;; ---- window management ---------------------------------------------------
