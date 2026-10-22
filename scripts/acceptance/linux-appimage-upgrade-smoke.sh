@@ -49,3 +49,17 @@ APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a \
   dbus-run-session -- timeout 120s \
   .rivet/build/linux/fulcrum-appimage-real-upgrade-test \
   --real-upgrade "$old_app" "$new_app" "$new_sha" "$new_version"
+
+# Exercise failure recovery with a deliberately unlaunchable candidate whose
+# digest is still matched exactly by the handoff. This is a test-only stand-in
+# for a signed manifest describing a broken release; production always derives
+# this digest from the authenticated manifest.
+bad_app="$work/fulcrum-${new_version}-corrupt-${suffix}"
+cp "$new_app" "$bad_app"
+dd if=/dev/zero of="$bad_app" bs=1 count=4 conv=notrunc status=none
+bad_sha="$(sha256sum "$bad_app" | awk '{ print $1 }')"
+APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a \
+  -s "-screen 0 1280x800x24 -nolisten tcp" \
+  dbus-run-session -- timeout 120s \
+  .rivet/build/linux/fulcrum-appimage-real-upgrade-test \
+  --real-failed-upgrade "$old_app" "$bad_app" "$bad_sha" "$new_version"
