@@ -14,9 +14,9 @@ concurrency:
 # Contexts aren't allowed in `uses:`, so the setup-embed-racket action
 # refs must be bumped in lockstep by hand.
 env:
-  # Provisional immutable upstream fix for signed framework links in branded
-  # DMG staging (Rivet #300). Update to tested merge commit before merging.
-  RIVET_PIN: 1cb0947ac886dc9bbbcdabee1d922bb667fadf9f
+  # Merged immutable upstream fix for signed framework links in branded
+  # DMG staging (Rivet #300). Pinned to the tested merge commit.
+  RIVET_PIN: a94dc171f2713e776bfb97faff46cde001edd4e7
 jobs:
   backend:
     name: Backend tests (${{ matrix.os }})
@@ -103,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@1cb0947ac886dc9bbbcdabee1d922bb667fadf9f
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a94dc171f2713e776bfb97faff46cde001edd4e7
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own.
