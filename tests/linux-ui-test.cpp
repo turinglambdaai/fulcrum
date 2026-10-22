@@ -68,6 +68,25 @@ int main() {
   XInitThreads();
   load_i18n(executable_path().parent_path());
   gtk_init();
+  // Pure positioning checks exercise coordinate math independent of a
+  // particular CI virtual monitor topology. Negative origins and smaller
+  // work areas are common with laptop + external-display setups.
+  GdkRectangle work{0, 30, 1920, 1000};
+  auto top = upper_quarter_placement(work, 680, 460);
+  check(top.x == 620 && top.y == 165,
+        "launcher sits at top quarter of usable work area, not screen center");
+  GdkRectangle left_monitor{-1920, 0, 1920, 1080};
+  auto negative = upper_quarter_placement(left_monitor, 680, 460);
+  check(negative.x == -1300 && negative.y == 155,
+        "left-hand monitors preserve negative global X coordinates");
+  check(monitor_contains_point(left_monitor, -1000, 500) &&
+            !monitor_contains_point(work, -1000, 500),
+        "pointer monitor selection respects multi-monitor boundaries");
+  GdkRectangle small{100, 50, 500, 400};
+  auto small_pos = upper_quarter_placement(small, 500, 400);
+  check(small_pos.x == 100 && small_pos.y == 50,
+        "small work areas do not produce a negative placement offset");
+
   auto* app = gtk_application_new("site.jrtx.fulcrum.ui-test",
                                    G_APPLICATION_NON_UNIQUE);
   g_application_register(G_APPLICATION(app), nullptr, nullptr);
@@ -75,6 +94,18 @@ int main() {
   auto& launcher = Launcher::instance();
   // The test executable has no adjacent runtime: startup stops before boot.
   check(launcher.api == nullptr, "UI fixture does not start the backend");
+  // Check that the live X11 window actually advertises its program-chosen
+  // position to the WM. The helper runs on every summon, not just startup.
+  launcher.show();
+  auto* placement_surface = gtk_native_get_surface(GTK_NATIVE(launcher.window));
+  auto* xdisplay = gdk_x11_display_get_xdisplay(
+      gtk_widget_get_display(GTK_WIDGET(launcher.window)));
+  auto const xid = gdk_x11_surface_get_xid(placement_surface);
+  XSizeHints hints{};
+  long supplied = 0;
+  check(XGetWMNormalHints(xdisplay, xid, &hints, &supplied) != 0 &&
+            (hints.flags & USPosition) != 0,
+        "X11 summon sets the WM's USPosition hint");
   launcher.rows.clear();
   for (int i = 0; i < 12; ++i) {
     launcher.rows.push_back(parse_row({"settings.set", "Option " + std::to_string(i),

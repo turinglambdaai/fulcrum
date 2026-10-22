@@ -290,6 +290,10 @@ void apply_tray_language();
 // settings row open it.
 void show_settings_window();
 
+// Original X11 pointer-monitor integration: @linyubin, PR #61.
+// Work-area parity / GDK monitor lifetime fixes: maintainers.
+void place_panel_on_pointer_monitor(GtkWindow* panel);
+
 std::filesystem::path executable_path() {
   return std::filesystem::read_symlink("/proc/self/exe");
 }
@@ -1682,6 +1686,10 @@ struct Launcher {
     dismiss_detail_panel();
     gtk_editable_set_text(GTK_EDITABLE(search), "");
     run_search("");
+    // Position before mapping to avoid showing the launcher on the wrong
+    // monitor for a frame. Wayland compositor positioning remains unchanged.
+    gtk_widget_realize(GTK_WIDGET(window));
+    place_panel_on_pointer_monitor(window);
     gtk_widget_set_visible(GTK_WIDGET(window), TRUE);
     auto* display = gtk_widget_get_display(GTK_WIDGET(window));
     if (GDK_IS_X11_DISPLAY(display)) {
@@ -2377,7 +2385,133 @@ void show_settings_window() {
   gtk_window_present(g_settings_form->window);
 }
 
+// ---- X11 launcher monitor placement --------------------------------------
+//
+// The pointer-monitor summon fix originated in @linyubin's #61. X11 WMs
+// otherwise tend to map a utility window onto a default monitor.
+
+struct PanelPlacement { int x; int y; };
+
+PanelPlacement upper_quarter_placement(GdkRectangle const& work,
+                                       int width, int height) {
+  // GDK/X11 uses a top-left origin. Same proportion as WinUI/AppKit:
+  // a quarter of the free height below the screen's usable top edge.
+  return {work.x + std::max(0, work.width - width) / 2,
+          work.y + std::max(0, work.height - height) / 4};
+}
+
+bool monitor_contains_point(GdkRectangle const& g, int x, int y) {
+  return x >= g.x && x < g.x + g.width &&
+         y >= g.y && y < g.y + g.height;
+}
+
+// _NET_WORKAREA is a virtual-desktop-wide rectangle on X11. Intersect it
+// with the chosen monitor as a best-effort allowance for docks/top panels;
+// a WM with no usable EWMH property falls back to full monitor geometry.
+GdkRectangle usable_x11_monitor_area(Display* dpy, Window root,
+                                     GdkRectangle const& monitor) {
+  Atom atom = XInternAtom(dpy, "_NET_WORKAREA", True);
+  if (atom == None) return monitor;
+  Atom type = None;
+  int format = 0;
+  unsigned long count = 0, bytes_left = 0;
+  unsigned char* bytes = nullptr;
+  GdkRectangle work = monitor;
+  int status = XGetWindowProperty(dpy, root, atom, 0, 4, False, XA_CARDINAL,
+                                  &type, &format, &count, &bytes_left, &bytes);
+  if (status == Success && type == XA_CARDINAL && format == 32 &&
+      count >= 4 && bytes != nullptr) {
+    auto* values = reinterpret_cast<unsigned long const*>(bytes);
+    // Xlib stores 32-bit property values in native unsigned longs.
+    auto wx = static_cast<std::int32_t>(values[0]);
+    auto wy = static_cast<std::int32_t>(values[1]);
+    auto ww = static_cast<std::uint32_t>(values[2]);
+    auto wh = static_cast<std::uint32_t>(values[3]);
+    if (ww > 0 && wh > 0 && ww <= 100000 && wh <= 100000) {
+      auto left = std::max<std::int64_t>(monitor.x, wx);
+      auto top = std::max<std::int64_t>(monitor.y, wy);
+      auto right = std::min<std::int64_t>(
+          static_cast<std::int64_t>(monitor.x) + monitor.width,
+          static_cast<std::int64_t>(wx) + ww);
+      auto bottom = std::min<std::int64_t>(
+          static_cast<std::int64_t>(monitor.y) + monitor.height,
+          static_cast<std::int64_t>(wy) + wh);
+      if (right > left && bottom > top) {
+        work = {static_cast<int>(left), static_cast<int>(top),
+                static_cast<int>(right - left),
+                static_cast<int>(bottom - top)};
+      }
+    }
+  }
+  if (bytes != nullptr) XFree(bytes);
+  return work;
+}
+
+void place_panel_on_pointer_monitor(GtkWindow* panel) {
+  auto* widget = GTK_WIDGET(panel);
+  auto* display = gtk_widget_get_display(widget);
+  // Wayland forbids client-controlled toplevel coordinates.
+  if (!GDK_IS_X11_DISPLAY(display)) return;
+  auto* xdisplay = gdk_x11_display_get_xdisplay(GDK_X11_DISPLAY(display));
+  Window root = DefaultRootWindow(xdisplay);
+  GListModel* monitors = gdk_display_get_monitors(display);
+  if (monitors == nullptr) return;
+  guint count = g_list_model_get_n_items(monitors);
+  if (count == 0) return;  // monitor hotplug / session shutdown
+
+  Window root_return = None, child = None;
+  int pointer_x = 0, pointer_y = 0, win_x = 0, win_y = 0;
+  unsigned int mask = 0;
+  bool pointer_known =
+      XQueryPointer(xdisplay, root, &root_return, &child,
+                    &pointer_x, &pointer_y, &win_x, &win_y, &mask) != False;
+
+  GdkMonitor* chosen = nullptr;
+  for (guint i = 0; i < count; ++i) {
+    auto* candidate = GDK_MONITOR(g_list_model_get_item(monitors, i));
+    if (candidate == nullptr) continue;
+    GdkRectangle g{};
+    gdk_monitor_get_geometry(candidate, &g);
+    if (pointer_known && monitor_contains_point(g, pointer_x, pointer_y)) {
+      chosen = candidate;
+      break;
+    }
+    g_object_unref(candidate);
+  }
+  if (chosen == nullptr)
+    chosen = GDK_MONITOR(g_list_model_get_item(monitors, 0));
+  if (chosen == nullptr) return;
+
+  GdkRectangle geometry{};
+  gdk_monitor_get_geometry(chosen, &geometry);
+  g_object_unref(chosen);  // get_item() owns a reference for every summon
+  if (geometry.width <= 0 || geometry.height <= 0) return;
+
+  GdkRectangle usable = usable_x11_monitor_area(xdisplay, root, geometry);
+  // Reset the preferred dimensions on each summon. Do not strand a tiny
+  // window after switching from a small monitor to a larger one.
+  int const width = std::min(680, usable.width);
+  int const height = std::min(460, usable.height);
+  gtk_window_set_default_size(panel, width, height);
+  PanelPlacement pos = upper_quarter_placement(usable, width, height);
+
+  auto* surface = gtk_native_get_surface(GTK_NATIVE(panel));
+  if (!GDK_IS_X11_SURFACE(surface)) return;
+  Window xid = gdk_x11_surface_get_xid(GDK_X11_SURFACE(surface));
+  XSizeHints hints{};
+  long supplied = 0;
+  if (!XGetWMNormalHints(xdisplay, xid, &hints, &supplied))
+    hints.flags = 0;
+  hints.flags |= USPosition;
+  hints.x = pos.x;
+  hints.y = pos.y;
+  XSetWMNormalHints(xdisplay, xid, &hints);
+  XMoveWindow(xdisplay, xid, pos.x, pos.y);
+  XFlush(xdisplay);
+}
+
 // ---- X11 global hotkey ----------------------------------------------------
+
 
 std::string install_x11_hotkey(GdkDisplay* display) {
   if (GDK_IS_X11_DISPLAY(display) == 0) {
