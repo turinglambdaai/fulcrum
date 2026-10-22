@@ -30,5 +30,8 @@ require 'RIVET_UPDATE_PRIVATE_KEY_PEM'
 require 'RIVET_UPDATE_KEY_ID'
 require 'FULCRUM_STABLE_RELEASE_APPROVED'
 require 'needs: github-release'
-require 'Verify stable installers and signed feed exist before publishing'
+require 'Verify installers and signed feed exist before publishing'
+require "prerelease: \${{ contains(github.ref_name, '-rc.') }}"
+require "make_latest: \${{ contains(github.ref_name, '-rc.') && 'false' || 'true' }}"
+require "if: \${{ !contains(github.ref_name, '-rc.') }}"
 echo 'release-safety: stable production-signing gates present'

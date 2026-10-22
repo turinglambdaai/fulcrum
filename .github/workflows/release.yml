@@ -47,8 +47,8 @@ jobs:
       - name: Check tag matches VERSION, rivet.rktd and CHANGELOG
         run: |
           bash scripts/check-release-version.sh "${{ github.ref_name }}"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          grep -q "^## \[${TAG_VERSION}\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## [${TAG_VERSION}]' section"; exit 1; }
+          PACKAGE_VERSION="$(tr -d '\r\n' < VERSION)"
+          grep -q "^## \[${PACKAGE_VERSION}\]" CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## [${PACKAGE_VERSION}]' section"; exit 1; }
 
   package:
     name: Package (${{ matrix.platform }}-${{ matrix.arch }})
@@ -255,7 +255,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
+          # RC tags carry a distribution suffix (vX.Y.Z-rc.N), while native
+          # MSI/RPM/macOS package versions remain the numeric VERSION value.
+          VERSION="$(tr -d '\r\n' < VERSION)"
           ARCH="${{ matrix.arch }}"
           sha256() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi; }
           case "${{ matrix.platform }}" in
@@ -381,6 +383,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
+          make_latest: ${{ contains(github.ref_name, '-rc.') && 'false' || 'true' }}
           generate_release_notes: true
           files: |
             release/fulcrum-*
@@ -388,6 +392,7 @@ jobs:
             release/update-manifest.json
             release/manifest.json
       - name: Stable alias copies (versionless direct-download links)
+        if: ${{ !contains(github.ref_name, '-rc.') }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -408,11 +413,11 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turinglambdaai/fulcrum
 
   publish:
-    name: Verify assets and publish stable release
+    name: Verify assets and publish release
     needs: github-release
     runs-on: ubuntu-latest
     steps:
-      - name: Verify stable installers and signed feed exist before publishing
+      - name: Verify installers and signed feed exist before publishing
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -429,10 +434,18 @@ jobs:
           fi
           tag="${GITHUB_REF_NAME}"
           test "${tag#v}" != "$tag" || { echo "::error::Not a version tag"; exit 1; }
+          tag_version="${tag#v}"
+          version="${tag_version%%-rc.*}"
+          prerelease=false
+          make_latest=true
+          if [[ "$tag_version" == *-rc.* ]]; then
+            prerelease=true
+            make_latest=false
+          fi
           gh release view "$tag" --json isDraft --jq '.isDraft' | grep -Fx true
+          gh release view "$tag" --json isPrerelease --jq '.isPrerelease' | grep -Fx "$prerelease"
           assets="$(gh release view "$tag" --json assets --jq '.assets[].name')"
-          version="${tag#v}"
-          for name in \
+          required=(
             "fulcrum-${version}-macos-arm64.dmg" \
             "fulcrum-${version}-macos-x64.dmg" \
             "fulcrum-${version}-windows-x64.msi" \
@@ -442,18 +455,24 @@ jobs:
             "fulcrum-${version}-linux-aarch64.AppImage" \
             "fulcrum-${version}-linux-x64.tar.gz.sig" \
             "fulcrum-${version}-linux-arm64.tar.gz.sig" \
-            "fulcrum-macos-arm64.dmg" \
-            "fulcrum-macos-x64.dmg" \
-            "fulcrum-windows-x64.msi" \
-            "fulcrum-linux-x64.deb" \
-            "fulcrum-linux-arm64.deb" \
-            "fulcrum-linux-x64.AppImage" \
-            "fulcrum-linux-arm64.AppImage" \
-            "update-manifest.json" "manifest.json" "SHA256SUMS"
-          do
+            "update-manifest.json" "manifest.json" "SHA256SUMS")
+          if [[ "$prerelease" == false ]]; then
+            required+=(
+              "fulcrum-macos-arm64.dmg"
+              "fulcrum-macos-x64.dmg"
+              "fulcrum-windows-x64.msi"
+              "fulcrum-linux-x64.deb"
+              "fulcrum-linux-arm64.deb"
+              "fulcrum-linux-x64.AppImage"
+              "fulcrum-linux-arm64.AppImage")
+          fi
+          for name in "${required[@]}"; do
             printf '%s\n' "$assets" | grep -Fx "$name" || {
               echo "::error::Missing release asset $name"; exit 1;
             }
           done
-          gh release edit "$tag" --draft=false
-          gh release view "$tag" --json isDraft --jq '.isDraft' | grep -Fx false
+          release_id="$(gh api "repos/$GH_REPO/releases/tags/$tag" --jq '.id')"
+          gh api -X PATCH "repos/$GH_REPO/releases/$release_id" \
+            -F draft=false -F prerelease="$prerelease" -f make_latest="$make_latest" >/dev/null
+          gh release view "$tag" --json isDraft,isPrerelease \
+            --jq '[.isDraft, .isPrerelease] | @tsv' | grep -Fx $'false\t'"$prerelease"
