@@ -29,3 +29,4 @@ compiled/
 
 # Rendered from the editable SVG just before macOS release packaging.
 assets/dmg-background.png
+macos-host/.build/

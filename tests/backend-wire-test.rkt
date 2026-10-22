@@ -58,12 +58,15 @@
 (define app-count* (get "app/core/engine.rkt" 'engine-app-count))
 
 (define manager (make-settings-manager (settings-path)))
+(define make-bindings (get "app/core/bindings.rkt" 'make-bindings-store))
+(define bindings-path (get "app/core/paths.rkt" 'bindings-path))
 (define eng (make-engine
              #:clipboard-store (make-clipboard (clipboard-path))
              #:snippet-store (make-snippets (snippets-path))
+             #:bindings-store (make-bindings (bindings-path))
              #:plugin-manager (make-plugin-manager*
                                (build-path root "plugins"))))
-(rebuild eng)
+(void (rebuild eng))
 (current-settings manager)
 (current-engine eng)
 
@@ -396,6 +399,62 @@
 
 
 ;; ---- plugin center end-to-end (unix: the fixture spawns /bin/sh) ---------
+
+;; ---- per-command bindings (#48) -------------------------------------------
+
+(let ()
+  (define-values (cmds-val cmds-err _) (call-rpc 50 (list "bindings-commands")))
+  (check! "bindings-commands no error" cmds-err #f)
+  (check! "bindable commands include system and window entries"
+          (and (findf (lambda (c) (string=? (car c) "win.left")) cmds-val)
+               (findf (lambda (c) (string-prefix? (car c) "sys.run:")) cmds-val)
+               #t)
+          #t)
+
+  (define-values (set1 s1a s1b) (call-rpc 51 (list "binding-set" "win.left" "lh" "ctrl+alt+left")))
+  ;; No cross-host hotkey grammar for arrows — left is not a legal key, so
+  ;; the backend refuses.
+  (check! "illegal key refused" set1 #f)
+
+  (define-values (set2 s2a s2b) (call-rpc 52 (list "binding-set" "win.left" "lh" "ctrl+alt+l")))
+  (check! "binding-set ok" set2 #t)
+
+  (define-values (lst1 l1a l1b) (call-rpc 53 (list "bindings-list")))
+  (check! "bindings-list round-trips"
+          (and (findf (lambda (b)
+                        (and (string=? (car b) "win.left")
+                             (string=? (list-ref b 1) "lh")
+                             (string=? (list-ref b 2) "ctrl+alt+l")))
+                      lst1)
+               #t)
+          #t)
+
+  ;; Aliases rank: the shorthand alone surfaces the aliased command.
+  (define-values (arows arows-events arows-extra) (call-rpc 54 (list "search" "lh")))
+  (check! "alias surfaces the command"
+          (and (findf (lambda (row) (string=? (list-ref row 0) "win.left")) arows)
+               #t)
+          #t)
+
+  ;; The summon hotkey belongs to the panel.
+  (define-values (set3 s3a s3b) (call-rpc 55 (list "binding-set" "win.right" "rh" "alt+space")))
+  (check! "summon hotkey conflict refused" set3 #f)
+
+  ;; Two commands cannot claim one hotkey.
+  (define-values (set4 s4a s4b) (call-rpc 56 (list "binding-set" "win.right" "rh" "ctrl+alt+l")))
+  (check! "duplicate hotkey refused" set4 #f)
+
+  ;; Unknown commands are not bindable.
+  (define-values (set5 s5a s5b) (call-rpc 57 (list "binding-set" "app.launch:Firefox" "ff" "ctrl+alt+f")))
+  (check! "unknown command refused" set5 #f)
+
+  ;; Clearing works and a second bindings-list no longer has the entry.
+  (define-values (clr clr-events clr-extra) (call-rpc 58 (list "binding-clear" "win.left")))
+  (check! "binding-clear ok" clr #t)
+  (define-values (lst2 l2a l2b) (call-rpc 59 (list "bindings-list")))
+  (check! "cleared binding gone"
+          (findf (lambda (b) (string=? (car b) "win.left")) lst2)
+          #f))
 
 (when (eq? (system-type 'os) 'unix)
   (define fixture-dir

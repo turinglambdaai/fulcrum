@@ -22,6 +22,7 @@
          rivet/backend
          "core/ai.rkt"
          "core/apps.rkt"
+         "core/bindings.rkt"
          "core/clipboard.rkt"
          "core/engine.rkt"
          "core/fuzzy.rkt"
@@ -32,6 +33,7 @@
          "core/store.rkt"
          (rename-in "core/settings.rkt" [settings-list core:settings-list])
          (rename-in "core/snippets.rkt" [snippet-list core:snippet-list])
+         "core/syscmd.rkt"
          "update.rkt")
 
 (provide start
@@ -95,6 +97,9 @@
 ;; hosts can fill the clipboard without hiding the panel (the user is
 ;; reading it).
 (define-event ai-finished : String)
+;; A per-command binding was saved or cleared (#48): the host re-reads
+;; bindings-list and re-registers its global hotkeys.
+(define-event bindings-changed : String)
 
 ;; ---- update records ------------------------------------------------------
 ;;
@@ -1303,6 +1308,66 @@
   (define store (engine-snippets (engine!)))
   (if store (snippet-delete! store id) #f))
 
+;; ---- per-command bindings (#48) -------------------------------------------
+;;
+;; A binding id names the exact action pair the launcher would run:
+;; "<actionId>:<arg>" ("sys.run:Lock Screen") or a bare action id with no
+;; argument ("win.left"). Aliases join ranking here in the engine; hotkeys
+;; are registered by each host with the same mechanism as the summon
+;; hotkey and fire run-action directly, panel hidden.
+
+(define (bindable-commands)
+  (append
+   (for/list ([cmd (in-list (engine-syscmds (engine!)))])
+     (list (string-append "sys.run:" (system-command-name cmd))
+           (system-command-name cmd)))
+   (for/list ([entry (in-list window-commands)])
+     (list (car entry) (cadr entry)))))
+
+(define (hotkey-taken? store hotkey except-id)
+  (for/or ([b (in-list (bindings-list-all store))])
+    (and (binding-hotkey b)
+         (string=? (binding-hotkey b) hotkey)
+         (not (string=? (binding-id b) except-id)))))
+
+(define-rpc (bindings-commands : (List (List String)))
+  (bindable-commands))
+
+(define-rpc (bindings-list : (List (List String)))
+  (define store (engine-bindings (engine!)))
+  (if store
+      (for/list ([b (in-list (bindings-list-all store))])
+        (list (binding-id b)
+              (or (binding-alias b) "")
+              (or (binding-hotkey b) "")))
+      '()))
+
+(define-rpc (binding-set [id String] [alias String] [hotkey String] : Bool)
+  (define store (engine-bindings (engine!)))
+  (define clean-alias (if (string=? alias "") #f alias))
+  (define clean-hotkey (if (string=? hotkey "") #f hotkey))
+  (cond
+    [(not store) #f]
+    ;; Only commands the launcher can actually run are bindable.
+    [(not (member id (map car (bindable-commands)))) #f]
+    ;; Empty on both fields is a clear, not a set — use binding-clear.
+    [(and (not clean-alias) (not clean-hotkey)) #f]
+    [(and clean-alias (not (valid-alias? clean-alias))) #f]
+    [(and clean-hotkey (not (valid-hotkey? clean-hotkey))) #f]
+    ;; The summon hotkey belongs to the panel, never to one command.
+    [(and clean-hotkey (string=? clean-hotkey (settings-get (settings!) 'hotkey))) #f]
+    [(and clean-hotkey (hotkey-taken? store clean-hotkey id)) #f]
+    [else
+     (binding-set! store id clean-alias clean-hotkey)
+     (bindings-changed id)
+     #t]))
+
+(define-rpc (binding-clear [id String] : Bool)
+  (define store (engine-bindings (engine!)))
+  (and store
+       (binding-clear! store id)
+       (begin (bindings-changed id) #t)))
+
 ;; Plain function under the plugin-detail RPC so tests drive the detail
 ;; payload without a live wire. Returns the DetailView wire record.
 (define (plugin-detail-for row-id arg)
@@ -1681,10 +1746,13 @@
                               #:disabled-thunk plugins-disabled-ids
                               #:nudge-thunk bump-search-revision!
                               #:prefs-thunk plugin-prefs-for)))
+  (define bindings-store
+    (make-bindings-store (bindings-path)))
   (define engine
     (make-engine #:clipboard-store clip-store
                  #:snippet-store snip-store
                  #:quicklink-store link-store
+                 #:bindings-store bindings-store
                  #:plugin-manager plug-mgr
                  #:max-results (settings-get manager 'max-results)))
   (engine-rebuild-index! engine)

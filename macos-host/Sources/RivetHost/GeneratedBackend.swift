@@ -79,12 +79,12 @@ public enum RivetTypes {
 }
 
 private func encode_String(_ v: String) -> RivetValue { .string(v) }
-private func encode_Int64(_ v: Int64) -> RivetValue { .int64(v) }
+private func encode_Bool(_ v: Bool) -> RivetValue { .bool(v) }
 private func encode__List_String_(_ v: [String]) -> RivetValue { .list(v.map(encode_String)) }
 private func encode__List_List_String_(_ v: [[String]]) -> RivetValue { .list(v.map(encode__List_String_)) }
+private func encode_Int64(_ v: Int64) -> RivetValue { .int64(v) }
 private func encode_DetailView(_ v: RivetTypes.DetailView) -> RivetValue { .list([encode_String(v.text), encode__List_List_String_(v.metadata)]) }
 private func encode_Void(_ v: Void) -> RivetValue { .null }
-private func encode_Bool(_ v: Bool) -> RivetValue { .bool(v) }
 private func encode__Optional_String_(_ v: String?) -> RivetValue { v.map(encode_String) ?? .null }
 private func encode__Optional_Int64_(_ v: Int64?) -> RivetValue { v.map(encode_Int64) ?? .null }
 private func encode_UpdateCheck(_ v: RivetTypes.UpdateCheck) -> RivetValue { .list([encode_String(v.status), encode__Optional_String_(v.error), encode_String(v.current_version), encode__Optional_String_(v.available_version), encode__Optional_Int64_(v.build), encode__Optional_String_(v.published_at), encode__Optional_String_(v.installer), encode__Optional_Int64_(v.size_bytes)]) }
@@ -92,12 +92,12 @@ private func encode_UpdateState(_ v: RivetTypes.UpdateState) -> RivetValue { .li
 private func encode_AiStream(_ v: RivetTypes.AiStream) -> RivetValue { .list([encode_String(v.phase), encode_String(v.text), encode__Optional_String_(v.error)]) }
 
 private func decode_String(_ v: RivetValue) throws -> String { guard case .string(let x) = v else { throw RivetGeneratedError.typeMismatch("String") }; return x }
-private func decode_Int64(_ v: RivetValue) throws -> Int64 { guard case .int64(let x) = v else { throw RivetGeneratedError.typeMismatch("Int64") }; return x }
+private func decode_Bool(_ v: RivetValue) throws -> Bool { guard case .bool(let x) = v else { throw RivetGeneratedError.typeMismatch("Bool") }; return x }
 private func decode__List_String_(_ v: RivetValue) throws -> [String] { guard case .list(let xs) = v else { throw RivetGeneratedError.typeMismatch("(List String)") }; return try xs.map(decode_String) }
 private func decode__List_List_String_(_ v: RivetValue) throws -> [[String]] { guard case .list(let xs) = v else { throw RivetGeneratedError.typeMismatch("(List (List String))") }; return try xs.map(decode__List_String_) }
+private func decode_Int64(_ v: RivetValue) throws -> Int64 { guard case .int64(let x) = v else { throw RivetGeneratedError.typeMismatch("Int64") }; return x }
 private func decode_DetailView(_ v: RivetValue) throws -> RivetTypes.DetailView { guard case .list(let xs) = v, xs.count == 2 else { throw RivetGeneratedError.typeMismatch("DetailView") }; return RivetTypes.DetailView(text: try decode_String(xs[0]), metadata: try decode__List_List_String_(xs[1])) }
 private func decode_Void(_ v: RivetValue) throws -> Void { guard case .null = v else { throw RivetGeneratedError.typeMismatch("Void") } }
-private func decode_Bool(_ v: RivetValue) throws -> Bool { guard case .bool(let x) = v else { throw RivetGeneratedError.typeMismatch("Bool") }; return x }
 private func decode__Optional_String_(_ v: RivetValue) throws -> String? { if case .null = v { return nil }; return try decode_String(v) }
 private func decode__Optional_Int64_(_ v: RivetValue) throws -> Int64? { if case .null = v { return nil }; return try decode_Int64(v) }
 private func decode_UpdateCheck(_ v: RivetValue) throws -> RivetTypes.UpdateCheck { guard case .list(let xs) = v, xs.count == 8 else { throw RivetGeneratedError.typeMismatch("UpdateCheck") }; return RivetTypes.UpdateCheck(status: try decode_String(xs[0]), error: try decode__Optional_String_(xs[1]), current_version: try decode_String(xs[2]), available_version: try decode__Optional_String_(xs[3]), build: try decode__Optional_Int64_(xs[4]), published_at: try decode__Optional_String_(xs[5]), installer: try decode__Optional_String_(xs[6]), size_bytes: try decode__Optional_Int64_(xs[7])) }
@@ -106,6 +106,7 @@ private func decode_AiStream(_ v: RivetValue) throws -> RivetTypes.AiStream { gu
 
 public enum RivetEvent: Sendable {
     case ai_finished(String)
+    case bindings_changed(String)
     case copy_to_clipboard(String)
     case notify(String)
     case open_url(String)
@@ -115,6 +116,7 @@ public enum RivetEvent: Sendable {
     public static func decode(name: String, value: RivetValue) throws -> RivetEvent {
         switch name {
         case "ai-finished": return .ai_finished(try decode_String(value))
+        case "bindings-changed": return .bindings_changed(try decode_String(value))
         case "copy-to-clipboard": return .copy_to_clipboard(try decode_String(value))
         case "notify": return .notify(try decode_String(value))
         case "open-url": return .open_url(try decode_String(value))
@@ -132,6 +134,22 @@ public struct RivetAPI: Sendable {
     public func ai_status() async throws -> String {
         let rivetResult = try await client.call("ai-status", arguments: [])
         return try decode_String(rivetResult)
+    }
+    public func binding_clear(id: String) async throws -> Bool {
+        let rivetResult = try await client.call("binding-clear", arguments: [encode_String(id)])
+        return try decode_Bool(rivetResult)
+    }
+    public func binding_set(id: String, alias: String, hotkey: String) async throws -> Bool {
+        let rivetResult = try await client.call("binding-set", arguments: [encode_String(id), encode_String(alias), encode_String(hotkey)])
+        return try decode_Bool(rivetResult)
+    }
+    public func bindings_commands() async throws -> [[String]] {
+        let rivetResult = try await client.call("bindings-commands", arguments: [])
+        return try decode__List_List_String_(rivetResult)
+    }
+    public func bindings_list() async throws -> [[String]] {
+        let rivetResult = try await client.call("bindings-list", arguments: [])
+        return try decode__List_List_String_(rivetResult)
     }
     public func clipboard_clear() async throws -> Int64 {
         let rivetResult = try await client.call("clipboard-clear", arguments: [])

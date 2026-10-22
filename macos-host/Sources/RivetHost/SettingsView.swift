@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Carbon.HIToolbox
 
 /// Settings window state: one string per backend key, written through the
 /// settings-set RPC as the user edits. The backend owns validation (hotkey
@@ -14,6 +15,12 @@ final class SettingsModel: ObservableObject {
     @Published var aiStatus = ""
     @Published var aiKeyDraft = ""
     @Published var aiKeyNotice = ""
+    // Per-command bindings (#48): what is bindable, what is bound, and the
+    // id currently recording a hotkey (drives the inline "Press keys…" UI).
+    @Published var commands: [[String]] = []
+    @Published var bindings: [[String]] = []
+    @Published var recordingId: String?
+    @Published var bindingError: String?
 
     private let api: FulcrumAPI
     /// Host side effects that must follow a write (language table, the
@@ -72,6 +79,51 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    // ---- per-command bindings (#48) ---------------------------------------
+
+    func loadBindings() async {
+        commands = (try? await api.bindingsCommands()) ?? []
+        bindings = (try? await api.bindingsList()) ?? []
+    }
+
+    private func currentBinding(_ id: String) -> [String]? {
+        bindings.first(where: { $0.first == id })
+    }
+
+    func saveBinding(id: String, alias: String, hotkey: String) {
+        Task {
+            do {
+                let ok = try await api.bindingSet(id: id, alias: alias, hotkey: hotkey)
+                if ok {
+                    bindingError = nil
+                } else {
+                    // The backend refuses duplicates, the summon hotkey, and
+                    // unknown commands; say so instead of blinking.
+                    bindingError = "\(id): the backend refused this binding (taken combo, the summon hotkey, or an unknown command)."
+                }
+                await loadBindings()
+            } catch {
+                bindingError = "\(id): \(error)"
+            }
+        }
+    }
+
+    func clearBinding(id: String) {
+        Task {
+            _ = try? await api.bindingClear(id: id)
+            await loadBindings()
+        }
+    }
+
+    /// A recorded combo lands here from HotkeyRecorder; empty spec means
+    /// the user cancelled with Esc.
+    func recordFinished(id: String, spec: String?) {
+        recordingId = nil
+        guard let spec, !spec.isEmpty else { return }
+        let alias = currentBinding(id)?[1] ?? ""
+        saveBinding(id: id, alias: alias, hotkey: spec)
+    }
+
     func isOn(_ key: String) -> Bool {
         values[key] == "on"
     }
@@ -124,6 +176,100 @@ private struct SettingField: View {
     }
 }
 
+/// One bindable command row: alias field, hotkey display + record button.
+private struct CommandBindingRow: View {
+    @ObservedObject var model: SettingsModel
+    let command: [String]
+    @State private var aliasDraft = ""
+    @State private var recorder: HotkeyRecorder?
+
+    var body: some View {
+        let id = command.first ?? ""
+        let binding = model.bindings.first(where: { $0.first == id })
+        let alias = binding?[1] ?? ""
+        let hotkey = binding?[2] ?? ""
+        HStack(spacing: 10) {
+            Text(command.count > 1 ? command[1] : id)
+                .font(.system(size: 12))
+                .frame(maxWidth: .infinity, alignment: .leading)
+            TextField("alias", text: $aliasDraft)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 90)
+                .onAppear { aliasDraft = alias }
+                .onChange(of: alias) { _, current in aliasDraft = current }
+                .onSubmit {
+                    let trimmed = aliasDraft.trimmingCharacters(in: .whitespaces)
+                    if trimmed != alias { model.saveBinding(id: id, alias: trimmed, hotkey: hotkey) }
+                }
+            if model.recordingId == id {
+                Button("Press keys… (Esc cancels)") {}
+                    .controlSize(.small)
+                    .disabled(true)
+            } else {
+                Button(hotkey.isEmpty ? "Record" : Hotkey.display(hotkey)) {
+                    model.recordingId = id
+                    recorder = HotkeyRecorder { spec in
+                        model.recordFinished(id: id, spec: spec)
+                        recorder = nil
+                    }
+                    recorder?.start()
+                }
+                .controlSize(.small)
+            }
+            if !hotkey.isEmpty || !alias.isEmpty {
+                Button("Clear") { model.clearBinding(id: id) }
+                    .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 1)
+    }
+}
+
+/// Captures the next modifier+key press inside this window as a hotkey
+/// spec. A local monitor is enough — the user records in the settings
+/// window — so no Input Monitoring permission is involved. Esc cancels.
+@MainActor
+final class HotkeyRecorder {
+    private let finish: (String?) -> Void
+    private var monitor: Any?
+
+    init(finish: @escaping (String?) -> Void) { self.finish = finish }
+
+    func start() {
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] event in
+            guard let self else { return event }
+            if event.type == .flagsChanged { return nil }  // modifiers alone: keep waiting
+            if event.keyCode == UInt16(kVK_Escape) {
+                self.stop(); self.finish(nil); return nil
+            }
+            let mask = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                .subtracting([.capsLock, .function])
+            guard mask != [] else { return event }  // bare key: ignore, keep waiting
+            guard let spec = Hotkey.spec(forKeyCode: UInt32(event.keyCode),
+                                         modifiers: Self.carbonMask(mask)) else {
+                return event  // unmappable key: keep waiting
+            }
+            self.stop()
+            self.finish(spec)
+            return nil
+        }
+    }
+
+    private func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+
+    private static func carbonMask(_ flags: NSEvent.ModifierFlags) -> UInt32 {
+        var mask: UInt32 = 0
+        if flags.contains(.control) { mask |= UInt32(controlKey) }
+        if flags.contains(.option) { mask |= UInt32(optionKey) }
+        if flags.contains(.shift) { mask |= UInt32(shiftKey) }
+        if flags.contains(.command) { mask |= UInt32(cmdKey) }
+        return mask
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
 
@@ -142,6 +288,8 @@ struct SettingsView: View {
                     .tabItem { Label("Features", systemImage: "square.grid.2x2") }
                 aiTab
                     .tabItem { Label("AI", systemImage: "sparkles") }
+                commandsTab
+                    .tabItem { Label("Commands", systemImage: "keyboard") }
                 syncTab
                     .tabItem { Label("Sync & Updates", systemImage: "arrow.triangle.2.circlepath") }
             }
@@ -258,6 +406,29 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var commandsTab: some View {
+        Form {
+            Section {
+                Text("Give a command your own shorthand (it ranks like a name) and a global hotkey that runs it with the panel hidden. Combos are recorded in this window.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if let bindingError = model.bindingError {
+                    Text(bindingError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                }
+            }
+            Section("Commands") {
+                ForEach(model.commands, id: \.self) { command in
+                    CommandBindingRow(model: model, command: command)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .task { await model.loadBindings() }
     }
 
     private var syncTab: some View {

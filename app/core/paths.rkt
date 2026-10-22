@@ -23,6 +23,7 @@
          ai-memory-path
          recents-path
          rates-path
+         bindings-path
          plugins-dir
          plugin-prefs-path
          plugin-secrets-path
@@ -99,6 +100,10 @@
 ;; background at most hourly.
 (define (rates-path)
   (build-path (data-dir) "rates.json"))
+
+;; Per-command alias + global-hotkey bindings (#48).
+(define (bindings-path)
+  (build-path (data-dir) "command-bindings.json"))
 
 (define (plugins-dir)
   (build-path (ensure-data-dir!) "plugins"))
