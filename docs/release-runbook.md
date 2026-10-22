@@ -85,12 +85,32 @@ x64, Windows x64, Linux x64):
    `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
    so publishing the draft puts the update feed live.
 
-Required secrets: `MACOS_CERTIFICATE_P12`, `MACOS_CERTIFICATE_PASSWORD`,
-`MACOS_NOTARY_PROFILE`, `APPLE_ID`/`APPLE_TEAM_ID` (notarytool),
-`WINDOWS_CERTIFICATE_PFX`, `WINDOWS_CERTIFICATE_PASSWORD`,
-`RIVET_UPDATE_PRIVATE_KEY` (the DER file, PEM-wrapped),
-`RIVET_UPDATE_KEY_ID`. The manifest base URL is derived from the tag, not
-a secret.
+Required **GitHub Actions secrets** (configure before creating a stable tag):
+
+- `MACOS_CERTIFICATE_P12`: base64 of the Developer ID Application P12,
+  `MACOS_CERTIFICATE_PASSWORD`, `MACOS_SIGN_IDENTITY` (full
+  `Developer ID Application: …` name), `APPLE_ID`, `APPLE_TEAM_ID`,
+  `MACOS_APP_SPECIFIC_PASSWORD` for `notarytool`. Both architecture jobs
+  import into temporary keychains and save a `fulcrum-notary` profile.
+- `WINDOWS_CERTIFICATE_PFX`: base64 of an Authenticode code-signing PFX
+  and `WINDOWS_CERTIFICATE_PASSWORD`. Set the repository **variable**
+  `WINDOWS_TIMESTAMP_URL` to a working RFC 3161 service URL.
+  Certificates requiring interactive hardware-backed signing need a
+  separately provisioned trusted runner; do not export hardware keys.
+- `LINUX_SIGN_PRIVATE_KEY`: PEM-encoded **artifact signing** Ed25519
+  private key and `LINUX_SIGN_KEY_ID`. This is separate from the update
+  feed signing key. Production Linux release ships the detached signature
+  `fulcrum-<version>-linux-<arch>.tar.gz.sig`; DEB/RPM repository metadata
+  signing is not implied by this signature.
+- `RIVET_UPDATE_PRIVATE_KEY`: PEM Ed25519 feed signing private key, plus
+  `RIVET_UPDATE_KEY_ID=fulcrum-2026-10`. The ID and its public key must
+  match the trust root embedded in shipped clients.
+
+Private key files are only materialized under the ephemeral runner temp
+directory, never committed. All missing identities/signatures/notary
+credentials **fail closed**: a stable tag must never silently fall back to
+`release --development`. The manifest base URL is derived from the tag,
+not a secret.
 
 ## 3a. macOS drag-to-install DMG (Taskly-parity)
 
@@ -122,13 +142,15 @@ with the hotkey and check Accessibility permissions are requested only
 when relevant. An app started directly inside a mounted DMG is **not**
 the installed copy and must not be used as the updater acceptance path.
 
-**Signing is a separate gate.** The current release workflow explicitly
-uses `raco rivet release --development`: this produces an ad-hoc-signed
-preview, *not* a Developer ID signed and Apple-notarized public build.
-A nicer DMG cannot remove Gatekeeper warnings. Before promising a
-warning-free consumer install, wire up Rivet's production signing/
-notarization path and test `spctl`, `codesign --verify`, and stapled
-DMG validation, using securely provisioned signing credentials.
+**Signing is a separate gate.** Stable tagged releases now invoke
+`raco rivet release` and `raco rivet verify --production`, after temporary
+Developer ID identity and `notarytool` profile setup. The release fails
+if its Apple certificate, notary credentials, signed bundle, stapled DMG
+or Gatekeeper verification is unavailable. Local CI's
+`release --development` is **only** an unsigned installer smoke test;
+it is never proof of stable-release trust. Validate the final artifacts
+with `codesign --verify --deep --strict`, `spctl --assess`, and
+`xcrun stapler validate` on actual installed apps and DMGs.
 Do not work around the absence of notarization by clearing quarantine
 or disabling Gatekeeper.
 
@@ -137,8 +159,12 @@ or disabling Gatekeeper.
 ## 4. Publish checklist
 
 - [ ] Draft release notes link the changelog section.
-- [ ] `manifest.json` verifies with the **public** key:
-      `raco rivet verify --production` on a machine with only the public key.
+- [ ] `manifest.json` verifies against the embedded **Ed25519 feed
+      public key**; `raco rivet verify --production` is a separate
+      platform-package/signature verification, not a manifest verifier.
+- [ ] Both macOS DMGs and installed apps pass Developer ID, Gatekeeper,
+      notarization and stapling checks; Windows MSI/EXE pass Authenticode
+      verification; both Linux tarballs have verified detached signatures.
 - [ ] Install the signed artifact on a clean VM for each OS; run one
       search, one clipboard copy, one plugin query, one update check.
 - [ ] In-app update check reports the new version on the previous release.
