@@ -31,6 +31,9 @@ require 'RIVET_UPDATE_KEY_ID'
 require 'FULCRUM_STABLE_RELEASE_APPROVED'
 require 'needs: github-release'
 require 'Verify installers and signed feed exist before publishing'
+require 'Require green CI and Product Acceptance for tagged commit'
+require 'head_sha=$GITHUB_SHA'
+require 'actions: read'
 require "prerelease: \${{ contains(github.ref_name, '-rc.') }}"
 require "make_latest: \${{ contains(github.ref_name, '-rc.') && 'false' || 'true' }}"
 require "if: \${{ !contains(github.ref_name, '-rc.') }}"
