@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  RIVET_PIN: be41e4d4c0663382071d1abafe7e08b389e68736
+  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
   FULCRUM_UPDATE_E2E_TESTING: "1"
 
 jobs:
