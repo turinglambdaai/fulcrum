@@ -22,6 +22,7 @@
          ai-keys-path
          ai-memory-path
          recents-path
+         bindings-path
          plugins-dir
          plugin-prefs-path
          plugin-secrets-path
@@ -92,6 +93,10 @@
 
 (define (recents-path)
   (build-path (data-dir) "recents.json"))
+
+;; Per-command alias + global-hotkey bindings (#48).
+(define (bindings-path)
+  (build-path (data-dir) "command-bindings.json"))
 
 (define (plugins-dir)
   (build-path (ensure-data-dir!) "plugins"))

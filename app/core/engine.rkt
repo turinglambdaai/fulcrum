@@ -19,6 +19,7 @@
          racket/math
          racket/string
          "apps.rkt"
+         "bindings.rkt"
          "calc.rkt"
          "clipboard.rkt"
          "emoji.rkt"
@@ -43,14 +44,15 @@
          engine-record-use!
          engine-row-actions
          result->row
-         link-save-separator)
+         link-save-separator
+         window-commands)
 
 (struct result
   (id title subtitle kind arg icon hint badge keywords priority)
   #:transparent)
 
 (struct engine
-  (apps-index apps-prepared clipboard snippets quicklinks plugins syscmds recents-path recents recents-lock max-results)
+  (apps-index apps-prepared clipboard snippets quicklinks bindings plugins syscmds recents-path recents recents-lock max-results)
   #:mutable)
 
 ;; Prepared application rows: the fuzzy fields are immutable per rebuild,
@@ -255,6 +257,7 @@
 (define (system-provider engine)
   (lambda (query)
     (for/list ([cmd (in-list (engine-syscmds engine))])
+      (define id (string-append "sys.run:" (system-command-name cmd)))
       (define score
         (if (zero? (string-length query))
             50
@@ -263,7 +266,26 @@
            (result "sys.run" (system-command-name cmd)
                    "System command" "System"
                    (system-command-name cmd) "system" "" ""
-                   "" (+ score 50))))))
+                   (with-alias engine id "")
+                   (+ score 50 (alias-boost engine id query)))))))
+
+;; Per-command aliases (#48) join the row's ranking fields: the alias is
+;; the user's own shorthand for the command, so it ranks with the title.
+(define (with-alias engine action-id keywords)
+  (define alias (binding-alias-for (engine-bindings engine) action-id))
+  (if alias (string-append keywords " " alias) keywords))
+
+;; A query that prefixes the alias is deliberate intent ("lh" for Left
+;; Half): the row outranks even exact app-name matches, which is the #48
+;; acceptance. Long accidental prefixes never trigger — the alias must
+;; still start with what the user typed.
+(define (alias-boost engine action-id query)
+  (define alias (binding-alias-for (engine-bindings engine) action-id))
+  (if (and alias
+           (>= (string-length alias) (string-length query))
+           (string-prefix? alias (string-downcase query)))
+      200
+      0))
 
 (define (plugins-provider engine)
   (define manager (engine-plugins engine))
@@ -501,8 +523,8 @@
           (result (car entry) (cadr entry)
                   "Tile the frontmost window" "Window"
                   "" "window" "" ""
-                  (caddr entry)
-                  65)))))
+                  (with-alias engine (car entry) (caddr entry))
+                  (+ 65 (alias-boost engine (car entry) query)))))))
 
 ;; Emoji search: inline results while typing (Raycast-style), Enter
 ;; pastes the character straight into the frontmost app through the same
@@ -660,18 +682,21 @@
                   #:clipboard-store [clipboard-store #f]
                   #:snippet-store [snippet-store #f]
                   #:quicklink-store [quicklink-store #f]
+                  #:bindings-store [bindings-store #f]
                   #:plugin-manager [plugin-manager #f]
                   #:max-results [max-results 12])
   (->* (#:clipboard-store (or/c clipboard-store? #f)
         #:snippet-store (or/c snippet-store? #f)
         #:plugin-manager (or/c plugin-manager? #f))
        (#:quicklink-store (or/c quicklink-store? #f)
+        #:bindings-store (or/c bindings-store? #f)
         #:max-results (and/c exact-integer? (>=/c 1) (<=/c 50)))
        engine?)
   (engine (make-hash) #f
           clipboard-store
           snippet-store
           quicklink-store
+          bindings-store
           plugin-manager
           (system-commands)
           (recents-path)
