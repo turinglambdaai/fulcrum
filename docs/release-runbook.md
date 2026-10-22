@@ -106,6 +106,14 @@ Required **GitHub Actions secrets** (configure before creating a stable tag):
   `RIVET_UPDATE_KEY_ID=fulcrum-2026-10`. The ID and its public key must
   match the trust root embedded in shipped clients.
 
+Before merging any `VERSION` bump, set the repository variable
+`FULCRUM_STABLE_RELEASE_APPROVED=true` **only when you intend to ship**.
+`version-release.yml` checks this authorization and the presence of all
+credentials **before creating the immutable tag**. Set it back to `false`
+after publishing. Manually pushed stable tags are also blocked at the draft
+promotion step unless this variable is `true`. Without approval, the
+version-bump workflow fails and does not create a tag.
+
 Private key files are only materialized under the ephemeral runner temp
 directory, never committed. All missing identities/signatures/notary
 credentials **fail closed**: a stable tag must never silently fall back to
