@@ -57,3 +57,12 @@ add_executable(fulcrum-appimage-handoff-test EXCLUDE_FROM_ALL
 target_link_libraries(fulcrum-appimage-handoff-test PRIVATE rivet::platform)
 target_compile_options(fulcrum-appimage-handoff-test PRIVATE
   -Wall -Wextra -Wpedantic)
+
+# Installed-version E2E against official v0.13.1 -> v0.13.2 AppImages.
+# The helper runs under a virtual display and verifies the new real app survives
+# the health window before the old backup is committed away.
+add_executable(fulcrum-appimage-real-upgrade-test EXCLUDE_FROM_ALL
+  ../tests/linux-appimage-real-upgrade.cpp)
+target_link_libraries(fulcrum-appimage-real-upgrade-test PRIVATE rivet::platform)
+target_compile_options(fulcrum-appimage-real-upgrade-test PRIVATE
+  -Wall -Wextra -Wpedantic)
