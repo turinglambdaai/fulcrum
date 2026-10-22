@@ -77,6 +77,8 @@ private enum MenuBarIcon {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NSPanel?
+    /// EventHotKeyID.id namespaces: 1 = summon, 1000+ = command bindings.
+    static let commandHotkeyBaseID: UInt32 = 1000
     private var hotkeyRef: EventHotKeyRef?
     private var activeHotkeySpec: String?
     private var eventHandler: EventHandlerRef?
@@ -239,6 +241,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let api = model.api {
                 if let spec = try? await api.getHotkey() {
                     self?.applyHotkey(spec)
+                }
+                if let rows = try? await api.bindingsList() {
+                    self?.applyCommandHotkeys(rows)
                 }
                 self?.refreshExpansionEngine()
                 if let theme = try? await api.getTheme() {
@@ -489,9 +494,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
                                       eventKind: UInt32(kEventHotKeyPressed))
         let status = InstallEventHandler(GetApplicationEventTarget(),
-                                         { _, _, _ -> OSStatus in
+                                         { _, event, _ -> OSStatus in
+                                             // id 1 is the summon hotkey;
+                                             // 1000+n are command bindings.
+                                             var hkID = EventHotKeyID()
+                                             let err = GetEventParameter(
+                                                 event, EventParamName(kEventParamDirectObject),
+                                                 EventParamType(typeEventHotKeyID), nil,
+                                                 MemoryLayout<EventHotKeyID>.size, nil, &hkID)
+                                             let identifier = (err == noErr) ? hkID.id : 1
                                              DispatchQueue.main.async {
-                                                 AppDelegate.shared?.hotkeyFired()
+                                                 AppDelegate.shared?.hotkeyFired(identifier: identifier)
                                              }
                                              return noErr
                                          },
@@ -547,8 +560,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return status == noErr
     }
 
-    fileprivate func hotkeyFired() {
-        togglePanel()
+    fileprivate func hotkeyFired(identifier: UInt32 = 1) {
+        if identifier >= Self.commandHotkeyBaseID {
+            fireCommandHotkey(identifier: identifier)
+        } else {
+            togglePanel()
+        }
+    }
+
+    // MARK: per-command hotkeys (#48)
+
+    /// (ref, actionId, arg) per registered command binding, index n bound to
+    /// hotkey id 1000+n. Rebuilt from scratch on every bindings push so a
+    /// removed binding never keeps a stale global registration.
+    private var commandHotkeys: [(ref: EventHotKeyRef, actionId: String, arg: String)] = []
+
+    func applyCommandHotkeys(_ rows: [[String]]) {
+        for entry in commandHotkeys { UnregisterEventHotKey(entry.ref) }
+        commandHotkeys = []
+        for (index, row) in rows.enumerated() where row.count >= 3 {
+            let hotkeySpec = row[2]
+            guard !hotkeySpec.isEmpty,
+                  let binding = Hotkey.parse(hotkeySpec) else { continue }
+            var ref: EventHotKeyRef?
+            let hotKeyID = EventHotKeyID(signature: OSType(0x46454C43), id: Self.commandHotkeyBaseID + UInt32(index))
+            let status = RegisterEventHotKey(binding.keyCode, binding.modifiers, hotKeyID,
+                                             GetApplicationEventTarget(), 0, &ref)
+            guard status == noErr, let ref else {
+                model?.setPersistentStatus(
+                    "Command hotkey \(Hotkey.display(hotkeySpec)) is taken by another tool — re-record it in settings.")
+                continue
+            }
+            // A binding id is "<actionId>:<arg>"; window commands carry no arg.
+            let parts = row[0].split(separator: ":", maxSplits: 1).map(String.init)
+            commandHotkeys.append((ref, parts.first ?? row[0],
+                                   parts.count > 1 ? parts[1] : ""))
+        }
+    }
+
+    private func fireCommandHotkey(identifier: UInt32) {
+        let index = Int(identifier - Self.commandHotkeyBaseID)
+        guard commandHotkeys.indices.contains(index) else { return }
+        let entry = commandHotkeys[index]
+        // Window commands act on the frontmost app's window, which is the
+        // point of a global hotkey; everything else runs through run-action
+        // exactly like a selected row.
+        if entry.actionId.hasPrefix("win.") {
+            if !WindowCommands.perform(id: entry.actionId) {
+                model?.setPersistentStatus(WindowCommands.permissionHint)
+            }
+        } else if let api = model?.api {
+            Task { [actionId = entry.actionId, arg = entry.arg] in
+                _ = try? await api.runAction(id: actionId, arg: arg)
+            }
+        }
     }
 
     // MARK: panel keys

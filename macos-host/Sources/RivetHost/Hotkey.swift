@@ -95,6 +95,43 @@ enum Hotkey {
         return nil
     }
 
+    // Recording: Carbon keycode + modifier mask back to the shared spec
+    // grammar. Only specs that round-trip through parse() are offered — a
+    // recording the grammar refuses is a bug, not a user error.
+    static func spec(forKeyCode code: UInt32, modifiers mask: UInt32) -> String? {
+        var parts: [String] = []
+        if mask & UInt32(controlKey) != 0 { parts.append("ctrl") }
+        if mask & UInt32(optionKey) != 0 { parts.append("alt") }
+        if mask & UInt32(shiftKey) != 0 { parts.append("shift") }
+        if mask & UInt32(cmdKey) != 0 { parts.append("cmd") }
+        guard let key = keyName(forKeyCode: code) else { return nil }
+        parts.append(key)
+        return parts.joined(separator: "+")
+    }
+
+    private static func keyName(forKeyCode code: UInt32) -> String? {
+        if let named = namedKeyNames.first(where: { $0.value == code }) {
+            return named.key
+        }
+        if let letter = letterKeyCodes.first(where: { UInt32($0.value) == code }) {
+            return letter.key.lowercased()
+        }
+        if let digit = digitKeyCodes.first(where: { UInt32($0.value) == code }) {
+            return digit.key
+        }
+        return nil
+    }
+
+    private static let namedKeyNames: [(key: String, value: UInt32)] = [
+        ("space", UInt32(kVK_Space)), ("tab", UInt32(kVK_Tab)),
+        ("comma", UInt32(kVK_ANSI_Comma)), ("period", UInt32(kVK_ANSI_Period)),
+        ("minus", UInt32(kVK_ANSI_Minus)), ("equal", UInt32(kVK_ANSI_Equal)),
+        ("f1", UInt32(kVK_F1)), ("f2", UInt32(kVK_F2)), ("f3", UInt32(kVK_F3)),
+        ("f4", UInt32(kVK_F4)), ("f5", UInt32(kVK_F5)), ("f6", UInt32(kVK_F6)),
+        ("f7", UInt32(kVK_F7)), ("f8", UInt32(kVK_F8)), ("f9", UInt32(kVK_F9)),
+        ("f10", UInt32(kVK_F10)), ("f11", UInt32(kVK_F11)), ("f12", UInt32(kVK_F12))
+    ]
+
     // The ANSI key codes are layout history, not a sequence: table them.
     private static let letterKeyCodes: [String: Int] = [
         "A": kVK_ANSI_A, "S": kVK_ANSI_S, "D": kVK_ANSI_D, "F": kVK_ANSI_F,

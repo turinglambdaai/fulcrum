@@ -461,6 +461,14 @@ struct FulcrumAPI {
     func runAction(id: String, arg: String) async throws -> String {
         try await generated.run_action(id: id, arg: arg)
     }
+    func bindingsCommands() async throws -> [[String]] { try await generated.bindings_commands() }
+    func bindingsList() async throws -> [[String]] { try await generated.bindings_list() }
+    func bindingSet(id: String, alias: String, hotkey: String) async throws -> Bool {
+        try await generated.binding_set(id: id, alias: alias, hotkey: hotkey)
+    }
+    func bindingClear(id: String) async throws -> Bool {
+        try await generated.binding_clear(id: id)
+    }
     func clipboardRecord(_ text: String) async throws -> String {
         try await generated.clipboard_record(text: text)
     }
@@ -866,6 +874,12 @@ final class LauncherModel: ObservableObject {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(payload, forType: .string)
             status = "Answer copied to the clipboard"
+        case "bindings-changed":
+            Task { [weak self] in
+                if let rows = try? await LauncherModel.active?.api?.bindingsList() {
+                    AppDelegate.shared?.applyCommandHotkeys(rows)
+                }
+            }
         case "open-url":
             if let url = URL(string: payload) {
                 NSWorkspace.shared.open(url)
