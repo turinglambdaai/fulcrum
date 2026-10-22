@@ -55,6 +55,23 @@ Type an expression where you would type a search: `128*768`, `(2+3)^4`,
 `sqrt(2)`, `sin(pi/4)`. The answer appears as the top result.
 <kbd>Enter</kbd> copies it.
 
+The calculator also answers dates and conversions inline — no keyword
+needed:
+
+- **Dates.** `next friday`, `in 3 weeks`, `in 2 months`,
+  `2026-10-20 + 14d`, `days until 2027-01-01`, `days since 2026-01-01`.
+- **Units.** `32f to c`, `100c to k`, `5 km in mi`, `26.2 mi to km`,
+  `10 kg to lb`, `12 mm to cm` — temperature, length, and weight across
+  a fixed unit set.
+- **Currency.** `100 usd to eur`, `1 eur to jpy`, `100$ to €` — from a
+  rate table cached on this machine and refreshed quietly in the
+  background (at most once an hour). Offline answers use the last
+  cache; before the first successful refresh there is no currency row
+  yet. ¥ converts as CNY; for Japanese yen, type `jpy`.
+
+The `u` (units) and `cur` (currency) plugins remain available for the
+long tail — their rows appear alongside these.
+
 ### Expand snippets as you type
 
 Store a piece of text under a keyword, then type that keyword in any
