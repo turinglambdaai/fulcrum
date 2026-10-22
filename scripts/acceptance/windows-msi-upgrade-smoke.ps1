@@ -88,13 +88,13 @@ function Invoke-ExpectedMsiFailure([string]$msi, [string]$label) {
   $argLine = "/i `"$msi`" /qn /norestart /L*v `"$log`""
   Write-Host "Running deliberately invalid MSI: $label"
   $process = Start-Process -FilePath $msiexec -ArgumentList $argLine -Wait -PassThru
-  if ($process.ExitCode -in @(0, 3010, 1641)) {
+  if ($process.ExitCode -notin @(1619, 1620)) {
     if (Test-Path $log) {
       Get-Content $log -Tail 45 | ForEach-Object { Write-Host $_ }
     }
-    throw "Invalid MSI unexpectedly succeeded ($($process.ExitCode))"
+    throw "Invalid MSI failed for an unexpected reason (exit $($process.ExitCode)); expected 1619/1620"
   }
-  Write-Host "PASS: invalid MSI rejected with exit code $($process.ExitCode)"
+  Write-Host "PASS: invalid MSI package rejected with exit code $($process.ExitCode)"
 }
 
 $installed = $false
