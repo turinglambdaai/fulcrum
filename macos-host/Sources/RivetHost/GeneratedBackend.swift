@@ -61,12 +61,18 @@ public enum RivetTypes {
         public let message: String?
         public let downloaded_path: String?
         public let available_version: String?
-        public init(phase: String, percent: Int64, message: String?, downloaded_path: String?, available_version: String?) {
+        public let artifact_sha256: String?
+        public let rollback_allowed: Bool
+        public let installer: String?
+        public init(phase: String, percent: Int64, message: String?, downloaded_path: String?, available_version: String?, artifact_sha256: String?, rollback_allowed: Bool, installer: String?) {
             self.phase = phase
             self.percent = percent
             self.message = message
             self.downloaded_path = downloaded_path
             self.available_version = available_version
+            self.artifact_sha256 = artifact_sha256
+            self.rollback_allowed = rollback_allowed
+            self.installer = installer
         }
     }
 
@@ -82,7 +88,7 @@ private func encode_Bool(_ v: Bool) -> RivetValue { .bool(v) }
 private func encode__Optional_String_(_ v: String?) -> RivetValue { v.map(encode_String) ?? .null }
 private func encode__Optional_Int64_(_ v: Int64?) -> RivetValue { v.map(encode_Int64) ?? .null }
 private func encode_UpdateCheck(_ v: RivetTypes.UpdateCheck) -> RivetValue { .list([encode_String(v.status), encode__Optional_String_(v.error), encode_String(v.current_version), encode__Optional_String_(v.available_version), encode__Optional_Int64_(v.build), encode__Optional_String_(v.published_at), encode__Optional_String_(v.installer), encode__Optional_Int64_(v.size_bytes)]) }
-private func encode_UpdateState(_ v: RivetTypes.UpdateState) -> RivetValue { .list([encode_String(v.phase), encode_Int64(v.percent), encode__Optional_String_(v.message), encode__Optional_String_(v.downloaded_path), encode__Optional_String_(v.available_version)]) }
+private func encode_UpdateState(_ v: RivetTypes.UpdateState) -> RivetValue { .list([encode_String(v.phase), encode_Int64(v.percent), encode__Optional_String_(v.message), encode__Optional_String_(v.downloaded_path), encode__Optional_String_(v.available_version), encode__Optional_String_(v.artifact_sha256), encode_Bool(v.rollback_allowed), encode__Optional_String_(v.installer)]) }
 private func encode_AiStream(_ v: RivetTypes.AiStream) -> RivetValue { .list([encode_String(v.phase), encode_String(v.text), encode__Optional_String_(v.error)]) }
 
 private func decode_String(_ v: RivetValue) throws -> String { guard case .string(let x) = v else { throw RivetGeneratedError.typeMismatch("String") }; return x }
@@ -95,7 +101,7 @@ private func decode_Bool(_ v: RivetValue) throws -> Bool { guard case .bool(let 
 private func decode__Optional_String_(_ v: RivetValue) throws -> String? { if case .null = v { return nil }; return try decode_String(v) }
 private func decode__Optional_Int64_(_ v: RivetValue) throws -> Int64? { if case .null = v { return nil }; return try decode_Int64(v) }
 private func decode_UpdateCheck(_ v: RivetValue) throws -> RivetTypes.UpdateCheck { guard case .list(let xs) = v, xs.count == 8 else { throw RivetGeneratedError.typeMismatch("UpdateCheck") }; return RivetTypes.UpdateCheck(status: try decode_String(xs[0]), error: try decode__Optional_String_(xs[1]), current_version: try decode_String(xs[2]), available_version: try decode__Optional_String_(xs[3]), build: try decode__Optional_Int64_(xs[4]), published_at: try decode__Optional_String_(xs[5]), installer: try decode__Optional_String_(xs[6]), size_bytes: try decode__Optional_Int64_(xs[7])) }
-private func decode_UpdateState(_ v: RivetValue) throws -> RivetTypes.UpdateState { guard case .list(let xs) = v, xs.count == 5 else { throw RivetGeneratedError.typeMismatch("UpdateState") }; return RivetTypes.UpdateState(phase: try decode_String(xs[0]), percent: try decode_Int64(xs[1]), message: try decode__Optional_String_(xs[2]), downloaded_path: try decode__Optional_String_(xs[3]), available_version: try decode__Optional_String_(xs[4])) }
+private func decode_UpdateState(_ v: RivetValue) throws -> RivetTypes.UpdateState { guard case .list(let xs) = v, xs.count == 8 else { throw RivetGeneratedError.typeMismatch("UpdateState") }; return RivetTypes.UpdateState(phase: try decode_String(xs[0]), percent: try decode_Int64(xs[1]), message: try decode__Optional_String_(xs[2]), downloaded_path: try decode__Optional_String_(xs[3]), available_version: try decode__Optional_String_(xs[4]), artifact_sha256: try decode__Optional_String_(xs[5]), rollback_allowed: try decode_Bool(xs[6]), installer: try decode__Optional_String_(xs[7])) }
 private func decode_AiStream(_ v: RivetValue) throws -> RivetTypes.AiStream { guard case .list(let xs) = v, xs.count == 3 else { throw RivetGeneratedError.typeMismatch("AiStream") }; return RivetTypes.AiStream(phase: try decode_String(xs[0]), text: try decode_String(xs[1]), error: try decode__Optional_String_(xs[2])) }
 
 public enum RivetEvent: Sendable {

@@ -1,0 +1,103 @@
+name: macOS Native Signed Update E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'macos-host/Package.swift'
+      - 'macos-host/Sources/RivetHost/UpdateController.swift'
+      - 'macos-host/Sources/RivetHost/RivetHostApp.swift'
+      - '.github/workflows/macos-native-update-e2e.yml'
+      - 'VERSION'
+      - 'rivet.rktd'
+
+permissions:
+  contents: read
+
+env:
+  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
+  FULCRUM_UPDATE_E2E_TESTING: "1"
+
+jobs:
+  signed-old-to-new:
+    name: Signed manifest install v0.13.1 to v0.13.2 (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Bogdanp/setup-racket@v1.15
+        with:
+          version: '9.3'
+          architecture: ${{ matrix.arch }}
+          distribution: full
+          variant: CS
+      - name: Install pinned Rivet
+        run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
+      - name: Build a test-only v0.13.1 app with the native update hook
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep the package metadata and backend version aligned for the old app.
+          sed -i '' 's/0\.13\.2/0.13.1/g' VERSION rivet.rktd
+          raco rivet doctor
+          raco rivet build
+          raco rivet package
+          test -d dist/fulcrum.app
+          built_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/fulcrum.app/Contents/Info.plist)
+          test "$built_version" = "0.13.1"
+          /usr/bin/codesign --verify --deep --strict dist/fulcrum.app
+          mkdir -p "$HOME/Applications"
+          rm -rf "$HOME/Applications/fulcrum.app" "$HOME/Applications/fulcrum.app.old"
+          /usr/bin/ditto dist/fulcrum.app "$HOME/Applications/fulcrum.app"
+      - name: Run real signed-feed native update and assert v0.13.2 is healthy
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$HOME/Applications/fulcrum.app"
+          log="$RUNNER_TEMP/fulcrum-native-update-e2e.log"
+          : > "$log"
+          /usr/bin/open -n "$app" --args --update-e2e-install "--update-e2e-log=$log"
+
+          for _ in $(seq 1 180); do
+            current=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist" 2>/dev/null || true)
+            if [ "$current" = "0.13.2" ] && [ ! -e "$app.old" ]; then
+              grep -q "AVAILABLE: 0.13.2" "$log"
+              grep -q "INSTALL_STARTED" "$log"
+              echo "PASS: authenticated v0.13.2 manifest downloaded and installed; new app survived health check"
+              cat "$log"
+              exit 0
+            fi
+            if grep -q "ERROR:" "$log"; then
+              cat "$log"
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "Timed out waiting for signed update; current bundle version: $current"
+          cat "$log"
+          /bin/ps -ww -axo pid=,command= | grep -F "$app/Contents/MacOS/" || true
+          exit 1
+      - name: Clean up test app and launched process
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          app="$HOME/Applications/fulcrum.app"
+          if [ -d "$app" ]; then
+            executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist" 2>/dev/null || true)
+            if [ -n "$executable" ]; then
+              /bin/ps -ww -axo pid=,command= |
+                /usr/bin/awk -v path="$app/Contents/MacOS/$executable" 'index($0, path) > 0 && $2 != "/usr/bin/awk" { print $1 }' |
+                while read -r pid; do /bin/kill -TERM "$pid" 2>/dev/null || true; done
+            fi
+          fi
+          /bin/sleep 2
+          rm -rf "$HOME/Applications/fulcrum.app" "$HOME/Applications/fulcrum.app.old"

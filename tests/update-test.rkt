@@ -15,12 +15,46 @@
          rivet/distribution
          racket/file
          racket/path
+         racket/runtime-path
          racket/string
          racket/tcp
+         net/base64
          "../app/update.rkt"
          (only-in "../app/core/settings.rkt" make-settings-manager))
 
 (use-all-factories!)
+
+(define-runtime-path update-backend-source "../app/update.rkt")
+(define-runtime-path native-updater-source "../macos-host/Sources/RivetHost/UpdateController.swift")
+
+;; The macOS host uses CryptoKit, which consumes raw Ed25519 public bytes.
+;; The Racket backend uses DER SPKI. They must always be the same trust root:
+;; a mismatch would make a signed release verify on one host and fail on
+;; the others, even if both key formats parse independently.
+(test-case "native macOS updater trusts the same Ed25519 key as the backend"
+  (define backend (file->string update-backend-source))
+  (define native (file->string native-updater-source))
+  (define der-match
+    (regexp-match #px"current-update-public-key-hex\\s+\"([0-9a-fA-F]+)\""
+                  backend))
+  (define native-match
+    (regexp-match #px"publicKeyBase64\\s*=\\s*\"([A-Za-z0-9+/=]+)\""
+                  native))
+  (check-not-false der-match)
+  (check-not-false native-match)
+  (when (and der-match native-match)
+    (define der-hex (cadr der-match))
+    (check-equal? (string-length der-hex) 88)
+    (when (= (string-length der-hex) 88)
+      (define key-hex (substring der-hex 24))
+      (define key-bytes
+        (apply bytes
+               (for/list ([i (in-range 0 (string-length key-hex) 2)])
+                 (string->number (substring key-hex i (+ i 2)) 16))))
+      (check-equal? (bytes->string/utf-8 (base64-encode key-bytes #""))
+                    (cadr native-match))))
+  (check-true (regexp-match? #px"keyID\\s*=\\s*\"fulcrum-2026-10\"" native))
+  (check-true (regexp-match? #px"update-key-id\\s+\"fulcrum-2026-10\"" backend)))
 
 ;; ---------- platform identity ---------------------------------------------
 
@@ -73,6 +107,20 @@
 (test-case "the updates folder URI is shell-openable and percent-encoded"
   (check-true (string-prefix? (updates-folder-uri) "file:///"))
   (check-false (string-contains? (updates-folder-uri) " ")))
+
+(test-case "Linux package-manager paths are not treated as portable"
+  ;; The public Rivet adapter supplies current-install-kind, while the
+  ;; internal detect-install-kind helper is intentionally not exported.
+  (when (eq? (platform-symbol) 'linux)
+    (check-equal? (current-install-kind
+                   (string->path "/opt/fulcrum/bin/fulcrum"))
+                  'package-manager)
+    (check-equal? (current-install-kind
+                   (string->path "/usr/bin/fulcrum"))
+                  'package-manager)
+    (check-equal? (current-install-kind
+                   (string->path "/home/runner/portable/fulcrum"))
+                  'portable)))
 
 (test-case "Linux AppImage selection uses the installer discriminator"
   (define tar
@@ -203,6 +251,45 @@
   (stop)
   (delete-directory/files data-dir)
   (delete-file payload-file))
+
+(test-case "native install handoff receives digest and rollback ONLY after a verified download"
+  (define payload (make-bytes 4096 17))
+  (define source (make-temporary-file "fulcrum-appimage-ticket-~a"))
+  (call-with-output-file source #:exists 'truncate
+    (lambda (out) (write-bytes payload out)))
+  (define sha (sha256-file/hex source))
+  (define-values (port stop) (open-fake-feed! payload))
+  (define dir (make-temporary-file "fulcrum-appimage-ticket-data-~a" 'directory))
+  (define old-override (getenv "FULCRUM_DATA_DIR"))
+  (dynamic-wind
+    (lambda () (putenv "FULCRUM_DATA_DIR" (path->string dir)))
+    (lambda ()
+      (parameterize ([current-update-version "0.0.0"]
+                     [current-update-settings #f])
+        (reset-update-state!)
+        (install-candidate!
+         (candidate-for
+          (format "http://127.0.0.1:~a/fulcrum-9.9.9-macos-arm64.zip" port)
+          sha (bytes-length payload)))
+        (check-false (verified-install-metadata))
+        (start-download! dir)
+        (check-equal? (wait-for-phase! '("downloaded") 15000) "downloaded")
+        (define ticket (verified-install-metadata))
+        (check-true (hash? ticket))
+        (check-equal? (hash-ref ticket 'sha256) sha)
+        (check-true (hash-ref ticket 'rollbackAllowed))
+        (check-equal? (hash-ref ticket 'installer) "zip")
+        ;; A different/currently removed downloaded artifact must never
+        ;; inherit the previous authenticated digest.
+        (define path (hash-ref (update-state-snapshot) 'downloadedPath))
+        (delete-file path)
+        (check-false (verified-install-metadata))
+        (reset-update-state!)
+        (check-false (verified-install-metadata))))
+    (lambda () (putenv "FULCRUM_DATA_DIR" (or old-override ""))))
+  (stop)
+  (delete-directory/files dir)
+  (delete-file source))
 
 (test-case "a hash mismatch lands in the error phase with no trusted file"
   (define payload (make-bytes 1000 1))

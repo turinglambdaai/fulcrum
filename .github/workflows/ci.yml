@@ -14,7 +14,9 @@ concurrency:
 # Contexts aren't allowed in `uses:`, so the setup-embed-racket action
 # refs must be bumped in lockstep by hand.
 env:
-  RIVET_PIN: v0.12.0
+  # Unified immutable upstream revision containing AppImage handoff,
+  # branded-DMG signature preservation, and macOS update rollback safety.
+  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 jobs:
   backend:
     name: Backend tests (${{ matrix.os }})
@@ -101,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@4cd374f3f783a58306026381a64fc83c0e23ff48
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own.
@@ -128,6 +130,11 @@ jobs:
         run: |
           cmake --build .rivet/build/linux --target fulcrum-ui-test
           xvfb-run -a -s "-screen 0 1280x800x24 -nolisten tcp" dbus-run-session -- timeout 30s .rivet/build/linux/fulcrum-ui-test
+      - name: AppImage detached update replacement and rollback
+        shell: bash
+        run: |
+          cmake --build .rivet/build/linux --target fulcrum-appimage-handoff-test
+          timeout 45s .rivet/build/linux/fulcrum-appimage-handoff-test
       - name: Verify staged artifacts
         shell: bash
         run: |
@@ -156,12 +163,37 @@ jobs:
       - name: Install Rivet (catalog)
         run: raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
+      - name: Verify macOS Finder DMG artwork
+        run: |
+          brew install librsvg
+          bash scripts/render-dmg-background.sh
+          python3 scripts/check-macos-dmg-layout.py
+        shell: bash
+      - name: Native update policy regression
+        run: |
+          swiftc macos-host/Sources/RivetHost/NativeUpdatePolicy.swift \
+            macos-host/Tests/main.swift -o /tmp/fulcrum-update-policy-test
+          /tmp/fulcrum-update-policy-test
+        shell: bash
       - name: raco rivet doctor
         run: raco rivet doctor
         shell: bash
       - name: raco rivet build
         run: raco rivet build
         shell: bash
+      - name: Smoke-test real drag-to-Applications DMG
+        shell: bash
+        env:
+          RIVET_UPDATE_BASE_URL: https://example.invalid/fulcrum-ci
+          RIVET_UPDATE_KEY_ID: ci-dmg-smoke
+        run: |
+          set -euo pipefail
+          openssl genpkey -algorithm Ed25519 -out "$RUNNER_TEMP/update-private.pem"
+          openssl pkey -in "$RUNNER_TEMP/update-private.pem" -outform DER \
+            -out "$RUNNER_TEMP/update-private.der"
+          export RIVET_UPDATE_PRIVATE_KEY="$RUNNER_TEMP/update-private.der"
+          raco rivet release --development
+          bash scripts/test-macos-dmg.sh
       - name: Generated macOS client is current
         run: git diff --exit-code -- macos-host/Sources/RivetHost/GeneratedBackend.swift
         shell: bash

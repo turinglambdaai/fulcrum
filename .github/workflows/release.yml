@@ -22,11 +22,15 @@ on:
   workflow_dispatch:
 
 env:
+  # Immutable Rivet merge commit includes the crash-safe AppImageHandoff
+  # accepted as upstream #291; v0.12.0 does not contain that API.
   # Single pin source, same value as ci.yml (workflow-level env does not
   # cross files, so this is defined here too). Contexts aren't allowed in
   # `uses:`, so the setup-embed-racket action ref must be bumped in
   # lockstep by hand.
-  RIVET_PIN: v0.12.0
+  # Unified immutable upstream revision containing AppImage handoff,
+  # branded-DMG signature preservation, and macOS update rollback safety.
+  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
 permissions:
   contents: write
 
@@ -109,7 +113,7 @@ jobs:
             rpm desktop-file-utils
       - name: Set up embeddable Racket CS (Linux)
         if: matrix.platform == 'linux'
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@v0.12.0
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@4cd374f3f783a58306026381a64fc83c0e23ff48
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own.
@@ -123,6 +127,16 @@ jobs:
       - name: Version preflight (VERSION == rivet.rktd == tag)
         run: bash scripts/check-release-version.sh "${{ github.ref_name }}"
         shell: bash
+      # Like Taskly, generate a 2x Finder DMG background before packaging.
+      # Rivet v0.12.0 uses it to stage an Applications alias, set the icon
+      # positions, and show the "drag to install" layout.
+      - name: Render macOS drag-to-install DMG backdrop
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          brew install librsvg
+          bash scripts/render-dmg-background.sh
+          python3 scripts/check-macos-dmg-layout.py
       # `raco rivet release --development` = package + launch smoke + the
       # platform installer (msi/dmg/tar.gz) + a per-platform update manifest
       # discarded here in favor of the composed channel manifest signed
@@ -145,6 +159,10 @@ jobs:
           raco rivet release --development
           rm -f update-private.pem update-private.der
         shell: bash
+      - name: Verify mounted Finder DMG installer
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: bash scripts/test-macos-dmg.sh
       # Versioned + architecture-suffixed names are the release contract: the
       # channel manifest (.github/sign-manifest.rkt) pins exactly these names,
       # and the mac zip doubles as the portable build the update feed serves.

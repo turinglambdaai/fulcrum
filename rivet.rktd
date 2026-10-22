@@ -14,6 +14,9 @@
         (protocol . 1)
         (resources . ("shared/i18n"))
         (macos-icon . "assets/fulcrum.icns")
+        ;; Rivet v0.12.0 builds a drag-to-Applications Finder DMG when a
+        ;; 1320x800 backdrop PNG is staged before release packaging.
+        (dmg-background . "assets/dmg-background.png")
         (windows-icon . "assets/fulcrum.ico")
         (linux-icon . "assets/fulcrum-icon-512.png")
         ;; Native Linux installers (deb installs /opt/fulcrum with a desktop
@@ -24,9 +27,6 @@
         ;; installer kind so Rivet's atomic AppImage replacement can own the
         ;; eventual in-app install. deb/rpm remain package-manager-owned.
         (linux-formats . ("deb" "rpm" "appimage")))
-        ;; No dmg-background / windows-installer-bitmaps: the entries used
-        ;; to name files that never existed in the repo, which the old
-        ;; rivet pin ignored silently and the current pin fails honestly
-        ;; on. Rivet falls back to the stock single-folder DMG and the
-        ;; standard WiX wizard; custom installer art lands with real
-        ;; assets, not placeholder paths.
+        ;; Mac installer artwork is rendered from its editable SVG in the
+        ;; release workflow. Windows installer bitmaps remain undeclared
+        ;; until the files exist; never configure placeholder paths.

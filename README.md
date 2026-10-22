@@ -8,6 +8,15 @@ One keystroke. Everything within reach. A keyboard-first launcher for macOS, Win
 
 New to launchers? Start with the **[user guide](docs/user-guide.md)** — it assumes you have never used one. 中文用户请读[用户指南](docs/user-guide.zh-CN.md)。
 
+## Install on macOS (developer preview)
+
+Choose your Mac build from [GitHub Releases](https://github.com/turinglambdaai/fulcrum/releases/latest):
+[Apple Silicon / M-series DMG](https://github.com/turinglambdaai/fulcrum/releases/latest/download/fulcrum-macos-arm64.dmg) or
+[Intel DMG](https://github.com/turinglambdaai/fulcrum/releases/latest/download/fulcrum-macos-x64.dmg).
+Open the **DMG**, drag **Fulcrum** onto **Applications**, eject the disk image, then launch **Fulcrum from Applications**, not from the mounted installer. The icon on the right in the DMG is an Applications shortcut.
+
+**Signing note:** Current release jobs use development/ad-hoc signing, not an Apple-notarized Developer ID build. Gatekeeper may block the first launch. Verify the download comes from the official release before making any exception; see [Apple's guidance](https://support.apple.com/102445). Do **not** globally disable Gatekeeper or strip quarantine attributes. We are tracking signed/notarized distribution separately. On first use, grant Accessibility permission only when Fulcrum requests it for clipboard paste or snippets. See the [macOS first-run guide](docs/user-guide.md#install-and-first-launch-on-macos).
+
 ## What is Fulcrum?
 
 Press one global hotkey and a floating command palette appears:

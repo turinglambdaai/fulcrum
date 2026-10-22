@@ -52,6 +52,9 @@ struct UpdateState {
   std::optional<std::string> message;
   std::optional<std::string> downloaded_path;
   std::optional<std::string> available_version;
+  std::optional<std::string> artifact_sha256;
+  bool rollback_allowed;
+  std::optional<std::string> installer;
 };
 
 template <typename T>
@@ -80,7 +83,7 @@ inline rivet::Value encode_Bool(bool v) { return rivet::Value(v); }
 inline rivet::Value encode__Optional_String_(std::optional<std::string> const& v) { return v ? encode_String(*v) : rivet::Value{}; }
 inline rivet::Value encode__Optional_Int64_(std::optional<std::int64_t> const& v) { return v ? encode_Int64(*v) : rivet::Value{}; }
 inline rivet::Value encode_UpdateCheck(UpdateCheck const& v) { rivet::Value::List r; r.reserve(8); r.push_back(encode_String(v.status)); r.push_back(encode__Optional_String_(v.error)); r.push_back(encode_String(v.current_version)); r.push_back(encode__Optional_String_(v.available_version)); r.push_back(encode__Optional_Int64_(v.build)); r.push_back(encode__Optional_String_(v.published_at)); r.push_back(encode__Optional_String_(v.installer)); r.push_back(encode__Optional_Int64_(v.size_bytes)); return rivet::Value(std::move(r)); }
-inline rivet::Value encode_UpdateState(UpdateState const& v) { rivet::Value::List r; r.reserve(5); r.push_back(encode_String(v.phase)); r.push_back(encode_Int64(v.percent)); r.push_back(encode__Optional_String_(v.message)); r.push_back(encode__Optional_String_(v.downloaded_path)); r.push_back(encode__Optional_String_(v.available_version)); return rivet::Value(std::move(r)); }
+inline rivet::Value encode_UpdateState(UpdateState const& v) { rivet::Value::List r; r.reserve(8); r.push_back(encode_String(v.phase)); r.push_back(encode_Int64(v.percent)); r.push_back(encode__Optional_String_(v.message)); r.push_back(encode__Optional_String_(v.downloaded_path)); r.push_back(encode__Optional_String_(v.available_version)); r.push_back(encode__Optional_String_(v.artifact_sha256)); r.push_back(encode_Bool(v.rollback_allowed)); r.push_back(encode__Optional_String_(v.installer)); return rivet::Value(std::move(r)); }
 inline rivet::Value encode_AiStream(AiStream const& v) { rivet::Value::List r; r.reserve(3); r.push_back(encode_String(v.phase)); r.push_back(encode_String(v.text)); r.push_back(encode__Optional_String_(v.error)); return rivet::Value(std::move(r)); }
 
 inline std::string decode_String(rivet::Value const& v) { if (auto p = std::get_if<std::string>(&v.data)) return *p; throw std::runtime_error("Rivet result type mismatch: String"); }
@@ -93,7 +96,7 @@ inline bool decode_Bool(rivet::Value const& v) { if (auto p = std::get_if<bool>(
 inline std::optional<std::string> decode__Optional_String_(rivet::Value const& v) { if (std::holds_alternative<std::monostate>(v.data)) return std::nullopt; return decode_String(v); }
 inline std::optional<std::int64_t> decode__Optional_Int64_(rivet::Value const& v) { if (std::holds_alternative<std::monostate>(v.data)) return std::nullopt; return decode_Int64(v); }
 inline UpdateCheck decode_UpdateCheck(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 8) throw std::runtime_error("Rivet result type mismatch: UpdateCheck"); return UpdateCheck{decode_String((*p)[0]), decode__Optional_String_((*p)[1]), decode_String((*p)[2]), decode__Optional_String_((*p)[3]), decode__Optional_Int64_((*p)[4]), decode__Optional_String_((*p)[5]), decode__Optional_String_((*p)[6]), decode__Optional_Int64_((*p)[7])}; }
-inline UpdateState decode_UpdateState(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 5) throw std::runtime_error("Rivet result type mismatch: UpdateState"); return UpdateState{decode_String((*p)[0]), decode_Int64((*p)[1]), decode__Optional_String_((*p)[2]), decode__Optional_String_((*p)[3]), decode__Optional_String_((*p)[4])}; }
+inline UpdateState decode_UpdateState(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 8) throw std::runtime_error("Rivet result type mismatch: UpdateState"); return UpdateState{decode_String((*p)[0]), decode_Int64((*p)[1]), decode__Optional_String_((*p)[2]), decode__Optional_String_((*p)[3]), decode__Optional_String_((*p)[4]), decode__Optional_String_((*p)[5]), decode_Bool((*p)[6]), decode__Optional_String_((*p)[7])}; }
 inline AiStream decode_AiStream(rivet::Value const& v) { auto p = std::get_if<rivet::Value::List>(&v.data); if (!p || p->size() != 3) throw std::runtime_error("Rivet result type mismatch: AiStream"); return AiStream{decode_String((*p)[0]), decode_String((*p)[1]), decode__Optional_String_((*p)[2])}; }
 }  // namespace detail
 

@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The update panel (opened from the menu bar's "Check for Updates…" or by
-/// the update-available event). One column that follows the backend's phase
-/// state machine: checking → up-to-date / available → downloading →
-/// downloaded → quit-and-install, with errors recoverable in place. All
+/// the update-available event). One column for the native, signed updater:
+/// checking → up-to-date / available → download, verify and install.
+/// The new bundle is activated only after RivetUpdate's verified handoff. All
 /// strings come from shared/i18n via I18nService (language setting).
 struct UpdatePanelView: View {
     @ObservedObject var controller: UpdateController
@@ -32,8 +32,6 @@ struct UpdatePanelView: View {
                 available
             case .downloading:
                 downloading
-            case .downloaded:
-                downloaded
             case .failed:
                 failed
             }
@@ -82,11 +80,13 @@ struct UpdatePanelView: View {
                     controller.phase = .idle
                 }
                 .keyboardShortcut(.cancelAction)
-                Button(controller.t("updateDownload")) {
+                Button(controller.t("updateDownload") + " → " +
+                       controller.t("updateQuitAndInstall")) {
                     controller.startDownload()
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
+                .disabled(!UpdateController.canUpdate)
             }
             if !UpdateController.canUpdate {
                 Text(controller.t("updateNotInstalled"))
@@ -105,44 +105,21 @@ struct UpdatePanelView: View {
             ProgressView(value: Double(controller.percent), total: 100)
                 .progressViewStyle(.linear)
                 .tint(FulcrumTheme.accent)
+            HStack(spacing: 12) {
+                if controller.percent < 100 {
+                    Button(controller.t("updateCancel")) {
+                        controller.cancelDownload()
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+                Button(controller.t("updateClose")) {
+                    // Dismissing does not cancel a verified transaction;
+                    // Cancel explicitly stops the transfer.
+                    controller.panelVisible = false
+                }
+            }
         }
         .frame(minHeight: 120)
-    }
-
-    private var downloaded: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "checkmark.seal")
-                .font(.system(size: 32, weight: .medium))
-                .foregroundStyle(FulcrumTheme.accent)
-            Text(controller.t("updateDownloaded"))
-                .font(.system(size: 14, weight: .medium))
-            Text(controller.t("updateReadyBody"))
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            HStack(spacing: 10) {
-                if !UpdateController.canUpdate {
-                    Button(controller.t("updateOpenFolder")) {
-                        if let path = controller.downloadedPath {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: path))
-                        }
-                    }
-                }
-                Button(controller.t("updateQuitAndInstall")) {
-                    controller.quitAndInstall()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(!UpdateController.canUpdate)
-            }
-            if !UpdateController.canUpdate {
-                Text(controller.t("updateInstallHintMac"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 320)
-            }
-        }
     }
 
     private var failed: some View {
@@ -182,13 +159,8 @@ struct UpdatePanelView: View {
 }
 
 extension UpdateController {
-    /// Retry after a failed check or download (a downloaded artifact stays
-    /// installed-ready; anything else re-runs the check).
+    /// Retry always re-verifies the signed feed; never reuse stale state.
     func retry() async {
-        if downloadedPath != nil {
-            phase = .available
-            return
-        }
         await check(manual: true)
     }
 }

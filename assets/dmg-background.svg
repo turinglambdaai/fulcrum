@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="800" viewBox="0 0 1320 800">
+  <!-- Fulcrum macOS Finder DMG background at 2x for Rivet v0.12.0's
+       660x400 window. Do not place text or ornaments over the Finder
+       icon slots at (130,160) and (450,160) points: 2x (260,320) and
+       (900,320) icon top-left locations. Actual icon centers are
+       approximately (340,400) and (980,400). -->
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FCFAF6"/>
+      <stop offset="1" stop-color="#F5EFE4"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#D97706"/>
+      <stop offset="1" stop-color="#B45309"/>
+    </linearGradient>
+  </defs>
+  <rect width="1320" height="800" fill="url(#canvas)"/>
+  <rect x="16" y="16" width="1288" height="768" rx="24"
+        fill="none" stroke="#D97706" stroke-opacity="0.18" stroke-width="2"/>
+
+  <text x="660" y="146" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="82" font-weight="700" letter-spacing="0.5" fill="#27221B">Fulcrum</text>
+  <text x="660" y="207" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="29" fill="#6B6154">One keystroke. Everything within reach.</text>
+
+  <!-- Rivet places the Fulcrum.app Finder icon on the left and the
+       Applications alias on the right; this arrow stays between them. -->
+  <text x="660" y="341" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="23" font-weight="700" letter-spacing="4"
+        fill="#945009">DRAG TO INSTALL</text>
+  <path d="M 457 419 H 840"
+        stroke="url(#accent)" stroke-opacity="0.85"
+        stroke-width="9" stroke-linecap="round" fill="none"/>
+  <path d="M 813 391 L 845 419 L 813 447"
+        stroke="#B45309" stroke-width="9" stroke-linejoin="round"
+        stroke-linecap="round" fill="none"/>
+
+  <text x="660" y="666" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="33" font-weight="500" fill="#42392F">Drag Fulcrum into Applications</text>
+  <text x="660" y="712" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="21" fill="#827364">Then open Fulcrum from Applications</text>
+</svg>

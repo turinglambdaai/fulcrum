@@ -226,6 +226,33 @@
             },
             "kind": "optional"
           }
+        },
+        {
+          "name": "artifact-sha256",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
+        },
+        {
+          "name": "rollback-allowed",
+          "type": {
+            "kind": "scalar",
+            "name": "Bool"
+          }
+        },
+        {
+          "name": "installer",
+          "type": {
+            "element": {
+              "kind": "scalar",
+              "name": "String"
+            },
+            "kind": "optional"
+          }
         }
       ],
       "name": "UpdateState"
