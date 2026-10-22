@@ -416,9 +416,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          FULCRUM_STABLE_RELEASE_APPROVED: ${{ vars.FULCRUM_STABLE_RELEASE_APPROVED }}
         shell: bash
         run: |
           set -euo pipefail
+          # Manual tags must not bypass the authorization applied before
+          # automatic version-bump tagging. RCs have their own prerelease
+          # safety policy; never promote a stable tag without approval.
+          if [[ "$GITHUB_REF_NAME" != *-rc.* && "$FULCRUM_STABLE_RELEASE_APPROVED" != "true" ]]; then
+            echo "::error::Stable release promotion is not approved; draft remains unpublished"
+            exit 1
+          fi
           tag="${GITHUB_REF_NAME}"
           test "${tag#v}" != "$tag" || { echo "::error::Not a version tag"; exit 1; }
           gh release view "$tag" --json isDraft --jq '.isDraft' | grep -Fx true
