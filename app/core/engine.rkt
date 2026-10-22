@@ -22,6 +22,7 @@
          "bindings.rkt"
          "calc.rkt"
          "clipboard.rkt"
+         "convert.rkt"
          "emoji.rkt"
          "files.rkt"
          "fuzzy.rkt"
@@ -193,6 +194,16 @@
           (define answer (calculate-display query))
           (list (result "calc.copy" answer query "Calculator" answer
                         "calculator" "" "Copy" "" 140))))))
+
+;; Inline date/unit/currency answers share the Calculator kind and the
+;; calc.copy action so every host renders and copies them like arithmetic
+;; (convert.rkt returns plain title/subtitle pairs; the result struct and
+;; the wire stay here).
+(define (convert-provider engine)
+  (lambda (query)
+    (for/list ([pair (in-list (convert-row-data query))])
+      (result "calc.copy" (car pair) (cdr pair) "Calculator" (car pair)
+              "calculator" "" "Copy" "" 130))))
 
 (define (clipboard-provider engine)
   (define store (engine-clipboard engine))
@@ -720,6 +731,7 @@
 (define (all-provider-results engine query)
   (append
    ((calc-provider engine) query)
+   ((convert-provider engine) query)
    ((apps-provider engine) query)
    ((clipboard-provider engine) query)
    ((snippets-provider engine) query)
