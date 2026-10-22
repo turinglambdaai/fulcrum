@@ -240,7 +240,14 @@ jobs:
       - name: Verify mounted Finder DMG installer
         if: matrix.platform == 'macos'
         shell: bash
-        run: bash scripts/test-macos-dmg.sh
+        run: |
+          set -euo pipefail
+          bash scripts/test-macos-dmg.sh
+          dmg=(dist/fulcrum-*.dmg)
+          test -f "${dmg[0]}"
+          codesign --verify --verbose=2 "${dmg[0]}"
+          xcrun stapler validate "${dmg[0]}"
+          spctl --assess --type open --context context:primary-signature "${dmg[0]}"
       # Versioned + architecture-suffixed names are the release contract: the
       # channel manifest (.github/sign-manifest.rkt) pins exactly these names,
       # and the mac zip doubles as the portable build the update feed serves.
@@ -425,6 +432,8 @@ jobs:
             "fulcrum-${version}-linux-arm64.deb" \
             "fulcrum-${version}-linux-x86_64.AppImage" \
             "fulcrum-${version}-linux-aarch64.AppImage" \
+            "fulcrum-${version}-linux-x64.tar.gz.sig" \
+            "fulcrum-${version}-linux-arm64.tar.gz.sig" \
             "fulcrum-macos-arm64.dmg" \
             "fulcrum-macos-x64.dmg" \
             "fulcrum-windows-x64.msi" \
