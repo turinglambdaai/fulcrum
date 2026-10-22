@@ -222,13 +222,18 @@ jobs:
           [[ -n "$RIVET_UPDATE_PRIVATE_KEY_PEM" && "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] || {
             echo "::error::Required Ed25519 update key and pinned key ID are missing"; exit 1;
           }
-          key_dir="$(mktemp -d "$RUNNER_TEMP/fulcrum-update-signing.XXXXXX")"
+          temp_root="$RUNNER_TEMP"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then temp_root="$(cygpath -u "$RUNNER_TEMP")"; fi
+          key_dir="$(mktemp -d "$temp_root/fulcrum-update-signing.XXXXXX")"
           chmod 700 "$key_dir"
           trap 'rm -rf "$key_dir"' EXIT
           printf '%s\n' "$RIVET_UPDATE_PRIVATE_KEY_PEM" > "$key_dir/private.pem"
           openssl pkey -in "$key_dir/private.pem" -outform DER -out "$key_dir/private.der"
           rm -f "$key_dir/private.pem"
           export RIVET_UPDATE_PRIVATE_KEY="$key_dir/private.der"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            export RIVET_UPDATE_PRIVATE_KEY="$(cygpath -w "$key_dir/private.der")"
+          fi
           raco rivet release
           raco rivet verify --production
         shell: bash
