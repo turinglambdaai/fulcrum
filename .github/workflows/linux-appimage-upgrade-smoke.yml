@@ -1,0 +1,56 @@
+name: Linux AppImage Upgrade Lifecycle
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Newer published AppImage release to install"
+        required: true
+        default: "0.13.2"
+  pull_request:
+    paths:
+      - 'tests/linux-appimage-real-upgrade.cpp'
+      - 'linux/CMakeLists.txt'
+      - 'scripts/acceptance/linux-appimage-upgrade-smoke.sh'
+      - '.github/workflows/linux-appimage-upgrade-smoke.yml'
+
+permissions:
+  contents: read
+
+env:
+  RIVET_PIN: 761a6ba8bbe7e378c06270f33883a54a109eb7f3
+
+jobs:
+  installed-upgrade:
+    name: Official AppImage upgrade ($\{{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: $\{{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up embeddable Racket CS
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@761a6ba8bbe7e378c06270f33883a54a109eb7f3
+      - name: Install Rivet (pinned source)
+        run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#\${RIVET_PIN}"
+      - name: Install native and headless GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config \
+            libgtk-4-dev libsecret-1-dev zlib1g-dev liblz4-dev \
+            libncurses-dev libxtst-dev xvfb xauth dbus-daemon
+      - name: Build official Linux host and handoff harness
+        run: |
+          set -euo pipefail
+          raco rivet doctor
+          raco rivet build
+          cmake --build .rivet/build/linux --target fulcrum-appimage-real-upgrade-test
+      - name: Verify official release artifacts and perform real old-to-new upgrade
+        run: bash scripts/acceptance/linux-appimage-upgrade-smoke.sh "$\{{ matrix.arch }}"
