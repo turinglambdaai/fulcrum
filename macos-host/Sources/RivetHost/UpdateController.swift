@@ -37,8 +37,13 @@ final class UpdateController: ObservableObject {
 
     // Never store a signing private key in the app. The feed URL is allowed
     // to move to latest, but the signature key identity is pinned here.
+    #if FULCRUM_UPDATE_E2E_TESTING
+    private static let feedURL = URL(string:
+        "https://github.com/turinglambdaai/fulcrum/releases/download/v0.13.2/update-manifest.json")!
+    #else
     private static let feedURL = URL(string:
         "https://github.com/turinglambdaai/fulcrum/releases/latest/download/update-manifest.json")!
+    #endif
     private static let publicKeyBase64 = "R5cgPk4fzhCeRdQbp1XofrfSYcCCtb9nKK4OqqWOVdc="
     private static let keyID = "fulcrum-2026-10"
     private static let lastCheckKey = "fulcrum.native-update.last-check"
@@ -136,6 +141,48 @@ final class UpdateController: ObservableObject {
             phase = .failed
         }
     }
+
+    #if FULCRUM_UPDATE_E2E_TESTING
+    /// Test-only entry point used by the real signed-feed E2E workflow. It
+    /// runs the same eligibility check and download/install path as the update
+    /// panel, but records status to a file so CI can assert the transaction.
+    func runUpdateE2ETest() {
+        Task { @MainActor in
+            UserDefaults.standard.set(0, forKey: Self.rolloutBucketKey)
+            self.writeUpdateE2ELog("CHECK_STARTED")
+            await self.check(manual: true)
+            guard self.phase == .available else {
+                self.writeUpdateE2ELog("ERROR: update was not eligible: \(self.errorMessage)")
+                exit(2)
+            }
+            self.writeUpdateE2ELog("AVAILABLE: \(self.availableVersion ?? "unknown")")
+            self.startDownload()
+            guard self.phase == .downloading else {
+                self.writeUpdateE2ELog("ERROR: download did not start")
+                exit(3)
+            }
+            self.writeUpdateE2ELog("INSTALL_STARTED")
+            while true {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                if self.phase == .failed {
+                    self.writeUpdateE2ELog("ERROR: \(self.errorMessage)")
+                    exit(4)
+                }
+            }
+        }
+    }
+
+    private func writeUpdateE2ELog(_ line: String) {
+        let prefix = "--update-e2e-log="
+        guard let argument = CommandLine.arguments.first(where: {
+            $0.hasPrefix(prefix)
+        }) else { return }
+        let path = String(argument.dropFirst(prefix.count))
+        let url = URL(fileURLWithPath: path)
+        let previous = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        try? (previous + line + "\n").write(to: url, atomically: true, encoding: .utf8)
+    }
+    #endif
 
     private static func stickyRolloutBucket() -> Int {
         let defaults = UserDefaults.standard

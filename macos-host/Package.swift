@@ -15,6 +15,10 @@ guard let racketFrameworkDir = ProcessInfo.processInfo.environment["RIVET_RACKET
 
 let macosMinVersion = ProcessInfo.processInfo.environment["RIVET_MACOS_MIN_VERSION"] ?? "14.0"
 
+let updateE2ETestSettings: [SwiftSetting] =
+    ProcessInfo.processInfo.environment["FULCRUM_UPDATE_E2E_TESTING"] == "1"
+        ? [.define("FULCRUM_UPDATE_E2E_TESTING")] : []
+
 let package = Package(
     name: "RivetHost",
     platforms: [.macOS(macosMinVersion)],
@@ -33,6 +37,7 @@ let package = Package(
                 .product(name: "RivetUpdate", package: "rivet")
             ],
             path: "Sources/RivetHost",
+            swiftSettings: updateE2ETestSettings,
             linkerSettings: [
                 .unsafeFlags(["-F", racketFrameworkDir]),
                 .linkedFramework("Racket")
