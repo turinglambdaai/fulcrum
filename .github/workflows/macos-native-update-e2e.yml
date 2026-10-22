@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 env:
-  RIVET_PIN: \${be41e4d4c0663382071d1abafe7e08b389e68736}
+  RIVET_PIN: be41e4d4c0663382071d1abafe7e08b389e68736
   FULCRUM_UPDATE_E2E_TESTING: "1"
 
 jobs:
@@ -95,7 +95,7 @@ jobs:
             executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist" 2>/dev/null || true)
             if [ -n "$executable" ]; then
               /bin/ps -ww -axo pid=,command= |
-                /usr/bin/awk -v path="$app/Contents/MacOS/$executable" '$2 == path { print $1 }' |
+                /usr/bin/awk -v path="$app/Contents/MacOS/$executable" 'index($0, path) > 0 && $2 != "/usr/bin/awk" { print $1 }' |
                 while read -r pid; do /bin/kill -TERM "$pid" 2>/dev/null || true; done
             fi
           fi
