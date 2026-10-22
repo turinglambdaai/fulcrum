@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -202,7 +203,7 @@ void real_upgrade(fs::path const& old_release,
 }  // namespace
 
 int main(int argc, char** argv) {
-  if (argc != 5 || std::string(argv[1]) != "--real-upgrade") {
+  if (argc != 6 || std::string(argv[1]) != "--real-upgrade") {
     std::cerr << "usage: " << argv[0]
               << " --real-upgrade OLD_APPIMAGE NEW_APPIMAGE EXPECTED_SHA256 NEW_VERSION\n";
     return 2;
