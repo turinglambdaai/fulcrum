@@ -1,0 +1,23 @@
+name: Windows MSI Upgrade Lifecycle
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/acceptance/windows-msi-upgrade-smoke.ps1'
+      - '.github/workflows/windows-msi-upgrade-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  installed-upgrade:
+    name: Installed MSI 0.13.1 to 0.13.2
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify official MSI checksum and real installed major upgrade
+        shell: pwsh
+        run: |
+          ./scripts/acceptance/windows-msi-upgrade-smoke.ps1
