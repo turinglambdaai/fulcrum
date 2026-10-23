@@ -52,3 +52,10 @@ raco rivet acceptance --json
 - 轨道与授权：轨道 2 消费买断（消费线第一棒）；授权形态：BUSL-1.1 → MIT（2030-09-28 或各版首发四周年，先到者）；商业归属：适合收费——免费核心已完整，Pro 走买断 + 更新窗；Pro 边界待设计（候选：工作流/自定义命令、主题、高级剪贴板）。护城河是原生性能 + 本地隐私 + 工作流生态，不是收费墙。
 - 组合归属唯一权威：[PORTFOLIO.md](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)（turinglambdaai.github.io 仓库）。改归属/授权先改权威档，再同步本节。
 - 纪律：价格只进本仓 `PRICING.md`，且收费开始时才发布；README 与产品站不做价格预告。
+
+## 产品交付与下一步（2026-10-23）
+
+- 家族[交付标准](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/docs/PRODUCT-STANDARD.md)与[组合策略](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)是共用政策；本仓具体行为以 `docs/cross-platform-interaction.md` 为准，不复制五库依赖图。
+- 当前执行入口：[产品审查 issue](https://github.com/turinglambdaai/fulcrum/issues/88)。先收敛交互与真实更新/签名门禁，再做窄范围的新增工作流 Pro。保留已有免费能力，平台机制遵循原生惯例。
+- 开工先检查干净工作树与远端，以 fast-forward-only 更新并记录 SHA；共享文件一次一个写入者，保留其他 checkout 的未提交工作。
+- 每次只完成一个可验收切片，记录 owned files、依赖 pin、命令/平台/产物证据和回滚。已实现、已发布、实机验收分别陈述；不修改 requirements 或复用旧证据来制造通过。

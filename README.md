@@ -95,3 +95,7 @@ Build a plugin instead? Start with [gallery/epoch](gallery/epoch) and [docs/plug
 ## License
 
 Fulcrum's core is source-available under BUSL-1.1 with a change date to MIT (see [LICENSE](LICENSE)). The plugin protocol ([docs/plugins.md](docs/plugins.md)) and the example plugin are MIT — plugins are your code, and the protocol is open even though the launcher core is not. The business reasoning behind this split is documented in [docs/business.md](docs/business.md).
+
+## Feedback and diagnostics
+
+Report reproducible bugs and feature requests through [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues). Include the release, OS/architecture and steps; inspect and redact diagnostics before sharing. Do not post API keys, license files, vault contents or private documents. For sensitive security reports, follow SECURITY.md when present; otherwise request a private contact route without disclosing sensitive details. Nothing is uploaded automatically.
