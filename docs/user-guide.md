@@ -163,8 +163,7 @@ character directly into the app you came from.
 ## AI (bring your own key)
 
 Fulcrum's AI uses your own API key from OpenAI, Anthropic, or a local
-Ollama. Fulcrum charges nothing, sees nothing, and stores nothing —
-the key stays in a local file that is never synced. Your prompts only
+Ollama. Fulcrum does not charge for BYOK. The key is stored locally in ai-keys.json and used for provider authentication; conversation history can persist locally. Your prompts only
 leave your machine when you run an AI command.
 
 ### Setup (once)
@@ -294,19 +293,7 @@ sync.
 
 ## Privacy
 
-| Data | Where it lives | Leaves your device? |
-|---|---|---|
-| Search history | Never stored | Never |
-| Clipboard history | Local JSON file | Never |
-| Snippets | Local JSON file (+ sync mirror if configured) | Only to your own cloud folder |
-| AI prompts | Nowhere (in-transit only) | Only to the AI provider you chose |
-| AI conversation | Local JSON file | Never |
-| API keys | Local file | Never |
-| Telemetry | None | Nothing to send |
-
-Fulcrum makes exactly three kinds of network requests: update checks
-(signed, throttled), web searches you explicitly run, and AI prompts
-you explicitly run.
+Local files include clipboard/snippet data, AI history and ai-keys.json. AI requests send selected context and authenticate with the configured provider; plugins and currency refreshes can also make network requests. Folder sync sends its selected records through your chosen sync service. Review the data and recovery guidance below.
 
 ---
 
@@ -336,9 +323,7 @@ Themes. Dark mode.
 **Different by design:**
 
 - **Free, no account.** No login, no account system, no telemetry.
-  The entire local product — everything on this page — is free. A Pro
-  tier is planned for 1.0 and will sit only on services that cost us
-  money (sync, bundled AI, themes); the local feature set stays free.
+  The entire local product — everything on this page — is free. New multi-step workflow Pro is planned but not on sale; existing BYOK, plugins and BYO-folder sync stay free.
 - **Cross-platform, equally.** macOS, Windows, and Linux get the same
   features, same keyboard, same native UI. Not one first-class platform
   and two afterthoughts.
@@ -410,3 +395,41 @@ errors, and your data staying on your machine.
 
 Source-available (BUSL-1.1, MIT after the change date). Plugin
 protocol MIT. No telemetry. No account. No cloud.
+
+## Availability
+
+Existing launcher, clipboard, plugins and BYOK features remain free. No Pro checkout is open.
+
+## Platforms and installation
+
+Desktop developer previews for macOS, Windows and Linux. Permission and shortcut behavior varies with the OS and Linux display session.
+
+Use [official Releases](https://github.com/turinglambdaai/fulcrum/releases), select an explicitly listed OS/architecture asset, read its release notes and check supplied checksums. An absent asset/platform is not a delivery promise. Preview builds may lack publisher signing or notarization; do not disable system-wide security protections to install them.
+
+## Your first successful session
+
+1. Open Fulcrum and use the configured global shortcut to summon the window. Resolve shortcut conflicts in Settings.
+2. Enter 12*12 and confirm 144; then search for an installed application and launch it.
+3. Enable clipboard history, plugins and AI separately, only after reviewing the data and permissions each needs.
+
+## Data, backup and recovery
+
+Back up the configured application-data directory after quitting Fulcrum. Clipboard history, snippets, plugin settings and AI history may be sensitive. Test recovery on a copy; do not publish a full diagnostic directory as a bug attachment.
+
+## Network, keys and privacy
+
+Local search does not require a commercial account. Installed plugins can run code and access network services. BYOK requests send the chosen prompt/context to your configured provider, which bills you separately.
+
+## Known limits
+
+This is a developer preview. New multi-step workflow automation is planned and is not an available paid feature. AI lifecycle extraction is tracked in #89.
+
+## Updates and removal
+
+Back up data and read the destination release notes first. An in-app update check does not necessarily install an update for your channel; follow the manual for portable, installer and source paths. Never bypass a failed signature check or replace the program with an untrusted artifact. On failure, preserve data and the error, then recover with a trusted release. Removing the program does not necessarily erase its separate data directory; verify your backup before deleting personal data.
+
+## Get help
+
+Report problems in [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues), in English or Chinese. Include the version, OS/architecture, installation channel, steps, expected result and actual result. Reproduce with synthetic input first; do not attach keys, credentials, databases, private source documents or complete logs. Public support has no guaranteed response time.
+
+For sensitive vulnerabilities, follow the private process in [SECURITY.md](../SECURITY.md).

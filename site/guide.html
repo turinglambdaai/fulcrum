@@ -49,6 +49,8 @@ var _hmt = _hmt || [];
   s.parentNode.insertBefore(hm, s);
 })();
 </script>
+<style>.lang-menu li.lang-choice{padding:0}.lang-menu .lang-choice button{display:block;width:100%;padding:8px 12px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.lang-menu .lang-choice button:focus-visible{outline:2px solid currentColor;outline-offset:-2px;border-radius:4px}</style>
+<style>.guide-status{margin:20px 0;padding:16px 20px;border:1px solid currentColor;border-radius:10px;font-size:.95rem;line-height:1.65}.guide-status p{margin:0 0 8px}.guide-status a{text-decoration:underline;text-underline-offset:4px}html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}</style>
 </head>
 
 <body>
@@ -81,8 +83,8 @@ var _hmt = _hmt || [];
                         <span id="current-lang-label">简体中文</span>
                     </button>
                     <ul class="lang-menu">
-                        <li onclick="setLanguage('en')">English</li>
-                        <li onclick="setLanguage('zh')">简体中文</li>
+                        <li class="lang-choice"><button type="button" onclick="setLanguage('en')">English</button></li>
+                        <li class="lang-choice"><button type="button" onclick="setLanguage('zh')">简体中文</button></li>
                     </ul>
                 </li>
                 <li><button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle theme">◐</button></li>
@@ -95,6 +97,7 @@ var _hmt = _hmt || [];
         <div class="container">
             <span class="eyebrow" data-i18n="m.eyebrow">使用手册</span>
             <h1><span data-i18n="m.h1">Fulcrum 能做的一切，</span><span class="accent" data-i18n="m.h1b">一页说清。</span></h1>
+<aside class="guide-status"><p class="reader-en " lang="en">Existing launcher, clipboard, plugins and BYOK features remain free. No Pro checkout is open.</p><p class="reader-zh " lang="zh">已有启动器、剪贴板、插件和 BYOK 功能保持免费；尚未开放 Pro 购买。</p><a class="reader-en" lang="en" href="https://github.com/turinglambdaai/fulcrum/blob/main/docs/user-guide.md">Current installation, privacy and recovery</a><a class="reader-zh" lang="zh" href="https://github.com/turinglambdaai/fulcrum/blob/main/docs/user-guide.zh-CN.md">当前安装、隐私与恢复</a></aside>
             <p class="lead" data-i18n="m.lead">从安装到 AI 密钥，从粘贴回前台到热键自定义——还有最常见的几个坑，都在这里。</p>
         </div>
     </section>
@@ -191,7 +194,7 @@ var _hmt = _hmt || [];
                     <li data-i18n="m.clip-1"><strong>粘贴。</strong>输入 <code>clip</code> 或历史内容里的任意词，回车——粘贴进你刚才在用的应用。</li>
                     <li data-i18n="m.clip-2"><strong>复制而非粘贴。</strong>选中某条历史，按 <kbd>⌘K</kbd> / <kbd>Ctrl+K</kbd>，从附加动作里选复制。</li>
                     <li data-i18n="m.clip-3"><strong>开关与容量。</strong><code>settings</code> → <code>clipboard-enabled</code> 总开关；<code>clipboard-limit</code> 控制保留条数。</li>
-                    <li data-i18n="m.clip-4"><strong>隐私。</strong>历史是本地 JSON，从不离开设备。剪贴板只收文本。</li>
+                    <li data-i18n="m.clip-4">剪贴板历史保存在本地 JSON 文件，仅记录文本。插件、AI 命令或用户配置的同步可涉及对外发送，请在使用前审查数据范围。</li>
                 </ul>
             </section>
 
@@ -210,7 +213,7 @@ var _hmt = _hmt || [];
                 <h2 class="manual-h2"><span class="h2-emoji">🤖</span>
                     <span data-i18n="m.ai-title">AI（自带密钥）</span>
                 </h2>
-                <p data-i18n="m.ai-lead">Fulcrum 不收费、不经手数据。AI 用你自己的 OpenAI、Anthropic 或本地 Ollama。密钥存在本地文件里，永不同步、永不上传——只有你执行 AI 命令时，提示词才发给你选的服务商。</p>
+                <p data-i18n="m.ai-lead">AI 使用你自己的服务商。密钥保存在本地文件中，用于向所选端点鉴权；请求发送选定提示和上下文，会话历史可在本地持久化。不要把密钥、剪贴板或日志公开分享。</p>
 
                 <h3 class="manual-h3" data-i18n="m.ai-setup-h">一次性设置（最常见的卡点）</h3>
                 <ol>
@@ -327,7 +330,7 @@ var _hmt = _hmt || [];
                 <p data-i18n="m.faq-perm-linux">Linux：X11 一切开箱即用；Wayland 装好 <code>wtype</code> 才能粘贴回前台，片段展开在 Wayland 上不可用。Windows：无需额外授权。</p>
 
                 <h3 class="manual-h3" data-i18n="m.faq-account-h">要注册账号吗？收费吗？</h3>
-                <p data-i18n="m.faq-account">没有账号体系，没有遥测，没有网络依赖。抢先体验期间完全免费；Pro 计划随 1.0 再说。AI 用你自己的密钥，Fulcrum 不抽成、不经手。</p>
+                <p data-i18n="m.faq-account">已有启动、剪贴板、插件、BYOK 与自有文件夹同步保持免费，无需商业账号。新工作流 Pro 尚未开售；外部模型用量另计。</p>
 
                 <h3 class="manual-h3" data-i18n="m.faq-platform-h">支持哪些系统？各平台有差异吗？</h3>
                 <p data-i18n="m.faq-platform">macOS 14+（Apple silicon 与 Intel）、Windows 10（19041+）/ 11、Linux（GTK4；.deb / .rpm / .AppImage / tar.gz）。诚实清单：文件搜索仅限 macOS；片段自动展开不支持 Linux；剪贴板只收文本。其余功能三平台一致、键位一致。</p>
@@ -418,13 +421,13 @@ var _hmt = _hmt || [];
                 "m.clip-1": "<strong>粘贴。</strong>输入 <code>clip</code> 或历史内容里的任意词，回车——粘贴进你刚才在用的应用。",
                 "m.clip-2": "<strong>复制而非粘贴。</strong>选中某条历史，按 <kbd>⌘K</kbd> / <kbd>Ctrl+K</kbd>，从附加动作里选复制。",
                 "m.clip-3": "<strong>开关与容量。</strong><code>settings</code> → <code>clipboard-enabled</code> 总开关；<code>clipboard-limit</code> 控制保留条数。",
-                "m.clip-4": "<strong>隐私。</strong>历史是本地 JSON，从不离开设备。剪贴板只收文本。",
+                "m.clip-4": "剪贴板历史保存在本地 JSON 文件，仅记录文本。插件、AI 命令或用户配置的同步可涉及对外发送，请在使用前审查数据范围。",
                 "m.snip-title": "片段",
                 "m.snip-lead": "把一段文字存在关键词下面，在任何应用里输入关键词，原地展开。",
                 "m.snip-add": "建立片段：<code>add snippet addr 南京西路 42 号</code>。",
                 "m.snip-use": "在邮件里输入 <code>addr</code> 加空格，就变成 <code>南京西路 42 号</code>。展开是自动的——词边界一触发就替换，不用按任何快捷键。macOS 与 Windows 支持；Linux 的合成器（Wayland）不允许所需的输入监听，故不提供。在 <code>settings</code> → <code>expansion-enabled</code> 随时开关。片段可通过同步 beta 跨机器带走（见 <a href='#faq'>FAQ</a>）。",
                 "m.ai-title": "AI（自带密钥）",
-                "m.ai-lead": "Fulcrum 不收费、不经手数据。AI 用你自己的 OpenAI、Anthropic 或本地 Ollama。密钥存在本地文件里，永不同步、永不上传——只有你执行 AI 命令时，提示词才发给你选的服务商。",
+                "m.ai-lead": "AI 使用你自己的服务商。密钥保存在本地文件中，用于向所选端点鉴权；请求发送选定提示和上下文，会话历史可在本地持久化。不要把密钥、剪贴板或日志公开分享。",
                 "m.ai-setup-h": "一次性设置（最常见的卡点）",
                 "m.ai-setup-1": "<strong>选服务商。</strong>唤起面板，输入 <code>settings</code>，回车运行 <code>ai-provider</code> 那行，切到 OpenAI / Anthropic / Ollama。",
                 "m.ai-setup-2": "<strong>填密钥。</strong>再次唤起面板，输入 <code>ai key</code> 加你的真实密钥（例如 <code>ai key sk-…</code>），回车。密钥落在本地，界面不会回显。",
@@ -475,7 +478,7 @@ var _hmt = _hmt || [];
                 "m.faq-perm": "两个功能需要辅助功能权限：<strong>粘贴回前台</strong>和<strong>片段自动展开</strong>。搜索、计算、启动应用、AI 都不需要。授权路径：系统设置 → 隐私与安全性 → 辅助功能 → 打开 Fulcrum。若已打开仍不生效：先关掉再打开（重授一次）；macOS 大版本升级后偶发需要重授。首次使用时弹出的系统授权框点了「稍后」也没关系，随时可以来这里补。",
                 "m.faq-perm-linux": "Linux：X11 一切开箱即用；Wayland 装好 <code>wtype</code> 才能粘贴回前台，片段展开在 Wayland 上不可用。Windows：无需额外授权。",
                 "m.faq-account-h": "要注册账号吗？收费吗？",
-                "m.faq-account": "没有账号体系，没有遥测，没有网络依赖。抢先体验期间完全免费；Pro 计划随 1.0 再说。AI 用你自己的密钥，Fulcrum 不抽成、不经手。",
+                "m.faq-account": "已有启动、剪贴板、插件、BYOK 与自有文件夹同步保持免费，无需商业账号。新工作流 Pro 尚未开售；外部模型用量另计。",
                 "m.faq-platform-h": "支持哪些系统？各平台有差异吗？",
                 "m.faq-platform": "macOS 14+（Apple silicon 与 Intel）、Windows 10（19041+）/ 11、Linux（GTK4；.deb / .rpm / .AppImage / tar.gz）。诚实清单：文件搜索仅限 macOS；片段自动展开不支持 Linux；剪贴板只收文本。其余功能三平台一致、键位一致。",
                 "m.faq-lang-h": "怎么换语言和主题？",
@@ -526,13 +529,13 @@ var _hmt = _hmt || [];
                 "m.clip-1": "<strong>Paste.</strong> Type <code>clip</code> or any word from the entry, press Enter — it pastes into the app you came from.",
                 "m.clip-2": "<strong>Copy, don't paste.</strong> Select an entry and press <kbd>⌘K</kbd> / <kbd>Ctrl+K</kbd>, then pick Copy from the actions.",
                 "m.clip-3": "<strong>Toggle & size.</strong> <code>settings</code> → <code>clipboard-enabled</code> turns history on or off; <code>clipboard-limit</code> caps how many entries are kept.",
-                "m.clip-4": "<strong>Privacy.</strong> History is a local JSON file and never leaves the device. Text only — images are not recorded.",
+                "m.clip-4": "Clipboard history is stored as local JSON and is text-only. Plugins, AI commands and configured sync can involve external transmission; review the selected data before use.",
                 "m.snip-title": "Snippets",
                 "m.snip-lead": "Store text under a keyword; typing that keyword anywhere expands it in place.",
                 "m.snip-add": "Create one: <code>add snippet addr 42 Wall Street</code>.",
                 "m.snip-use": "Type <code>addr</code> plus a space in an email and it becomes <code>42 Wall Street</code>. Expansion is automatic — a word boundary fires it, no shortcut to press. Supported on macOS and Windows; Linux compositors (Wayland) forbid the required input monitoring. Toggle it in <code>settings</code> → <code>expansion-enabled</code>. Snippets travel via the sync beta (see the <a href='#faq'>FAQ</a>).",
                 "m.ai-title": "AI (bring your own key)",
-                "m.ai-lead": "Fulcrum charges nothing and touches nothing. AI runs on your own OpenAI, Anthropic or local Ollama key. The key lives in a local file, is never synced, never uploaded — only prompts you explicitly run are sent, and only to the provider you picked.",
+                "m.ai-lead": "AI uses your chosen provider. The key is stored locally and authenticates requests to that endpoint; requests send selected prompts/context and conversation history can persist locally. Do not publicly share keys, clipboard contents or logs.",
                 "m.ai-setup-h": "One-time setup (the usual stumbling block)",
                 "m.ai-setup-1": "<strong>Pick a provider.</strong> Summon the panel, type <code>settings</code>, run the <code>ai-provider</code> row, switch to OpenAI / Anthropic / Ollama.",
                 "m.ai-setup-2": "<strong>Enter the key.</strong> Summon the panel again and type <code>ai key</code> followed by your real key (e.g. <code>ai key sk-…</code>), then Enter. The key lands locally; the UI never echoes it.",
@@ -583,7 +586,7 @@ var _hmt = _hmt || [];
                 "m.faq-perm": "Two features need the Accessibility permission: <strong>paste-to-frontmost</strong> and <strong>snippet expansion</strong>. Search, calculation, app launching and AI never do. Grant it at System Settings → Privacy & Security → Accessibility → enable Fulcrum. Already on but not working: toggle it off and back on (re-grant); a macOS upgrade can require this. Dismissed the first-run prompt? Come back here any time.",
                 "m.faq-perm-linux": "Linux: X11 works out of the box; on Wayland install <code>wtype</code> for paste-to-frontmost, and snippet expansion is unavailable on Wayland. Windows: no extra permissions.",
                 "m.faq-account-h": "Is there an account? Does it cost anything?",
-                "m.faq-account": "No accounts, no telemetry, no network dependency. Everything is free during early access; a Pro plan may arrive with 1.0. AI runs on your own key — Fulcrum takes no cut and touches no data.",
+                "m.faq-account": "Existing launch, clipboard, plugins, BYOK and BYO-folder sync stay free without a commercial account. New workflow Pro is not on sale; external model usage is billed separately.",
                 "m.faq-platform-h": "Which systems are supported? Any differences?",
                 "m.faq-platform": "macOS 14+ (Apple silicon and Intel), Windows 10 (19041+) / 11, Linux (GTK4; .deb / .rpm / .AppImage / tar.gz). The honest list: file search is macOS-only; snippet expansion is unavailable on Linux; the clipboard records text only. Everything else matches across platforms, keys included.",
                 "m.faq-lang-h": "How do I change language and theme?",

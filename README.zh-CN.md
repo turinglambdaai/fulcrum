@@ -8,6 +8,12 @@
 
 没用过启动器？从[用户指南](docs/user-guide.zh-CN.md)开始——它假设你从未用过这类产品。English users: [user guide](docs/user-guide.md)。
 
+## 开始使用
+
+已有启动器、剪贴板、插件和 BYOK 功能保持免费；尚未开放 Pro 购买。 提供 macOS、Windows、Linux 桌面开发预览。权限与快捷键行为取决于系统及 Linux 图形会话。
+
+[安装、首次使用、隐私与备份恢复](docs/user-guide.zh-CN.md) · [English](docs/user-guide.md)
+
 ## macOS 安装（开发者预览版）
 
 前往 [GitHub Releases](https://github.com/turinglambdaai/fulcrum/releases/latest)，按芯片选择
@@ -35,7 +41,7 @@
 - **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)），附二十六个第一方插件，可在启动器内直接安装（查询 `gallery`）
 - **同步（beta）** —— 设置与片段镜像到任意云盘同步目录；机器数据被清空后可从镜像恢复
 
-搜索、历史、片段永远不离开你的设备。没有任何遥测。
+本地搜索、历史与片段保存在设备上；插件、BYOK 请求和配置的同步具有各自的联网与数据去向。
 
 ## 为什么还要一个启动器？
 
@@ -95,11 +101,3 @@ raco rivet dev
 ## 许可
 
 Fulcrum 核心以 BUSL-1.1 源码可用许可发布，到期自动转为 MIT（见 [LICENSE](LICENSE)）。插件协议（[docs/plugins.md](docs/plugins.md)）与示例插件为 MIT——插件是你的代码，即使启动器核心不是完全开放，协议也是开放的。这一拆分的商业考量记录在 [docs/business.zh-CN.md](docs/business.zh-CN.md)。
-
-## 反馈与诊断
-
-问题和建议请使用 [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues)，附版本、系统/架构和复现步骤。分享前先检查并脱敏诊断；不要公开 API key、授权凭据、密钥库或私有文档。安全敏感问题优先按 SECURITY.md 联系；未提供私密渠道时，先请求私下联系方式，不在公开 issue 中披露敏感细节。此入口不会自动上传数据。
-
-## 产品与收费
-
-免费启动器 + 新增自动化 Pro 买断。首发目标、免费边界与开卖门禁见 [PRICING.md](PRICING.zh-CN.md)；当前仍在开发，没有实际用户，不表示已开售，也不因此给开发版即时加收费墙。

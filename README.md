@@ -8,6 +8,12 @@ One keystroke. Everything within reach. A keyboard-first launcher for macOS, Win
 
 New to launchers? Start with the **[user guide](docs/user-guide.md)** — it assumes you have never used one. 中文用户请读[用户指南](docs/user-guide.zh-CN.md)。
 
+## Start here
+
+Existing launcher, clipboard, plugins and BYOK features remain free. No Pro checkout is open. Desktop developer previews for macOS, Windows and Linux. Permission and shortcut behavior varies with the OS and Linux display session.
+
+[Installation, first use, privacy, backup and recovery](docs/user-guide.md) · [简体中文](docs/user-guide.zh-CN.md)
+
 ## Install on macOS (developer preview)
 
 Choose your Mac build from [GitHub Releases](https://github.com/turinglambdaai/fulcrum/releases/latest):
@@ -30,12 +36,12 @@ Press one global hotkey and a floating command palette appears:
 - **Quicklinks** — your own URL templates claimed by a keyword (`yt nature`), created from the launcher itself
 - **Window management** — left/right half, maximize, almost-maximize, center, restore, natively on all three platforms
 - **File search** — `find <query>` over the platform index: Spotlight on macOS, Windows Search on Windows, `plocate`/`locate` on Linux
-- **BYOK AI with streaming** — bring your own OpenAI / Anthropic / Ollama key: `ai summarize`, `ai clean`, `ai translate <lang>`, `ai explain`, `ai chat <msg>`, `ai <question>` — the answer streams into the panel as it is generated and copies to your clipboard when done; the key never leaves this machine (never synced)
+- **BYOK AI with streaming** — bring your own OpenAI / Anthropic / Ollama key: `ai summarize`, `ai clean`, `ai translate <lang>`, `ai explain`, `ai chat <msg>`, `ai <question>` — the answer streams into the panel as it is generated and copies to your clipboard when done; the key is used to authenticate requests to your configured provider; it must not be included in sync or diagnostics
 - **System commands** — lock, sleep, restart
 - **Plugins** — any language that speaks JSON over stdio ([FPP1](docs/plugins.md)), plus twenty-six first-party plugins installed from the launcher itself (query `gallery`)
 - **Sync (beta)** — settings and snippets mirrored to any cloud-synced folder; a wiped machine restores from the mirror
 
-Search, history, and snippets never leave your device. There is no telemetry.
+Local search, history and snippets are stored on your device. Plugins, BYOK requests and configured sync have separate network/data destinations.
 
 ## Why another launcher?
 
@@ -95,11 +101,3 @@ Build a plugin instead? Start with [gallery/epoch](gallery/epoch) and [docs/plug
 ## License
 
 Fulcrum's core is source-available under BUSL-1.1 with a change date to MIT (see [LICENSE](LICENSE)). The plugin protocol ([docs/plugins.md](docs/plugins.md)) and the example plugin are MIT — plugins are your code, and the protocol is open even though the launcher core is not. The business reasoning behind this split is documented in [docs/business.md](docs/business.md).
-
-## Feedback and diagnostics
-
-Report reproducible bugs and feature requests through [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues). Include the release, OS/architecture and steps; inspect and redact diagnostics before sharing. Do not post API keys, license files, vault contents or private documents. For sensitive security reports, follow SECURITY.md when present; otherwise request a private contact route without disclosing sensitive details. Nothing is uploaded automatically.
-
-## Product & pricing
-
-Free launcher with a purchase for new workflow Pro features. Read the complete [English pricing and product policy](PRICING.md) or [简体中文](PRICING.zh-CN.md) for target prices, free/paid boundaries and launch gates. This is a launch design, not a live offer; this documentation does not add payment restrictions to current development builds.

@@ -5,17 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fulcrum 支点 — 一次按键，直达一切。</title>
-    <meta name="description" content="Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器：一个全局热键唤出浮动命令面板——模糊搜索应用与文件、剪贴板历史、片段、计算、网络搜索 bang 与插件，100% 本机运行。">
+    <meta name="description" content="Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器：一个全局热键唤出浮动命令面板——模糊搜索应用与文件、剪贴板历史、片段、计算、网络搜索 bang 与插件，本地工具与可选在线集成。">
     <link rel="canonical" href="https://fulcrum.jrtx.site/">
     <meta name="theme-color" content="#c15f3c">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Fulcrum">
     <meta property="og:title" content="Fulcrum — One keystroke. Everything within reach.">
-    <meta property="og:description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.">
+    <meta property="og:description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — local tools with optional online integrations.">
     <meta property="og:url" content="https://fulcrum.jrtx.site/">
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Fulcrum — One keystroke. Everything within reach.">
-    <meta name="twitter:description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: apps, files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.">
+    <meta name="twitter:description" content="Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: apps, files, clipboard history, snippets, calculation, web-search bangs and plugins — local tools with optional online integrations.">
     <script>
         // Anti-flash: set the theme before the stylesheet paints — from
         // localStorage when the user has picked manually, otherwise from the
@@ -62,6 +62,13 @@ var _hmt = _hmt || [];
   #product-support a:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
   html:lang(en) #product-support .support-zh, html:lang(zh) #product-support .support-en { display:none; }
 </style>
+<style id="product-start-style">
+.product-availability{font-size:.95rem;line-height:1.65;max-width:72ch;margin:18px 0;opacity:.85} .hero .product-availability{margin-left:auto;margin-right:auto}
+.product-start{max-width:1120px;margin:64px auto;padding:32px 24px;border-top:1px solid var(--border,#aaa);font:inherit;line-height:1.65}
+.product-start h2{font-size:clamp(1.7rem,3vw,2.4rem);letter-spacing:-.025em;margin:0 0 16px}.product-start h3{font-size:1.05rem;margin:0 0 10px}.product-start p{margin:0 0 16px;max-width:74ch}.product-start-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin:28px 0}.product-start a{text-decoration:underline;text-underline-offset:4px;overflow-wrap:anywhere}.product-start a:focus-visible{outline:2px solid currentColor;outline-offset:5px}.product-start .start-links{display:flex;gap:16px 24px;flex-wrap:wrap}.product-start .start-status{font-weight:600}.product-start .start-limits{font-size:.95em}
+html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(max-width:700px){.product-start{margin:40px auto;padding:24px 20px}.product-start-grid{grid-template-columns:1fr;gap:18px}}
+</style>
+<style>.lang-menu li.lang-choice{padding:0}.lang-menu .lang-choice button{display:block;width:100%;padding:8px 12px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}.lang-menu .lang-choice button:focus-visible{outline:2px solid currentColor;outline-offset:-2px;border-radius:4px}</style>
 </head>
 
 <body>
@@ -83,7 +90,7 @@ var _hmt = _hmt || [];
                 <li><a href="#features" class="optional" data-i18n="nav.features">功能</a></li>
                 <li><a href="#platforms" class="optional" data-i18n="nav.platforms">平台</a></li>
                 <li><a href="#compare" class="optional" data-i18n="nav.compare">对比</a></li>
-                <li><a href="#pricing" class="optional" data-i18n="nav.pricing">价格</a></li>
+                <li><a href="#start-here" class="optional" data-i18n="nav.pricing">开始使用</a></li>
                 <li><a href="guide.html" data-i18n="nav.guide">手册</a></li>
                 <li><a href="https://github.com/turinglambdaai/fulcrum" class="optional">GitHub</a></li>
                 <li class="lang-dropdown-wrapper">
@@ -96,8 +103,8 @@ var _hmt = _hmt || [];
                         <span id="current-lang-label">English</span>
                     </button>
                     <ul class="lang-menu">
-                        <li onclick="setLanguage('en')">English</li>
-                        <li onclick="setLanguage('zh')">简体中文</li>
+                        <li class="lang-choice"><button type="button" onclick="setLanguage('en')">English</button></li>
+                        <li class="lang-choice"><button type="button" onclick="setLanguage('zh')">简体中文</button></li>
                     </ul>
                 </li>
                 <li><button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle theme">◐</button></li>
@@ -113,6 +120,7 @@ var _hmt = _hmt || [];
                 <span data-i18n="hero.h1a">一次按键，</span>
                 <span class="accent" data-i18n="hero.h1b">直达一切。</span>
             </h1>
+<p class="reader-en product-availability" lang="en">Development preview. Existing launcher, clipboard, plugins and BYOK features remain free. No Pro checkout is open.</p><p class="reader-zh product-availability" lang="zh">开发预览。已有启动器、剪贴板、插件和 BYOK 功能保持免费；尚未开放 Pro 购买。</p>
             <p class="lead animate-on-scroll" data-i18n="hero.lead">Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器。按下全局热键，浮出命令面板：模糊搜索应用与文件、回溯剪贴板历史、展开片段、随手计算、发起网络搜索、运行插件——一切都在本机完成。</p>
 
             <div class="hero-buttons animate-on-scroll">
@@ -240,8 +248,8 @@ var _hmt = _hmt || [];
                     <div class="card-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     </div>
-                    <h3 data-i18n="features.f9-title">100% 本机运行，默认私有</h3>
-                    <p data-i18n="features.f9-body">搜索索引、剪贴板历史与片段永不离开你的机器。核心功能无需注册账号。</p>
+                    <h3 data-i18n="features.f9-title">本地工具与可选在线集成，默认私有</h3>
+                    <p data-i18n="features.f9-body">搜索索引、剪贴板历史与片段保存在本地。插件、AI 与文件夹同步可将选定数据发送至外部服务。核心功能无需注册账号。</p>
                 </div>
             </div>
         </div>
@@ -369,46 +377,13 @@ var _hmt = _hmt || [];
     </section>
 
     <!-- Pricing -->
-    <section id="pricing">
-        <div class="container">
-            <span class="eyebrow animate-on-scroll" data-i18n="pricing.eyebrow">价格</span>
-            <h2 class="section-title animate-on-scroll">
-                <span data-i18n="pricing.title-a">免费开始，</span>
-                <span class="accent" data-i18n="pricing.title-b">为自动化成果付费。</span>
-            </h2>
-            <p class="section-lead animate-on-scroll" data-i18n="pricing.lead">现有功能保持免费。新增工作流 Pro 首发目标 ¥128 / $19，尚未开售。</p>
 
-            <div class="pricing-grid">
-                <div class="pricing-card animate-on-scroll">
-                    <div class="plan-name" data-i18n="plan.free-name">免费版</div>
-                    <div class="plan-price">$0<span class="unit" data-i18n="plan.free-unit">永久</span></div>
-                    <ul class="plan-features">
-                        <li><span class="tick">✓</span><span data-i18n="plan.free-f1">现有启动、搜索、计算与插件</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.free-f2">现有剪贴板、片段与 BYOK AI</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.free-f3">现有本地能力与 BYO 文件夹同步</span></li>
-                    </ul>
-                </div>
-                <div class="pricing-card featured animate-on-scroll">
-                    <span class="plan-badge" data-i18n="plan.pro-badge">规划中 · 尚未开售</span>
-                    <div class="plan-name" data-i18n="plan.pro-name">专业版</div>
-                    <div class="plan-price">¥128 / $19<span class="unit" data-i18n="plan.pro-unit"> 买断目标</span></div>
-                    <div class="plan-alt" data-i18n="plan.pro-alt">含 12 个月更新；可选续购 ¥48 / $7</div>
-                    <ul class="plan-features">
-                        <li><span class="tick">○</span><span data-i18n="plan.pro-f1">多步骤工作流编辑与调试（规划）</span></li>
-                        <li><span class="tick">○</span><span data-i18n="plan.pro-f2">条件与失败恢复（规划）</span></li>
-                        <li><span class="tick">○</span><span data-i18n="plan.pro-f3">可复用批量转换（规划）</span></li>
-                        <li><span class="tick">○</span><span data-i18n="plan.pro-f4">经过验证的复杂工作流包（规划）</span></li>
-                    </ul>
-                </div>
-
-            </div>
-
-            <p class="pricing-note animate-on-scroll" data-i18n="pricing.note">不售终身更新或预售码；具体免费边界、试用与开卖门禁见页底产品与收费方案。</p>
-        </div>
-    </section>
 
     <!-- Footer -->
-    <footer>
+    <section id="start-here" class="product-start" aria-label="Get started / 开始使用">
+<h2 class="reader-en " lang="en">Start with one useful session.</h2><h2 class="reader-zh " lang="zh">从一次有效使用开始。</h2><p class="reader-en start-status" lang="en">Existing launcher, clipboard, plugins and BYOK features remain free. No Pro checkout is open.</p><p class="reader-zh start-status" lang="zh">已有启动器、剪贴板、插件和 BYOK 功能保持免费；尚未开放 Pro 购买。</p><p class="reader-en " lang="en">Desktop developer previews for macOS, Windows and Linux. Permission and shortcut behavior varies with the OS and Linux display session.</p><p class="reader-zh " lang="zh">提供 macOS、Windows、Linux 桌面开发预览。权限与快捷键行为取决于系统及 Linux 图形会话。</p><div class="product-start-grid"><article><h3 class="reader-en " lang="en">01</h3><h3 class="reader-zh " lang="zh">01</h3><p class="reader-en " lang="en">Open Fulcrum and use the configured global shortcut to summon the window. Resolve shortcut conflicts in Settings.</p><p class="reader-zh " lang="zh">打开 Fulcrum，用设置中的全局快捷键呼出窗口；快捷键冲突在设置中解决。</p></article><article><h3 class="reader-en " lang="en">02</h3><h3 class="reader-zh " lang="zh">02</h3><p class="reader-en " lang="en">Enter 12*12 and confirm 144; then search for an installed application and launch it.</p><p class="reader-zh " lang="zh">输入 12*12 确认得到 144，再搜索并启动一个已安装应用。</p></article><article><h3 class="reader-en " lang="en">03</h3><h3 class="reader-zh " lang="zh">03</h3><p class="reader-en " lang="en">Enable clipboard history, plugins and AI separately, only after reviewing the data and permissions each needs.</p><p class="reader-zh " lang="zh">分别按需启用剪贴板历史、插件和 AI，先了解各自需要的数据与权限。</p></article></div><p class="reader-en start-limits" lang="en">This is a developer preview. New multi-step workflow automation is planned and is not an available paid feature. AI lifecycle extraction is tracked in <a href="https://github.com/turinglambdaai/fulcrum/issues/89">#89</a>.</p><p class="reader-zh start-limits" lang="zh">当前为开发预览。新增多步骤工作流自动化仍在规划，尚不是可购买能力。AI 生命周期拆分见 <a href="https://github.com/turinglambdaai/fulcrum/issues/89">#89</a>。</p><div class="start-links"><a class="reader-en" lang="en" href="https://github.com/turinglambdaai/fulcrum/blob/main/docs/user-guide.md">Installation, privacy &amp; recovery</a><a class="reader-zh" lang="zh" href="https://github.com/turinglambdaai/fulcrum/blob/main/docs/user-guide.zh-CN.md">安装、隐私与恢复</a><a href="https://github.com/turinglambdaai/fulcrum/issues"><span class="reader-en " lang="en">Get help</span><span class="reader-zh " lang="zh">反馈与帮助</span></a></div>
+</section>
+<footer>
         <div class="footer-content">
             <div class="footer-brand">
                 <svg width="22" height="22" viewBox="0 0 512 512" fill="none">
@@ -429,7 +404,7 @@ var _hmt = _hmt || [];
             <div class="footer-note">© 2026 TuringLambda AI</div>
         </div>
     </footer>
-<nav id="product-support" aria-label="Support / 支持"><a href="https://github.com/turinglambdaai/fulcrum/issues"><span class="support-zh">反馈</span><span class="support-en" lang="en">Feedback</span></a> <a href="https://github.com/turinglambdaai/fulcrum/releases"><span class="support-zh">发布与更新</span><span class="support-en" lang="en">Releases</span></a> <a href="https://github.com/turinglambdaai/fulcrum/blob/main/LICENSE"><span class="support-zh">源码许可</span><span class="support-en" lang="en">Source license</span></a> <a class="support-zh" href="https://github.com/turinglambdaai/fulcrum/blob/main/PRICING.zh-CN.md">产品与收费方案</a> <a class="support-en" lang="en" href="https://github.com/turinglambdaai/fulcrum/blob/main/PRICING.md">Product & pricing</a></nav>
+<nav id="product-support" aria-label="Support / 支持"><a href="https://github.com/turinglambdaai/fulcrum/issues"><span class="support-zh">反馈</span><span class="support-en" lang="en">Feedback</span></a> <a href="https://github.com/turinglambdaai/fulcrum/releases"><span class="support-zh">发布与更新</span><span class="support-en" lang="en">Releases</span></a> <a href="https://github.com/turinglambdaai/fulcrum/blob/main/LICENSE"><span class="support-zh">源码许可</span><span class="support-en" lang="en">Source license</span></a> <a class="support-zh" href="https://github.com/turinglambdaai/fulcrum/blob/main/docs/user-guide.zh-CN.md">使用与帮助</a> <a class="support-en" lang="en" href="https://github.com/turinglambdaai/fulcrum/blob/main/docs/user-guide.md">Usage & help</a></nav>
 
     <script>
         // Platform-aware direct download: point the hero CTA at the stable
@@ -473,7 +448,7 @@ var _hmt = _hmt || [];
             var LEGACY_LANGUAGE_KEY = 'site-lang';
 
             var zh = {
-                "nav.features": "功能", "nav.platforms": "平台", "nav.compare": "对比", "nav.pricing": "价格", "nav.guide": "手册",
+                "nav.features": "功能", "nav.platforms": "平台", "nav.compare": "对比", "nav.pricing": "开始使用", "nav.guide": "手册",
                 "hero.eyebrow": "键盘优先的启动器 · macOS · Windows · Linux",
                 "hero.h1a": "一次按键，", "hero.h1b": "直达一切。",
                 "hero.lead": "Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器。按下全局热键，浮出命令面板：模糊搜索应用与文件、回溯剪贴板历史、展开片段、随手计算、发起网络搜索、运行插件——一切都在本机完成。",
@@ -504,8 +479,8 @@ var _hmt = _hmt || [];
                 "features.f7-body": "锁屏、睡眠、静音——系统操作也在同一块面板里，不必翻菜单。",
                 "features.f8-title": "插件生态",
                 "features.f8-body": "语言无关的插件协议：JSON over stdio。用什么语言写插件都行，Fulcrum 负责运行。",
-                "features.f9-title": "100% 本机运行，默认私有",
-                "features.f9-body": "搜索索引、剪贴板历史与片段永不离开你的机器。核心功能无需注册账号。",
+                "features.f9-title": "本地工具与可选在线集成，默认私有",
+                "features.f9-body": "搜索索引、剪贴板历史与片段保存在本地。插件、AI 与文件夹同步可将选定数据发送至外部服务。核心功能无需注册账号。",
                 "platforms.eyebrow": "跨平台",
                 "platforms.title-a": "一个 Racket 后端。", "platforms.title-b": "三套一等原生 UI。",
                 "platforms.lead": "基于 Rivet 框架构建：一个共享的 Racket 后端嵌入每个应用，每个平台都是一等原生 UI。没有任何 WebView。",
@@ -519,21 +494,21 @@ var _hmt = _hmt || [];
                 "compare.r4-fulcrum": "自带密钥（BYOK），现有能力免费", "compare.r4-raycast": "Pro 内置",
                 "compare.r5-label": "价格", "compare.r5-fulcrum": "核心免费 · 新工作流 Pro 买断规划", "compare.r5-raycast": "免费 + 订阅（以官网为准）", "compare.r5-pt": "免费 · MIT", "compare.r5-ulauncher": "免费 · GPL",
                 "compare.r6-label": "开放性", "compare.r6-fulcrum": "核心源码可见 · MIT 插件 SDK", "compare.r6-raycast": "闭源", "compare.r6-pt": "开源 · MIT", "compare.r6-ulauncher": "开源 · GPL",
-                "pricing.eyebrow": "价格",
-                "pricing.title-a": "免费开始，", "pricing.title-b": "为自动化成果付费。",
-                "pricing.lead": "现有功能保持免费。新增工作流 Pro 首发目标 ¥128 / $19，尚未开售。",
-                "plan.free-name": "免费版", "plan.free-unit": "永久",
-                "plan.free-f1": "现有启动、搜索、计算与插件", "plan.free-f2": "现有剪贴板、片段与 BYOK AI", "plan.free-f3": "现有本地能力与 BYO 文件夹同步",
-                "plan.pro-badge": "规划中 · 尚未开售", "plan.pro-name": "专业版", "plan.pro-unit": " 买断目标", "plan.pro-alt": "含 12 个月更新；可选续购 ¥48 / $7",
-                "plan.pro-f1": "多步骤工作流编辑与调试（规划）", "plan.pro-f2": "条件与失败恢复（规划）", "plan.pro-f3": "可复用批量转换（规划）", "plan.pro-f4": "经过验证的复杂工作流包（规划）",
-                "plan.team-name": "团队版", "plan.team-unit": "/用户/月",
-                "plan.team-f1": "包含 Pro 全部功能", "plan.team-f2": "团队共享片段", "plan.team-f3": "许可证管理", "plan.team-f4": "SSO——后续支持",
-                "pricing.note": "不售终身更新或预售码；具体免费边界、试用与开卖门禁见页底产品与收费方案。",
+
+
+
+
+
+
+
+
+
+
                 "footer.changelog": "更新日志"
             };
 
             var en = {
-                "nav.features": "Features", "nav.platforms": "Platforms", "nav.compare": "Compare", "nav.pricing": "Pricing", "nav.guide": "Manual",
+                "nav.features": "Features", "nav.platforms": "Platforms", "nav.compare": "Compare", "nav.pricing": "Get started", "nav.guide": "Manual",
                 "hero.eyebrow": "Keyboard-first launcher · macOS · Windows · Linux",
                 "hero.h1a": "One keystroke.", "hero.h1b": "Everything within reach.",
                 "hero.lead": "Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. Press one global hotkey and a floating command palette appears: fuzzy-search apps and files, revisit your clipboard history, expand snippets, calculate, fire web-search bangs and run plugins — all on-device.",
@@ -564,8 +539,8 @@ var _hmt = _hmt || [];
                 "features.f7-body": "Lock the screen, sleep, mute — system actions live in the same palette, no menu digging required.",
                 "features.f8-title": "Plugin ecosystem",
                 "features.f8-body": "A language-agnostic plugin protocol: JSON over stdio. Write plugins in any language; Fulcrum runs them.",
-                "features.f9-title": "100% on-device, private by default",
-                "features.f9-body": "Search indexes, clipboard history and snippets never leave your machine. The core needs no account.",
+                "features.f9-title": "local tools with optional online integrations, private by default",
+                "features.f9-body": "Search indexes, clipboard history and snippets are stored locally. Plugins, AI and folder sync can send selected data to external services. The core needs no account.",
                 "platforms.eyebrow": "Platforms",
                 "platforms.title-a": "One Racket backend.", "platforms.title-b": "Three first-party UIs.",
                 "platforms.lead": "Built with the Rivet framework: one shared Racket backend embedded in each app, first-party native UI on every platform. No WebView anywhere.",
@@ -579,27 +554,27 @@ var _hmt = _hmt || [];
                 "compare.r4-fulcrum": "Bring your own key; existing features stay free", "compare.r4-raycast": "bundled in Pro",
                 "compare.r5-label": "Price", "compare.r5-fulcrum": "free core · new workflow Pro planned as a purchase", "compare.r5-raycast": "free + subscription (see official pricing)", "compare.r5-pt": "free · MIT", "compare.r5-ulauncher": "free · GPL",
                 "compare.r6-label": "Openness", "compare.r6-fulcrum": "source-available core · MIT plugin SDK", "compare.r6-raycast": "closed source", "compare.r6-pt": "open source · MIT", "compare.r6-ulauncher": "open source · GPL",
-                "pricing.eyebrow": "Pricing",
-                "pricing.title-a": "Start free.", "pricing.title-b": "Pay for new automation.",
-                "pricing.lead": "Existing features stay free. New workflow Pro launch target: ¥128 / $19. Not on sale.",
-                "plan.free-name": "Free", "plan.free-unit": "forever",
-                "plan.free-f1": "Existing launch, search, calculation and plugins", "plan.free-f2": "Existing clipboard, snippets and BYOK AI", "plan.free-f3": "Existing local features and BYO-folder sync",
-                "plan.pro-badge": "Planned · not on sale", "plan.pro-name": "Pro", "plan.pro-unit": " purchase target", "plan.pro-alt": "12 months of updates; optional renewal ¥48 / $7",
-                "plan.pro-f1": "Multi-step workflow editor and debugger (planned)", "plan.pro-f2": "Conditions and failure recovery (planned)", "plan.pro-f3": "Reusable batch transformations (planned)", "plan.pro-f4": "Validated complex workflow packs (planned)",
-                "plan.team-name": "Team", "plan.team-unit": "/user/mo",
-                "plan.team-f1": "Everything in Pro", "plan.team-f2": "Shared team snippets", "plan.team-f3": "License management", "plan.team-f4": "SSO — coming later",
-                "pricing.note": "No lifetime updates or presales. Follow Product & pricing below for free boundaries, trial and launch gates.",
+
+
+
+
+
+
+
+
+
+
                 "footer.changelog": "Changelog"
             };
 
             var pageMetadata = {
                 en: {
                     title: 'Fulcrum — One keystroke. Everything within reach.',
-                    description: 'Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — 100% on-device.'
+                    description: 'Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. One global hotkey opens a floating command palette: fuzzy-search apps and files, clipboard history, snippets, calculation, web-search bangs and plugins — local tools with optional online integrations.'
                 },
                 zh: {
                     title: 'Fulcrum 支点 — 一次按键，直达一切。',
-                    description: 'Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器：一个全局热键唤出浮动命令面板——模糊搜索应用与文件、剪贴板历史、片段、计算、网络搜索 bang 与插件，100% 本机运行。'
+                    description: 'Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器：一个全局热键唤出浮动命令面板——模糊搜索应用与文件、剪贴板历史、片段、计算、网络搜索 bang 与插件，本地工具与可选在线集成。'
                 }
             };
 
