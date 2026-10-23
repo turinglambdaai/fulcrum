@@ -44,7 +44,10 @@
             --accent-tint: rgba(193, 95, 60, 0.08);
             --accent-bright: #d97a55;
         }
-    </style>
+    #pricing .pricing-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#pricing .plan-price { font-size:clamp(2rem,4vw,3rem); overflow-wrap:anywhere; }
+@media (max-width:700px) { #pricing .pricing-grid { grid-template-columns:minmax(0,1fr); } }
+</style>
 <script>
 var _hmt = _hmt || [];
 (function() {
@@ -54,6 +57,11 @@ var _hmt = _hmt || [];
   s.parentNode.insertBefore(hm, s);
 })();
 </script>
+<style>
+  #product-support { display:flex; flex-wrap:wrap; justify-content:center; gap:12px 24px; padding:24px; font:inherit; border-top:1px solid var(--border, #a8a29e); }
+  #product-support a:focus-visible { outline:2px solid currentColor; outline-offset:4px; }
+  html:lang(en) #product-support .support-zh, html:lang(zh) #product-support .support-en { display:none; }
+</style>
 </head>
 
 <body>
@@ -335,15 +343,15 @@ var _hmt = _hmt || [];
                         </tr>
                         <tr>
                             <td>AI</td>
-                            <td class="yes" data-i18n="compare.r4-fulcrum">规划中——自带密钥（BYOK）</td>
+                            <td class="yes" data-i18n="compare.r4-fulcrum">自带密钥（BYOK），现有能力免费</td>
                             <td data-i18n="compare.r4-raycast">Pro 内置</td>
                             <td>—</td>
                             <td>—</td>
                         </tr>
                         <tr>
                             <td data-i18n="compare.r5-label">价格</td>
-                            <td class="yes" data-i18n="compare.r5-fulcrum">核心免费 · Pro 计划 $8/月</td>
-                            <td data-i18n="compare.r5-raycast">免费 + $8/月 Pro</td>
+                            <td class="yes" data-i18n="compare.r5-fulcrum">核心免费 · 新工作流 Pro 买断规划</td>
+                            <td data-i18n="compare.r5-raycast">免费 + 订阅（以官网为准）</td>
                             <td data-i18n="compare.r5-pt">免费 · MIT</td>
                             <td data-i18n="compare.r5-ulauncher">免费 · GPL</td>
                         </tr>
@@ -366,45 +374,36 @@ var _hmt = _hmt || [];
             <span class="eyebrow animate-on-scroll" data-i18n="pricing.eyebrow">价格</span>
             <h2 class="section-title animate-on-scroll">
                 <span data-i18n="pricing.title-a">免费开始，</span>
-                <span class="accent" data-i18n="pricing.title-b">1.0 之后再升级。</span>
+                <span class="accent" data-i18n="pricing.title-b">为自动化成果付费。</span>
             </h2>
-            <p class="section-lead animate-on-scroll" data-i18n="pricing.lead">价格方向的预览。抢先体验期间，Fulcrum 完全免费。</p>
+            <p class="section-lead animate-on-scroll" data-i18n="pricing.lead">现有功能保持免费。新增工作流 Pro 首发目标 ¥128 / $19，尚未开售。</p>
 
             <div class="pricing-grid">
                 <div class="pricing-card animate-on-scroll">
                     <div class="plan-name" data-i18n="plan.free-name">免费版</div>
                     <div class="plan-price">$0<span class="unit" data-i18n="plan.free-unit">永久</span></div>
                     <ul class="plan-features">
-                        <li><span class="tick">✓</span><span data-i18n="plan.free-f1">全部核心启动器功能</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.free-f2">无限制本地使用</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.free-f3">100% 本机运行，无需账号</span></li>
+                        <li><span class="tick">✓</span><span data-i18n="plan.free-f1">现有启动、搜索、计算与插件</span></li>
+                        <li><span class="tick">✓</span><span data-i18n="plan.free-f2">现有剪贴板、片段与 BYOK AI</span></li>
+                        <li><span class="tick">✓</span><span data-i18n="plan.free-f3">现有本地能力与 BYO 文件夹同步</span></li>
                     </ul>
                 </div>
                 <div class="pricing-card featured animate-on-scroll">
-                    <span class="plan-badge" data-i18n="plan.pro-badge">计划随 1.0 推出</span>
+                    <span class="plan-badge" data-i18n="plan.pro-badge">规划中 · 尚未开售</span>
                     <div class="plan-name" data-i18n="plan.pro-name">专业版</div>
-                    <div class="plan-price">$8<span class="unit" data-i18n="plan.pro-unit">/月</span></div>
-                    <div class="plan-alt" data-i18n="plan.pro-alt">或 $72/年</div>
+                    <div class="plan-price">¥128 / $19<span class="unit" data-i18n="plan.pro-unit"> 买断目标</span></div>
+                    <div class="plan-alt" data-i18n="plan.pro-alt">含 12 个月更新；可选续购 ¥48 / $7</div>
                     <ul class="plan-features">
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f1">AI 命令（自带密钥）</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f2">无限剪贴板历史</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f3">设置与片段云同步</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f4">主题</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f1">多步骤工作流编辑与调试（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f2">条件与失败恢复（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f3">可复用批量转换（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f4">经过验证的复杂工作流包（规划）</span></li>
                     </ul>
                 </div>
-                <div class="pricing-card animate-on-scroll">
-                    <div class="plan-name" data-i18n="plan.team-name">团队版</div>
-                    <div class="plan-price">$12<span class="unit" data-i18n="plan.team-unit">/用户/月</span></div>
-                    <ul class="plan-features">
-                        <li><span class="tick">✓</span><span data-i18n="plan.team-f1">包含 Pro 全部功能</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.team-f2">团队共享片段</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.team-f3">许可证管理</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.team-f4">SSO——后续支持</span></li>
-                    </ul>
-                </div>
+
             </div>
 
-            <p class="pricing-note animate-on-scroll" data-i18n="pricing.note">价格将在 1.0 前最终确定。抢先体验期间完全免费。</p>
+            <p class="pricing-note animate-on-scroll" data-i18n="pricing.note">不售终身更新或预售码；具体免费边界、试用与开卖门禁见页底产品与收费方案。</p>
         </div>
     </section>
 
@@ -430,6 +429,7 @@ var _hmt = _hmt || [];
             <div class="footer-note">© 2026 TuringLambda AI</div>
         </div>
     </footer>
+<nav id="product-support" aria-label="Support / 支持"><a href="https://github.com/turinglambdaai/fulcrum/issues"><span class="support-zh">反馈</span><span class="support-en" lang="en">Feedback</span></a> <a href="https://github.com/turinglambdaai/fulcrum/releases"><span class="support-zh">发布与更新</span><span class="support-en" lang="en">Releases</span></a> <a href="https://github.com/turinglambdaai/fulcrum/blob/main/LICENSE"><span class="support-zh">源码许可</span><span class="support-en" lang="en">Source license</span></a> <a class="support-zh" href="https://github.com/turinglambdaai/fulcrum/blob/main/PRICING.zh-CN.md">产品与收费方案</a> <a class="support-en" lang="en" href="https://github.com/turinglambdaai/fulcrum/blob/main/PRICING.md">Product & pricing</a></nav>
 
     <script>
         // Platform-aware direct download: point the hero CTA at the stable
@@ -516,19 +516,19 @@ var _hmt = _hmt || [];
                 "compare.r1-label": "平台", "compare.r1-raycast": "macOS（Windows 逐步推出）",
                 "compare.r2-label": "原生 UI", "compare.r2-raycast": "macOS 上原生", "compare.r2-pt": "Windows 上的 WPF", "compare.r2-ulauncher": "Linux 上的 GTK",
                 "compare.r3-label": "插件协议", "compare.r3-fulcrum": "JSON over stdio——语言不限", "compare.r3-pt": "C# 插件", "compare.r3-ulauncher": "Python 插件",
-                "compare.r4-fulcrum": "规划中——自带密钥（BYOK）", "compare.r4-raycast": "Pro 内置",
-                "compare.r5-label": "价格", "compare.r5-fulcrum": "核心免费 · Pro 计划 $8/月", "compare.r5-raycast": "免费 + $8/月 Pro", "compare.r5-pt": "免费 · MIT", "compare.r5-ulauncher": "免费 · GPL",
+                "compare.r4-fulcrum": "自带密钥（BYOK），现有能力免费", "compare.r4-raycast": "Pro 内置",
+                "compare.r5-label": "价格", "compare.r5-fulcrum": "核心免费 · 新工作流 Pro 买断规划", "compare.r5-raycast": "免费 + 订阅（以官网为准）", "compare.r5-pt": "免费 · MIT", "compare.r5-ulauncher": "免费 · GPL",
                 "compare.r6-label": "开放性", "compare.r6-fulcrum": "核心源码可见 · MIT 插件 SDK", "compare.r6-raycast": "闭源", "compare.r6-pt": "开源 · MIT", "compare.r6-ulauncher": "开源 · GPL",
                 "pricing.eyebrow": "价格",
-                "pricing.title-a": "免费开始，", "pricing.title-b": "1.0 之后再升级。",
-                "pricing.lead": "价格方向的预览。抢先体验期间，Fulcrum 完全免费。",
+                "pricing.title-a": "免费开始，", "pricing.title-b": "为自动化成果付费。",
+                "pricing.lead": "现有功能保持免费。新增工作流 Pro 首发目标 ¥128 / $19，尚未开售。",
                 "plan.free-name": "免费版", "plan.free-unit": "永久",
-                "plan.free-f1": "全部核心启动器功能", "plan.free-f2": "无限制本地使用", "plan.free-f3": "100% 本机运行，无需账号",
-                "plan.pro-badge": "计划随 1.0 推出", "plan.pro-name": "专业版", "plan.pro-unit": "/月", "plan.pro-alt": "或 $72/年",
-                "plan.pro-f1": "AI 命令（自带密钥）", "plan.pro-f2": "无限剪贴板历史", "plan.pro-f3": "设置与片段云同步", "plan.pro-f4": "主题",
+                "plan.free-f1": "现有启动、搜索、计算与插件", "plan.free-f2": "现有剪贴板、片段与 BYOK AI", "plan.free-f3": "现有本地能力与 BYO 文件夹同步",
+                "plan.pro-badge": "规划中 · 尚未开售", "plan.pro-name": "专业版", "plan.pro-unit": " 买断目标", "plan.pro-alt": "含 12 个月更新；可选续购 ¥48 / $7",
+                "plan.pro-f1": "多步骤工作流编辑与调试（规划）", "plan.pro-f2": "条件与失败恢复（规划）", "plan.pro-f3": "可复用批量转换（规划）", "plan.pro-f4": "经过验证的复杂工作流包（规划）",
                 "plan.team-name": "团队版", "plan.team-unit": "/用户/月",
                 "plan.team-f1": "包含 Pro 全部功能", "plan.team-f2": "团队共享片段", "plan.team-f3": "许可证管理", "plan.team-f4": "SSO——后续支持",
-                "pricing.note": "价格将在 1.0 前最终确定。抢先体验期间完全免费。",
+                "pricing.note": "不售终身更新或预售码；具体免费边界、试用与开卖门禁见页底产品与收费方案。",
                 "footer.changelog": "更新日志"
             };
 
@@ -576,19 +576,19 @@ var _hmt = _hmt || [];
                 "compare.r1-label": "Platforms", "compare.r1-raycast": "macOS (Windows rolling out)",
                 "compare.r2-label": "Native UI", "compare.r2-raycast": "native on macOS", "compare.r2-pt": "WPF on Windows", "compare.r2-ulauncher": "GTK on Linux",
                 "compare.r3-label": "Plugin protocol", "compare.r3-fulcrum": "JSON over stdio — any language", "compare.r3-pt": "C# plugins", "compare.r3-ulauncher": "Python plugins",
-                "compare.r4-fulcrum": "planned — bring your own key", "compare.r4-raycast": "bundled in Pro",
-                "compare.r5-label": "Price", "compare.r5-fulcrum": "free core · Pro planned at $8/mo", "compare.r5-raycast": "free + $8/mo Pro", "compare.r5-pt": "free · MIT", "compare.r5-ulauncher": "free · GPL",
+                "compare.r4-fulcrum": "Bring your own key; existing features stay free", "compare.r4-raycast": "bundled in Pro",
+                "compare.r5-label": "Price", "compare.r5-fulcrum": "free core · new workflow Pro planned as a purchase", "compare.r5-raycast": "free + subscription (see official pricing)", "compare.r5-pt": "free · MIT", "compare.r5-ulauncher": "free · GPL",
                 "compare.r6-label": "Openness", "compare.r6-fulcrum": "source-available core · MIT plugin SDK", "compare.r6-raycast": "closed source", "compare.r6-pt": "open source · MIT", "compare.r6-ulauncher": "open source · GPL",
                 "pricing.eyebrow": "Pricing",
-                "pricing.title-a": "Start free.", "pricing.title-b": "Pro when 1.0 lands.",
-                "pricing.lead": "A preview of where pricing is heading. During early access, Fulcrum is free.",
+                "pricing.title-a": "Start free.", "pricing.title-b": "Pay for new automation.",
+                "pricing.lead": "Existing features stay free. New workflow Pro launch target: ¥128 / $19. Not on sale.",
                 "plan.free-name": "Free", "plan.free-unit": "forever",
-                "plan.free-f1": "All core launcher features", "plan.free-f2": "Unlimited local use", "plan.free-f3": "100% on-device, no account required",
-                "plan.pro-badge": "Planned for 1.0", "plan.pro-name": "Pro", "plan.pro-unit": "/mo", "plan.pro-alt": "or $72/yr",
-                "plan.pro-f1": "AI commands (bring your own key)", "plan.pro-f2": "Unlimited clipboard history", "plan.pro-f3": "Cloud sync for settings & snippets", "plan.pro-f4": "Themes",
+                "plan.free-f1": "Existing launch, search, calculation and plugins", "plan.free-f2": "Existing clipboard, snippets and BYOK AI", "plan.free-f3": "Existing local features and BYO-folder sync",
+                "plan.pro-badge": "Planned · not on sale", "plan.pro-name": "Pro", "plan.pro-unit": " purchase target", "plan.pro-alt": "12 months of updates; optional renewal ¥48 / $7",
+                "plan.pro-f1": "Multi-step workflow editor and debugger (planned)", "plan.pro-f2": "Conditions and failure recovery (planned)", "plan.pro-f3": "Reusable batch transformations (planned)", "plan.pro-f4": "Validated complex workflow packs (planned)",
                 "plan.team-name": "Team", "plan.team-unit": "/user/mo",
                 "plan.team-f1": "Everything in Pro", "plan.team-f2": "Shared team snippets", "plan.team-f3": "License management", "plan.team-f4": "SSO — coming later",
-                "pricing.note": "Pricing finalizes toward 1.0. Everything is free during early access.",
+                "pricing.note": "No lifetime updates or presales. Follow Product & pricing below for free boundaries, trial and launch gates.",
                 "footer.changelog": "Changelog"
             };
 

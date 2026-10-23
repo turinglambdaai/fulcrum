@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Authorization decision before implementation
+
+Decision `2026-10-auth-1`: Offline perpetual entitlement plus a bounded update/feature window; no activation lease or device cap. Read the complete [local authorization decision](PRICING.md#authorization-decision-for-implementation) and its Chinese counterpart before commercial, trial, update-eligibility or credential work. Record this decision revision and the source/policy SHAs actually read in the PR/handoff. Refresh at each bounded slice; existing agent conversations do not receive this change automatically. Follow the existing product contract and implementation issue; do not activate a payment gate merely because a plan exists.
+
 Fulcrum 是三平台键盘启动器：一份 Racket 领域后端经 Rivet RVT1 驱动
 macOS SwiftUI、Windows WinUI 3 和 Linux GTK4 原生宿主。
 
@@ -49,6 +53,17 @@ raco rivet acceptance --json
 
 ## 组合定位（Portfolio placement）
 
-- 轨道与授权：轨道 2 消费买断（消费线第一棒）；授权形态：BUSL-1.1 → MIT（2030-09-28 或各版首发四周年，先到者）；商业归属：适合收费——免费核心已完整，Pro 走买断 + 更新窗；Pro 边界待设计（候选：工作流/自定义命令、主题、高级剪贴板）。护城河是原生性能 + 本地隐私 + 工作流生态，不是收费墙。
-- 组合归属唯一权威：[PORTFOLIO.md](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)（turinglambdaai.github.io 仓库）。改归属/授权先改权威档，再同步本节。
-- 纪律：价格只进本仓 `PRICING.md`，且收费开始时才发布；README 与产品站不做价格预告。
+- 当前决策（2026-10-v2）：免费启动器 + 新增自动化 Pro 买断。具体价格、免费/付费边界和开卖门禁以本仓 [PRICING.md](PRICING.md) 为唯一权威；旧版收费候选与早鸟方案已被替代。
+- 组合归属：[PORTFOLIO](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)。当前全部产品开发中、没有实际用户；目标定价不表示已经开卖，不因此立即给开发版加收费墙。
+- 免费产品不接商业激活；付费层先实现可验证价值，再接 Commerce/Permit。优先完成本仓既有产品审查 issue；不修改现行源码 LICENSE。
+
+## 产品交付与下一步（2026-10-23）
+
+- 家族[交付标准](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/docs/PRODUCT-STANDARD.md)与[组合策略](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)是共用政策；本仓具体行为以 `docs/cross-platform-interaction.md` 为准，不复制五库依赖图。
+- 当前执行入口：[产品审查 issue](https://github.com/turinglambdaai/fulcrum/issues/88)。先收敛交互与真实更新/签名门禁，再做窄范围的新增工作流 Pro。保留已有免费能力，平台机制遵循原生惯例。
+- 开工先检查干净工作树与远端，以 fast-forward-only 更新并记录 SHA；共享文件一次一个写入者，保留其他 checkout 的未提交工作。
+- 每次只完成一个可验收切片，记录 owned files、依赖 pin、命令/平台/产物证据和回滚。已实现、已发布、实机验收分别陈述；不修改 requirements 或复用旧证据来制造通过。
+
+## Documentation languages
+
+Public default documentation is English; maintain complete Chinese user paths in `*.zh-CN.md`, with reciprocal links. Update both languages when prices, quotas, installation, recovery, privacy or supported platforms change. API/protocol identifiers and commands remain unchanged; do not maintain a second normative protocol or implementation. Follow the [family language policy](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/docs/DOCUMENTATION-LANGUAGES.md). Existing internal notes are not a claim that every document is bilingual.

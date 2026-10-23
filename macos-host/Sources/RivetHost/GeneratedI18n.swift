@@ -52,7 +52,6 @@ enum GeneratedI18n {
         "trayFixHotkey": ["zh": "修复 Alt+Space 冲突", "en": "Fix Alt+Space conflict"],
         "trayOpen": ["zh": "打开 Fulcrum", "en": "Open Fulcrum"],
         "trayQuit": ["zh": "退出 Fulcrum", "en": "Quit Fulcrum"],
-        "trayRestart": ["zh": "重启 Fulcrum", "en": "Restart Fulcrum"],
         "traySettings": ["zh": "设置…", "en": "Settings…"],
         "updateAvailableBody": ["zh": "新版本 Fulcrum {0} 可用（{1}），是否下载并安装？", "en": "Fulcrum {0} is available ({1}). Download and install it?"],
         "updateAvailableStatus": ["zh": "发现新版本：Fulcrum v{0} — 输入 “update” 下载", "en": "Update available: Fulcrum v{0} — type \"update\" to download"],
