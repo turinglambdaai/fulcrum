@@ -44,7 +44,10 @@
             --accent-tint: rgba(193, 95, 60, 0.08);
             --accent-bright: #d97a55;
         }
-    </style>
+    #pricing .pricing-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+#pricing .plan-price { font-size:clamp(2rem,4vw,3rem); overflow-wrap:anywhere; }
+@media (max-width:700px) { #pricing .pricing-grid { grid-template-columns:minmax(0,1fr); } }
+</style>
 <script>
 var _hmt = _hmt || [];
 (function() {
@@ -391,10 +394,10 @@ var _hmt = _hmt || [];
                     <div class="plan-price">¥128 / $19<span class="unit" data-i18n="plan.pro-unit"> 买断目标</span></div>
                     <div class="plan-alt" data-i18n="plan.pro-alt">含 12 个月更新；可选续购 ¥48 / $7</div>
                     <ul class="plan-features">
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f1">多步骤工作流编辑与调试（规划）</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f2">条件与失败恢复（规划）</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f3">可复用批量转换（规划）</span></li>
-                        <li><span class="tick">✓</span><span data-i18n="plan.pro-f4">经过验证的复杂工作流包（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f1">多步骤工作流编辑与调试（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f2">条件与失败恢复（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f3">可复用批量转换（规划）</span></li>
+                        <li><span class="tick">○</span><span data-i18n="plan.pro-f4">经过验证的复杂工作流包（规划）</span></li>
                     </ul>
                 </div>
 
