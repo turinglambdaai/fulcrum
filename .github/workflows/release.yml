@@ -233,6 +233,8 @@ jobs:
           LINUX_SIGN_KEY_ID: ${{ secrets.LINUX_SIGN_KEY_ID }}
         run: |
           set -euo pipefail
+          printf 'DIAG linux-sign-len=%s linux-id-len=%s\n' \
+            "${#LINUX_SIGN_PRIVATE_KEY_PEM}" "${#LINUX_SIGN_KEY_ID}"
           [[ -n "$LINUX_SIGN_PRIVATE_KEY_PEM" && -n "$LINUX_SIGN_KEY_ID" ]] || {
             echo "::error::Linux production signing secrets are missing"; exit 1;
           }
@@ -258,7 +260,10 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "$RIVET_UPDATE_PRIVATE_KEY_PEM" && "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] || {
-            echo "::error::Required Ed25519 update key and pinned key ID are missing"; exit 1;
+            printf 'DIAG update-key-len=%s keyid-len=%s keyid-ok=%s\n' \
+            "${#RIVET_UPDATE_PRIVATE_KEY_PEM}" "${#RIVET_UPDATE_KEY_ID}" \
+            "$([[ "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] && echo true || echo false)"
+          echo "::error::Required Ed25519 update key and pinned key ID are missing"; exit 1;
           }
           temp_root="$RUNNER_TEMP"
           if [[ "$RUNNER_OS" == "Windows" ]]; then temp_root="$(cygpath -u "$RUNNER_TEMP")"; fi
@@ -291,7 +296,10 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "$RIVET_UPDATE_PRIVATE_KEY_PEM" && "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] || {
-            echo "::error::Required Ed25519 update key and pinned key ID are missing"; exit 1;
+            printf 'DIAG update-key-len=%s keyid-len=%s keyid-ok=%s\n' \
+            "${#RIVET_UPDATE_PRIVATE_KEY_PEM}" "${#RIVET_UPDATE_KEY_ID}" \
+            "$([[ "$RIVET_UPDATE_KEY_ID" == "fulcrum-2026-10" ]] && echo true || echo false)"
+          echo "::error::Required Ed25519 update key and pinned key ID are missing"; exit 1;
           }
           temp_root="$RUNNER_TEMP"
           if [[ "$RUNNER_OS" == "Windows" ]]; then temp_root="$(cygpath -u "$RUNNER_TEMP")"; fi
