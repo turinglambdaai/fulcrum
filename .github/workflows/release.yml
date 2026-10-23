@@ -325,10 +325,12 @@ jobs:
           bash scripts/test-macos-dmg.sh
           dmg=(dist/fulcrum-*.dmg)
           test -f "${dmg[0]}"
-          codesign --verify --verbose=2 "${dmg[0]}"
           # Notarization gates only exist for production-signed releases; the
-          # unsigned channel is ad-hoc signed, so stapler/spctl cannot pass.
+          # unsigned channel is ad-hoc signed (the app inside verifies, the
+          # DMG container itself stays unsigned), so the DMG codesign check
+          # plus stapler/spctl cannot pass and are skipped.
           if [[ "$UNSIGNED_RELEASE" != "true" ]]; then
+            codesign --verify --verbose=2 "${dmg[0]}"
             xcrun stapler validate "${dmg[0]}"
             spctl --assess --type open --context context:primary-signature "${dmg[0]}"
           fi
