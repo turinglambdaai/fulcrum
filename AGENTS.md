@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Authorization decision before implementation
+
+Decision `2026-10-auth-1`: Offline perpetual entitlement plus a bounded update/feature window; no activation lease or device cap. Read the complete [local authorization decision](PRICING.md#authorization-decision-for-implementation) and its Chinese counterpart before commercial, trial, update-eligibility or credential work. Record this decision revision and the source/policy SHAs actually read in the PR/handoff. Refresh at each bounded slice; existing agent conversations do not receive this change automatically. Follow the existing product contract and implementation issue; do not activate a payment gate merely because a plan exists.
+
 Fulcrum 是三平台键盘启动器：一份 Racket 领域后端经 Rivet RVT1 驱动
 macOS SwiftUI、Windows WinUI 3 和 Linux GTK4 原生宿主。
 
