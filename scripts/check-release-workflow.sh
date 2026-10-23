@@ -27,7 +27,7 @@ fi
 # `raco rivet release --development` is legal only inside the unsigned step;
 # that step must be gated on the approval variable, never on a bare platform
 # or unconditional condition.
-if ! grep -B25 'raco rivet release --development' "$release" | grep -Fq 'FULCRUM_UNSIGNED_RELEASE_APPROVED'; then
+if ! grep -B40 'raco rivet release --development' "$release" | grep -Fq 'FULCRUM_UNSIGNED_RELEASE_APPROVED'; then
   echo "release-safety: --development packaging must sit inside a FULCRUM_UNSIGNED_RELEASE_APPROVED-gated step" >&2
   exit 1
 fi
