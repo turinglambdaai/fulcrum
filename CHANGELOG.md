@@ -24,6 +24,10 @@ independently per platform packaging run.
 
 - Publisher-owned production signing credentials, real signed/notarized tagged artifacts, clean-install checks and final Windows UI-to-native MSI handoff acceptance remain mandatory before promoting this version to stable. A green developer CI run alone is not release approval.
 
+### Linux installers in this release
+
+- deb/rpm/AppImage are **absent from this release**: the pinned Rivet revision crashes when packaging a non-empty `linux-formats` list, so this release ships the tar.gz and portable zip for Linux (the v0.13.2 shape). The native installers return in the next release once the upstream fix is pinned.
+
 ### Distribution status of this release
 
 - **This version ships as an explicitly approved unsigned release** (`FULCRUM_UNSIGNED_RELEASE_APPROVED=true`): publisher accounts are not provisioned yet, so macOS packages are ad-hoc signed (right-click the app → Open on first launch) and Windows packages carry no Authenticode signature (SmartScreen warns). The release notes carry the same warning.
