@@ -24,6 +24,12 @@ independently per platform packaging run.
 
 - Publisher-owned production signing credentials, real signed/notarized tagged artifacts, clean-install checks and final Windows UI-to-native MSI handoff acceptance remain mandatory before promoting this version to stable. A green developer CI run alone is not release approval.
 
+### Distribution status of this release
+
+- **This version ships as an explicitly approved unsigned release** (`FULCRUM_UNSIGNED_RELEASE_APPROVED=true`): publisher accounts are not provisioned yet, so macOS packages are ad-hoc signed (right-click the app → Open on first launch) and Windows packages carry no Authenticode signature (SmartScreen warns). The release notes carry the same warning.
+- **What is still signed:** the Ed25519 update channel (every in-app update verifies byte integrity exactly as a signed release would), and both Linux tarballs keep their detached Ed25519 artifact signatures.
+- The fail-closed production gate stays the default: without the explicit unsigned-approval variable, a stable tag with missing credentials still refuses to publish. The next release after the Apple/Windows publisher accounts are provisioned returns to mandatory Developer ID notarization and Authenticode signing.
+
 ## [0.13.2] - 2026-10-20
 
 ### Fixed
