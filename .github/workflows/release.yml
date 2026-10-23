@@ -554,14 +554,12 @@ jobs:
           # Native Linux installers (deb/rpm/AppImage) are optional: they are
           # absent while the rivet linux-formats packaging bug is pinned out.
           if [[ "$prerelease" == false ]]; then
+            # Versionless download aliases; native Linux installers are
+            # optional while the rivet linux-formats bug is pinned out.
             required+=(
               "fulcrum-macos-arm64.dmg"
               "fulcrum-macos-x64.dmg"
-              "fulcrum-windows-x64.msi"
-              "fulcrum-linux-x64.deb"
-              "fulcrum-linux-arm64.deb"
-              "fulcrum-linux-x64.AppImage"
-              "fulcrum-linux-arm64.AppImage")
+              "fulcrum-windows-x64.msi")
           fi
           for name in "${required[@]}"; do
             printf '%s\n' "$assets" | grep -Fx "$name" || {
