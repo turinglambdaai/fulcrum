@@ -7,8 +7,8 @@ public enum RivetGeneratedConfig {
     public static let moduleName = "backend"
     public static let entryName = "start"
     public static let displayName = "Fulcrum"
-    public static let version = "0.13.2"
-    public static let build: Int64 = 18
+    public static let version = "0.13.3"
+    public static let build: Int64 = 19
     public static let identifier = "site.jrtx.fulcrum"
     public static let releaseChannel = "stable"
 }
@@ -125,9 +125,39 @@ public enum RivetEvent: Sendable {
     }
 }
 
+public protocol RivetGeneratedRPCClient: Sendable {
+    func call(_ name: String, arguments: [RivetValue]) async throws -> RivetValue
+}
+
+// Keep generated clients compatible with the last released SwiftPM runtime.
+// Authenticated network clients can use RivetAPI(call: deviceClient.call).
+public extension RivetGeneratedRPCClient {
+    func getState(_ name: String) async throws -> RivetValue {
+        try await call("$state/get", arguments: [.string(name)])
+    }
+
+    @discardableResult
+    func setState(_ name: String, value: RivetValue) async throws -> RivetValue {
+        try await call("$state/set", arguments: [.string(name), value])
+    }
+}
+
+extension RivetClient: RivetGeneratedRPCClient {}
+
+private struct RivetGeneratedClosureClient: RivetGeneratedRPCClient {
+    let invoke: @Sendable (String, [RivetValue]) async throws -> RivetValue
+
+    func call(_ name: String, arguments: [RivetValue]) async throws -> RivetValue {
+        try await invoke(name, arguments)
+    }
+}
+
 public struct RivetAPI: Sendable {
-    public let client: RivetClient
-    public init(client: RivetClient) { self.client = client }
+    public let client: any RivetGeneratedRPCClient
+    public init(client: any RivetGeneratedRPCClient) { self.client = client }
+    public init(call: @escaping @Sendable (String, [RivetValue]) async throws -> RivetValue) {
+        self.client = RivetGeneratedClosureClient(invoke: call)
+    }
 
     public func ai_status() async throws -> String {
         let rivetResult = try await client.call("ai-status", arguments: [])
