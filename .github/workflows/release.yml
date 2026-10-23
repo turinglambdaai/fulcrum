@@ -489,13 +489,19 @@ jobs:
           # versionless copies of the primary installers. Aliases are
           # overwritten on each release; the versioned assets stay canonical.
           mkdir -p stable-alias
-          cp "release/fulcrum-${VERSION}-macos-arm64.dmg" stable-alias/fulcrum-macos-arm64.dmg
-          cp "release/fulcrum-${VERSION}-macos-x64.dmg" stable-alias/fulcrum-macos-x64.dmg
-          cp "release/fulcrum-${VERSION}-windows-x64.msi" stable-alias/fulcrum-windows-x64.msi
-          cp "release/fulcrum-${VERSION}-linux-amd64.deb" stable-alias/fulcrum-linux-x64.deb
-          cp "release/fulcrum-${VERSION}-linux-arm64.deb" stable-alias/fulcrum-linux-arm64.deb
-          cp "release/fulcrum-${VERSION}-linux-x86_64.AppImage" stable-alias/fulcrum-linux-x64.AppImage
-          cp "release/fulcrum-${VERSION}-linux-aarch64.AppImage" stable-alias/fulcrum-linux-arm64.AppImage
+          for pair in \
+            "fulcrum-${VERSION}-macos-arm64.dmg fulcrum-macos-arm64.dmg" \
+            "fulcrum-${VERSION}-macos-x64.dmg fulcrum-macos-x64.dmg" \
+            "fulcrum-${VERSION}-windows-x64.msi fulcrum-windows-x64.msi" \
+            "fulcrum-${VERSION}-linux-amd64.deb fulcrum-linux-x64.deb" \
+            "fulcrum-${VERSION}-linux-arm64.deb fulcrum-linux-arm64.deb" \
+            "fulcrum-${VERSION}-linux-x86_64.AppImage fulcrum-linux-x64.AppImage" \
+            "fulcrum-${VERSION}-linux-aarch64.AppImage fulcrum-linux-arm64.AppImage"; do
+            src="${pair%% *}"; dst="${pair##* }"
+            # Native Linux installers may be absent in a release; aliases
+            # follow what the release actually contains.
+            if [ -f "release/$src" ]; then cp "release/$src" "stable-alias/$dst"; fi
+          done
           gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turinglambdaai/fulcrum
 
   publish:
@@ -540,13 +546,13 @@ jobs:
             "fulcrum-${version}-macos-arm64.dmg" \
             "fulcrum-${version}-macos-x64.dmg" \
             "fulcrum-${version}-windows-x64.msi" \
-            "fulcrum-${version}-linux-amd64.deb" \
-            "fulcrum-${version}-linux-arm64.deb" \
-            "fulcrum-${version}-linux-x86_64.AppImage" \
-            "fulcrum-${version}-linux-aarch64.AppImage" \
+            "fulcrum-${version}-linux-x64.tar.gz" \
+            "fulcrum-${version}-linux-arm64.tar.gz" \
             "fulcrum-${version}-linux-x64.tar.gz.sig" \
             "fulcrum-${version}-linux-arm64.tar.gz.sig" \
             "update-manifest.json" "manifest.json" "SHA256SUMS")
+          # Native Linux installers (deb/rpm/AppImage) are optional: they are
+          # absent while the rivet linux-formats packaging bug is pinned out.
           if [[ "$prerelease" == false ]]; then
             required+=(
               "fulcrum-macos-arm64.dmg"

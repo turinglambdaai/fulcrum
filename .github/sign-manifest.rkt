@@ -64,6 +64,14 @@
                    ;; client component remains #f (rivet 79b1bd8).
                    #f))
 
+;; Optional native Linux installers (deb/rpm/AppImage) may be absent from a
+;; release — e.g. while a rivet linux-formats packaging bug is pinned out.
+;; Only artifacts that exist join the manifest; absent ones keep every
+;; checksum claim true.
+(define (artifact-if-present name platform arch installer)
+  (and (file-exists? (build-path "release" name))
+       (artifact-for name platform arch installer)))
+
 (define published-at
   (let ([d (seconds->date (current-seconds) #t)])
     (format "~a-~a-~aT~a:~a:~aZ"
@@ -78,23 +86,24 @@
   (update-manifest identifier version build (string->symbol channel)
                    published-at
                    "0.0.0" #f #t 100
-                   (list (artifact-for (format "fulcrum-~a-macos-arm64.zip" version)
-                                       'macos 'arm64 'zip)
-                         (artifact-for (format "fulcrum-~a-macos-x64.zip" version)
-                                       'macos 'x64 'zip)
-                         (artifact-for (format "fulcrum-~a-windows-x64.msi" version)
-                                       'windows 'x64 'msi)
-                         ;; Keep tar.gz first for portable/manual installs.
-                         ;; AppImage processes request #:install-kind 'appimage
-                         ;; and therefore select the signed AppImage entry.
-                         (artifact-for (format "fulcrum-~a-linux-x64.tar.gz" version)
-                                       'linux 'x64 'targz)
-                         (artifact-for (format "fulcrum-~a-linux-arm64.tar.gz" version)
-                                       'linux 'arm64 'targz)
-                         (artifact-for (format "fulcrum-~a-linux-x86_64.AppImage" version)
-                                       'linux 'x64 'appimage)
-                         (artifact-for (format "fulcrum-~a-linux-aarch64.AppImage" version)
-                                       'linux 'arm64 'appimage))))
+                   (filter values
+                           (list (artifact-for (format "fulcrum-~a-macos-arm64.zip" version)
+                                               'macos 'arm64 'zip)
+                                 (artifact-for (format "fulcrum-~a-macos-x64.zip" version)
+                                               'macos 'x64 'zip)
+                                 (artifact-for (format "fulcrum-~a-windows-x64.msi" version)
+                                               'windows 'x64 'msi)
+                                 ;; Keep tar.gz first for portable/manual installs.
+                                 ;; AppImage processes request #:install-kind 'appimage
+                                 ;; and therefore select the signed AppImage entry.
+                                 (artifact-for (format "fulcrum-~a-linux-x64.tar.gz" version)
+                                               'linux 'x64 'targz)
+                                 (artifact-for (format "fulcrum-~a-linux-arm64.tar.gz" version)
+                                               'linux 'arm64 'targz)
+                                 (artifact-if-present (format "fulcrum-~a-linux-x86_64.AppImage" version)
+                                                      'linux 'x64 'appimage)
+                                 (artifact-if-present (format "fulcrum-~a-linux-aarch64.AppImage" version)
+                                                      'linux 'arm64 'appimage)))))
 
 (define private-key (read-ed25519-private-key private-der))
 (define public-key (read-ed25519-public-key public-der))
