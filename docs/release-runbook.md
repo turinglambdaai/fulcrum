@@ -86,6 +86,29 @@ x64, Windows x64, Linux x64):
    `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
    so only publishing a non-prerelease release changes the stable feed.
 
+### The explicitly unsigned channel
+
+When publisher accounts are not provisioned (Apple Developer Program,
+Windows Authenticode), setting the repository variable
+`FULCRUM_UNSIGNED_RELEASE_APPROVED=true` ships an honestly-labeled
+**unsigned** stable release:
+
+- macOS packages are ad-hoc signed; users right-click → Open on first
+  launch. Windows packages carry no Authenticode signature; SmartScreen
+  warns. The publish job prepends a warning banner to the release notes,
+  and the publish approval accepts either this variable or
+  `FULCRUM_STABLE_RELEASE_APPROVED=true` — approval is required either way.
+- What stays signed: the Ed25519 update feed (in-app updates verify byte
+  integrity identically) and the Linux detached artifact signatures — the
+  Linux job never enters the unsigned branch.
+- The channel is **explicit, never a silent fallback**: without the
+  variable, a stable tag with missing credentials still fails closed
+  (preflight in `version-release.yml`, the per-platform identity steps,
+  and `scripts/check-release-workflow.sh` all enforce this). Set the
+  variable back to `false` once the production accounts are provisioned;
+  the next release then returns to mandatory Developer ID notarization
+  and Authenticode signing.
+
 ### Release candidates
 
 An RC tag uses `v<VERSION>-rc.N`, but `VERSION`, `rivet.rktd`, native package

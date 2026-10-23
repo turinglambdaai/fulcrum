@@ -70,7 +70,7 @@
 ;; update check: drift here means every install believes it is outdated
 ;; (0.2.0 shipped believing it was 0.1.0).
 (define app-version
-  (with-handlers ([exn:fail? (lambda (_) "0.13.2")])
+  (with-handlers ([exn:fail? (lambda (_) "0.13.3")])
     (string-append (rivet-info:app-version))))
 
 ;; The updater learns the running version from here (the packaged app reads

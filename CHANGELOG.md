@@ -6,6 +6,30 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.13.3] - 2026-10-22
+
+### Added
+
+- **Portable snippets backup and restore.** Discoverable `export snippets <file.json>` and `import snippets <file.json>` commands write a versioned JSON bundle and validate its contents before merging. IDs and timestamps survive round trips; exports refuse to overwrite existing files.
+- **Native installed-update paths.** macOS supports authenticated update-to-installed-app handoff with rollback; Windows has verified MSI upgrade and failure/retry coverage; Linux x64/arm64 AppImages support atomic replacement, relaunch health checks, and rollback. DEB/RPM installations remain package-manager-managed and portable archives require manual handling.
+- **macOS drag-to-Applications DMG.** Installer artwork and package-layout checks cover Apple Silicon and Intel release shapes.
+
+### Security and release engineering
+
+- **Production release gates.** Stable builds require macOS Developer ID signing and notarization, Windows Authenticode/timestamping, Linux artifact signatures and an independently Ed25519-signed update feed. Missing publisher credentials or release approval fail closed; development signing cannot silently become a stable release.
+- **Candidate isolation.** RC tags publish only as prereleases and never replace stable download aliases or the stable update channel.
+- **Verified update regression.** CI covers the real signed Windows manifest and MSI download/ticket path, native Windows installer lifecycle, macOS signed-feed installation, and Linux AppImage success/rollback on both architectures. Exact-tagged-commit CI and Product Acceptance are required before release packaging.
+
+### Release verification
+
+- Publisher-owned production signing credentials, real signed/notarized tagged artifacts, clean-install checks and final Windows UI-to-native MSI handoff acceptance remain mandatory before promoting this version to stable. A green developer CI run alone is not release approval.
+
+### Distribution status of this release
+
+- **This version ships as an explicitly approved unsigned release** (`FULCRUM_UNSIGNED_RELEASE_APPROVED=true`): publisher accounts are not provisioned yet, so macOS packages are ad-hoc signed (right-click the app → Open on first launch) and Windows packages carry no Authenticode signature (SmartScreen warns). The release notes carry the same warning.
+- **What is still signed:** the Ed25519 update channel (every in-app update verifies byte integrity exactly as a signed release would), and both Linux tarballs keep their detached Ed25519 artifact signatures.
+- The fail-closed production gate stays the default: without the explicit unsigned-approval variable, a stable tag with missing credentials still refuses to publish. The next release after the Apple/Windows publisher accounts are provisioned returns to mandatory Developer ID notarization and Authenticode signing.
+
 ## [0.13.2] - 2026-10-20
 
 ### Fixed
