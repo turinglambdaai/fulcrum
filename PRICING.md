@@ -1,41 +1,39 @@
-# Fulcrum 产品与收费方案
+# Fulcrum product and pricing plan
 
-## 首发与执行边界
+**English** · [简体中文](PRICING.zh-CN.md)
 
-- 本方案版本 `2026-10-v2`。用户确认所有产品仍在开发、没有实际用户；本文件替代此前冲突的定价/早鸟/Pro 设想，不存在需要迁移的现有客户群。**价格是首发目标，不表示已经开卖或已完成相应功能。**
-- 只发布已交付平台的权益；新计划不改变已经发布源码的 LICENSE。开源源码的使用/修改/再分发权与官方商品、更新和服务分别说明。
-- 修复安全漏洞、读取/备份/导出自己的数据不以再次购买作为条件。模型 key、支付渠道密钥和签发私钥各有边界，不在宿主代码里直接收款或签发。
+## Launch status and implementation boundaries
 
-## 决策
+- Policy version: `2026-10-v2`, 2026-10-23. The owner confirmed that every product is still in development and has no actual users. This document replaces conflicting previous pricing, early-bird and Pro proposals; there is no existing customer cohort to migrate. **Prices are launch targets, not live offers or claims that the listed features are implemented.**
+- Entitlements cover delivered platforms only. New commercial plans do not change the LICENSE of released source. Source use, modification and redistribution rights are separate from official products, updates and services.
+- Security fixes and reading, backing up or exporting your own data must not require another purchase. BYOK keys, payment-provider secrets and issuer private keys have different owners. Native hosts do not collect payment or issue credentials directly.
 
-**免费启动器 + 新增自动化 Pro 买断**
+## Decision
 
-首发目标：**¥128 / US$19；续购 12 个月更新 ¥48 / US$7**。人民币和美元是分别设定的地区目标价格，不是实时汇率换算。
+**Free launcher with a purchase for new workflow Pro features**
 
-免费启动器竞争充分，收费必须提供可验证的自动化价值，不能按 AI 字样收月租，也不先做团队 SSO/私有商店。
+Launch target: **¥128 / US$19; optional 12-month update renewal: ¥48 / US$7**. CNY and USD are independently set regional targets, not a live exchange-rate conversion.
 
-## 免费与付费边界
+Free launchers are well established. Paid features must demonstrate useful automation, rather than charging a monthly fee for an AI label. Team SSO and a private store are not initial priorities.
 
-免费 / 评估：现有启动、搜索、计算、剪贴板、片段、窗口管理、FPP 插件、BYOK AI 和 BYO 文件夹同步继续免费；不把它们重新标成 Pro。
+## Free and paid scope
 
-付费：只对新增的多步骤工作流编辑/调试、条件/失败分支、可复用批量转换与官方维护的复杂工作流包收费；一名用户覆盖已交付三桌面平台。普通插件运行和用户自行编写脚本不收费。
+Free / evaluation: Existing launching, search, calculation, clipboard history, snippets, window management, FPP plugins, BYOK AI and BYO-folder sync remain free. Do not relabel them as Pro.
 
-## 买断、试用与更新
+Paid: Only new multi-step workflow authoring/debugging, conditions and failure branches, reusable batch transformations and officially maintained complex workflow packs are paid candidates. One named user covers the three desktop platforms actually delivered. Running ordinary plugins or writing your own scripts remains free.
 
-首购包含 12 个月新版本资格；到期后，更新窗内已获得的版本继续使用。续购自 `max(支付时间, 当前 updates_through)` 起增加 12 个月，不追收中断月份，不自动扣款；团队续购按所购命名席位数执行。无“终身所有未来更新”方案。一个命名用户可在本人电脑使用，不采集硬件指纹；离线席位是合同约定，不宣传实时并发强制执行。团队购买只合并席位，不隐含协作云服务。
+## Purchase, trial and updates
 
-新增付费层完整试用 14 天，到期回到免费层；完整买断产品试用结束保留读取/搜索/备份/导出。离线试用只作便利和约定，不宣传防回拨或不可重置。付费技术/平台门禁通过前不发预售码。支付成功后由 Commerce 幂等签发 Permit；用发行时间与 `updates_through` 判断更新资格，不能拿当前时间让已获版本突然失效。离线退款/撤销的及时性不做无法实现的承诺。
+A purchase includes 12 months of new-version eligibility. Versions obtained within that update window remain usable afterwards. Optional renewal adds 12 months from `max(payment time, current updates_through)`, with no back-billing for a gap and no automatic charge. Team renewals apply to the purchased number of named seats. There is no lifetime-all-future-updates plan. One named user can use their own computers; no hardware fingerprint is collected. Offline seat limits are contractual, not real-time concurrency enforcement. A team purchase combines seats; it does not imply a collaboration cloud.
 
-无定制开发、硬件采购、认证或响应时限 SLA 包含在上述标价中。支持范围为购买版本、明确支持平台及已验证组合的异步问题处理，不能承诺一人团队全天响应。公开销售前补齐退款/取消说明、币种/税费最终价、隐私与支持范围并在结账页确认；本文件不代替最终结账条款。
+A new paid tier has a full 14-day trial, then returns to the free tier. For a complete paid product, trial expiry preserves reading/search/backup/export. Offline trial state is a convenience and an agreement, not advertised as rollback-proof or impossible to reset. Do not presell codes before technical and platform gates pass. After a successful payment, Commerce issues Permit credentials idempotently. Use release time and `updates_through` for update eligibility; the current date must not suddenly invalidate an acquired version. Do not promise prompt offline refund/revocation enforcement that cannot be implemented.
 
-## 开卖前的下一步
+The target price includes no custom development, hardware procurement, certification or response-time SLA. Support is asynchronous issue handling for the purchased version, supported platforms and validated combinations; a solo maintainer must not promise round-the-clock responses. Before sales, publish refund/cancellation rules, currency/tax totals, privacy terms and support scope, and confirm them at checkout. This plan is not a substitute for final checkout terms.
 
-先完成 #88 的真实交互/安装更新，再交付一个从输入到外部动作及失败恢复均可验收的工作流；付费编辑器不能破坏免费 FPP 插件。Pro 尚未实现，不以 1.0 版本号代替交付门禁。
+## Next gate before sales
 
-执行入口：[本仓 #88](https://github.com/turinglambdaai/fulcrum/issues/88)。先交付这个切片，再扩展商业功能。
+Complete the real interaction and installation/update gates in #88, then deliver one workflow verified from input through an external action and failure recovery. A paid editor must not break free FPP plugins. Pro is not implemented; a 1.0 version number does not replace delivery evidence.
 
-## English
+Execution entry: [issue #88](https://github.com/turinglambdaai/fulcrum/issues/88). Complete this bounded slice before expanding commercial features.
 
-Launch design, not a live offer. Fulcrum: ¥128 / US$19；续购 12 个月更新 ¥48 / US$7. One named user; perpetual use of eligible official releases with 12 months of updates. Renewal is optional and never an automatic charge. Current development previews are not retroactively restricted.
-
-组合定位及通用边界：[PORTFOLIO](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md)。
+Portfolio role and shared boundaries: [PORTFOLIO](https://github.com/turinglambdaai/turinglambdaai.github.io/blob/master/PORTFOLIO.md).
