@@ -20,7 +20,10 @@ env:
 
 jobs:
   signed-old-to-new:
-    name: Signed manifest install v0.13.1 to v0.13.2 (${{ matrix.arch }})
+    # The upgrade target is pinned to the immutable v0.13.2 official feed;
+    # the starting version is whatever the branch carries, stamped back to
+    # 0.13.1 below, so version bumps never break this harness again.
+    name: Signed manifest install to the pinned v0.13.2 feed (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     strategy:
@@ -41,12 +44,15 @@ jobs:
           variant: CS
       - name: Install pinned Rivet
         run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
-      - name: Build a test-only v0.13.1 app with the native update hook
+      - name: Build a test-only 0.13.1 app with the native update hook
         shell: bash
         run: |
           set -euo pipefail
-          # Keep the package metadata and backend version aligned for the old app.
-          sed -i '' 's/0\.13\.2/0.13.1/g' VERSION rivet.rktd
+          # Keep the package metadata and backend version aligned for the old
+          # app: stamp whatever version the branch carries back to 0.13.1.
+          current_version="$(tr -d '\r\n' < VERSION)"
+          sed -i '' "s/$current_version/0.13.1/g" VERSION rivet.rktd
+          grep -q "0.13.1" VERSION
           raco rivet doctor
           raco rivet build
           raco rivet package
