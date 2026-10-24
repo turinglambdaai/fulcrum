@@ -31,6 +31,13 @@ test "$(readlink "$mount/Applications")" = "/Applications" || {
 test -s "$mount/.background/background.png" || {
   echo "::error::Branded DMG background missing" >&2; exit 1;
 }
+# Finder draws the icon-view background at its native pixel size (no
+# auto-scaling), so the raster must equal the 660x400-point window exactly;
+# anything else renders cropped with text sliding under the icons.
+bg_dims="$(sips -g pixelWidth -g pixelHeight "$mount/.background/background.png" 2>/dev/null | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w "x" h}')"
+[[ "$bg_dims" == "660x400" ]] || {
+  echo "::error::DMG background must be 660x400 (the window's point size), got $bg_dims" >&2; exit 1;
+}
 test -f "$mount/.DS_Store" || {
   echo "::error::DMG lacks Finder icon layout metadata" >&2; exit 1;
 }
