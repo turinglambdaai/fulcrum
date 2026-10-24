@@ -6,6 +6,13 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+### Changed
+
+- **Rivet pin moved to a92877c**, which fixes the release pipeline crash
+  that kept native Linux installers (deb/rpm/AppImage) out of 0.13.3 —
+  they return with the next release, alongside the AppImage update
+  payload in the signed feed.
+
 ## [0.13.3] - 2026-10-22
 
 ### Added

@@ -26,11 +26,10 @@
         ;; the tar.gz path, while an AppImage process selects the AppImage by
         ;; installer kind so Rivet's atomic AppImage replacement can own the
         ;; eventual in-app install. deb/rpm remain package-manager-owned.
-        ;; Native Linux installers (deb/rpm/AppImage) are temporarily
-        ;; disabled: the pinned rivet revision's release summary crashes on
-        ;; a non-empty linux-formats list ("deb" applied as a procedure).
-        ;; Restore this line once the upstream fix lands and the pin moves.
-        (linux-formats . ()))
+        ;; Native Linux installers (deb/rpm/AppImage) ride along with the
+        ;; signed tar.gz; the signed update feed also carries the AppImage
+        ;; payload for in-place AppImage updates.
+        (linux-formats . ("deb" "rpm" "appimage")))
         ;; Mac installer artwork is rendered from its editable SVG in the
         ;; release workflow. Windows installer bitmaps remain undeclared
         ;; until the files exist; never configure placeholder paths.
