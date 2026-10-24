@@ -493,6 +493,8 @@ jobs:
             "fulcrum-${VERSION}-macos-arm64.dmg fulcrum-macos-arm64.dmg" \
             "fulcrum-${VERSION}-macos-x64.dmg fulcrum-macos-x64.dmg" \
             "fulcrum-${VERSION}-windows-x64.msi fulcrum-windows-x64.msi" \
+            "fulcrum-${VERSION}-linux-x64.tar.gz fulcrum-linux-x64.tar.gz" \
+            "fulcrum-${VERSION}-linux-arm64.tar.gz fulcrum-linux-arm64.tar.gz" \
             "fulcrum-${VERSION}-linux-amd64.deb fulcrum-linux-x64.deb" \
             "fulcrum-${VERSION}-linux-arm64.deb fulcrum-linux-arm64.deb" \
             "fulcrum-${VERSION}-linux-x86_64.AppImage fulcrum-linux-x64.AppImage" \
@@ -566,7 +568,9 @@ jobs:
               echo "::error::Missing release asset $name"; exit 1;
             }
           done
-          release_id="$(gh api "repos/$GH_REPO/releases/tags/$tag" --jq '.id')"
+          # releases/tags/{tag} 404s while the release is still a draft;
+          # gh release view resolves drafts, so the id comes from there.
+          release_id="$(gh release view "$tag" --json id --jq '.id')"
           gh api -X PATCH "repos/$GH_REPO/releases/$release_id" \
             -F draft=false -F prerelease="$prerelease" -f make_latest="$make_latest" >/dev/null
           gh release view "$tag" --json isDraft,isPrerelease \
@@ -584,4 +588,5 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           body="$(gh release view "$tag" --repo "$GH_REPO" --json body --jq '.body')"
           banner="> ⚠️ **Unsigned release.** Publisher accounts are not provisioned yet: macOS packages are ad-hoc signed (right-click the app → Open on first launch), Windows packages carry no Authenticode signature (SmartScreen will warn). The update channel itself is Ed25519-signed, and Linux artifacts keep their detached signatures."
-          gh api -X PATCH "repos/$GH_REPO/releases/tags/$tag" -f body="$(printf '%s\n\n%s' "$banner" "$body")"
+          release_id="$(gh release view "$tag" --repo "$GH_REPO" --json id --jq '.id')"
+          gh api -X PATCH "repos/$GH_REPO/releases/$release_id" -f body="$(printf '%s\n\n%s' "$banner" "$body")"

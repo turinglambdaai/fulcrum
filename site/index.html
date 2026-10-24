@@ -417,10 +417,13 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
             // Linux UAs reveal ARM; macOS UAs do not, so mac defaults to the
             // Apple Silicon build (the majority); Chromium refines below.
             var arch = os === 'linux' && /aarch64|arm/i.test(ua) ? 'arm64' : (os === 'linux' ? 'x64' : 'arm64');
+            // Linux ships the portable tar.gz as the direct download; the
+            // native installers (deb/rpm/AppImage) return with the next
+            // release once the upstream packaging fix is pinned.
             var file = {
                 mac: 'fulcrum-macos-' + arch + '.dmg',
                 win: 'fulcrum-windows-x64.msi',
-                linux: 'fulcrum-linux-' + arch + '.AppImage'
+                linux: 'fulcrum-linux-' + arch + '.tar.gz'
             }[os];
             var url = BASE + file;
             var key = 'hero.cta-' + { mac: 'mac', win: 'win', linux: 'linux' }[os];
@@ -433,7 +436,7 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
                     if (!h || /Windows/i.test(h.platform || '')) return; // windows ships x64-only
                     var a = h.architecture === 'arm' ? 'arm64' : (h.architecture === 'x86' ? 'x64' : null);
                     if (!a || a === arch) return;
-                    var f = os === 'mac' ? 'fulcrum-macos-' + a + '.dmg' : 'fulcrum-linux-' + a + '.AppImage';
+                    var f = os === 'mac' ? 'fulcrum-macos-' + a + '.dmg' : 'fulcrum-linux-' + a + '.tar.gz';
                     document.querySelectorAll('a[href="' + url + '"]').forEach(function (x) { x.href = BASE + f; });
                 }).catch(function () {});
             }
