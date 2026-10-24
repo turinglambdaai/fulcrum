@@ -493,6 +493,8 @@ jobs:
             "fulcrum-${VERSION}-macos-arm64.dmg fulcrum-macos-arm64.dmg" \
             "fulcrum-${VERSION}-macos-x64.dmg fulcrum-macos-x64.dmg" \
             "fulcrum-${VERSION}-windows-x64.msi fulcrum-windows-x64.msi" \
+            "fulcrum-${VERSION}-linux-x64.tar.gz fulcrum-linux-x64.tar.gz" \
+            "fulcrum-${VERSION}-linux-arm64.tar.gz fulcrum-linux-arm64.tar.gz" \
             "fulcrum-${VERSION}-linux-amd64.deb fulcrum-linux-x64.deb" \
             "fulcrum-${VERSION}-linux-arm64.deb fulcrum-linux-arm64.deb" \
             "fulcrum-${VERSION}-linux-x86_64.AppImage fulcrum-linux-x64.AppImage" \
