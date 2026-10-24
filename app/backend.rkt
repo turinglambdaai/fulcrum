@@ -21,6 +21,7 @@
          (prefix-in rivet-info: rivet/app-info)
          rivet/backend
          "core/ai.rkt"
+         "core/ai-session.rkt"
          "core/apps.rkt"
          "core/bindings.rkt"
          "core/clipboard.rkt"
@@ -398,63 +399,51 @@
 (define (ai-row id title subtitle arg badge)
   (list id title subtitle "AI" arg "sparkles" "" badge))
 
-;; Conversation memory and the last answer. Module-level boxes, NOT
-;; parameters: every RVT1 request runs on its own worker thread, and a
-;; parameter written in one worker is invisible to the next (this is also
-;; why the old parameter-based chat memory never actually survived a
-;; round-trip in production, while single-threaded tests stayed green).
-;; The streaming thread and later RPCs share these; one semaphore guards
-;; the pair against a concurrent reset.
-(define ai-memory-lock (make-semaphore 1))
-(define ai-history-box (box '()))
-(define ai-last-answer-box (box ""))
+;; The product-owned service owns shared memory and worker lifecycle.  It is
+;; intentionally outside request parameters: every RVT1 request runs on its
+;; own worker, while the conversation and an in-flight provider call belong to
+;; the application process.
+(define ai-service
+  (make-ai-session-service
+   #:memory-path ai-memory-path
+   #:on-start
+   (lambda ()
+     (state-set! ai-stream (AiStream "running" "" (void))))
+   #:on-delta
+   (lambda (partial)
+     (state-set! ai-stream (AiStream "running" partial (void))))
+   #:on-terminal
+   (lambda (terminal)
+     (case (ai-session-terminal-phase terminal)
+       [(done)
+        (define answer (ai-session-terminal-text terminal))
+        (state-set! ai-stream (AiStream "done" answer (void)))
+        (ai-finished answer)]
+       [(error)
+        (define message (ai-session-terminal-error terminal))
+        (state-set! ai-stream (AiStream "error" "" message))
+        (notify message)]
+       [(cancelled)
+        (state-set! ai-stream (AiStream "idle" "" (void)))]))))
 
 (define (ai-history)
-  (unbox ai-history-box))
+  (ai-session-history ai-service))
 
 (define (ai-last-answer)
-  (unbox ai-last-answer-box))
+  (ai-session-last-answer ai-service))
 
 ;; Persistent memory (Raycast-2.0 "Memory" parity): the transcript and the
 ;; last answer survive restarts. The file is local-only by construction —
 ;; the same never-synced policy as ai-keys.json, because a transcript is
 ;; sensitive.
 (define (ai-restore-memory!)
-  (with-handlers ([exn:fail? void])
-    (define raw (read-json-file (ai-memory-path) (hash)))
-    (when (hash? raw)
-      (define hist (hash-ref raw 'history '()))
-      ;; JSON arrays come back as lists; memory stores pairs.
-      (when (and (list? hist)
-                 (andmap (lambda (e)
-                           (and (list? e) (= (length e) 2)
-                                (string? (list-ref e 0))
-                                (string? (list-ref e 1))))
-                         hist))
-        (set-box! ai-history-box
-                  (for/list ([e (in-list hist)])
-                    (cons (list-ref e 0) (list-ref e 1)))))
-      (define last (hash-ref raw 'last-answer #f))
-      (when (string? last) (set-box! ai-last-answer-box last)))))
-
-(define (ai-persist-memory!)
-  ;; Memory stores pairs; JSON needs lists. (The swallow-on-failure here
-  ;; once hid exactly this: pairs are not jsexpr, so nothing was ever
-  ;; written and the "persistence" silently saved nothing.)
-  (with-handlers ([exn:fail? void])
-    (write-json-atomic!
-     (ai-memory-path)
-     (hasheq 'history (for/list ([e (in-list (ai-history))])
-                        (list (car e) (cdr e)))
-             'last-answer (ai-last-answer)))))
+  (ai-session-restore! ai-service))
 
 (define (ai-set-history! h)
-  (set-box! ai-history-box h)
-  (ai-persist-memory!))
+  (ai-session-set-history! ai-service h))
 
 (define (ai-set-last-answer! a)
-  (set-box! ai-last-answer-box a)
-  (ai-persist-memory!))
+  (ai-session-set-last-answer! ai-service a))
 
 (define (ai-copy-last-answer)
   (define answer (ai-last-answer))
@@ -606,53 +595,20 @@
         (if (pair? items) (clipboard-item-text (car items)) ""))
       ""))
 
-;; The AI run action: validate, then hand the provider call to a backend
-;; thread (ai-request-streaming) and return "started" immediately — the
+;; The AI run action: validate, then hand the provider call to the session
+;; service and return "started" immediately — the
 ;; answer streams to hosts through the ai-stream State and lands on the
 ;; clipboard via ai-finished when complete. run-action therefore never
 ;; blocks on a model.
-(define ai-streaming? (box #f))
-
 (define (start-ai-stream! chat? raw-arg prompt)
-  (set-box! ai-streaming? #t)
-  (state-set! ai-stream (AiStream "running" "" (void)))
   (define provider (ai-effective-provider))
   (define key (ai-get-key (ai-keys-path) provider))
   (define model (ai-effective-model))
   (define base-url (ai-effective-base-url))
-  (define history (if chat? (ai-history) '()))
-  ;; Delta pushes are State frames; throttle so a fast model cannot flood
-  ;; the wire (150 ms is well under human reading latency).
-  (define last-push (box 0.0))
-  (thread
-   (lambda ()
-     (define answer
-       (ai-request-streaming provider base-url key model prompt
-                             #:history history
-                             #:on-delta
-                             (lambda (partial)
-                               (define now (current-inexact-milliseconds))
-                               (when (> (- now (unbox last-push)) 150)
-                                 (set-box! last-push now)
-                                 (with-handlers ([exn:fail? void])
-                                   (state-set! ai-stream
-                                               (AiStream "running" partial
-                                                         (void))))))))
-     (set-box! ai-streaming? #f)
-     (cond
-       ;; Error strings from ai-request-streaming all start with "AI ".
-       [(string-prefix? answer "AI ")
-        (with-handlers ([exn:fail? void])
-          (state-set! ai-stream (AiStream "error" "" answer)))
-        (notify answer)]
-       [else
-        (ai-set-last-answer! answer)
-        (when chat?
-          (ai-set-history!
-           (ai-history-append history (string-trim (substring raw-arg 4)) answer)))
-        (with-handlers ([exn:fail? void])
-          (state-set! ai-stream (AiStream "done" answer (void))))
-        (ai-finished answer)]))))
+  (ai-session-start!
+   ai-service
+   (ai-session-request provider base-url key model prompt
+                       (and chat? (string-trim (substring raw-arg 4))))))
 
 (define (ai-run! engine arg)
   (define provider (ai-effective-provider))
@@ -666,32 +622,24 @@
             (string-prefix? arg v))
           (string=? (string-trim (ai-newest-clipboard-text engine)) ""))
      (cons "nothing on the clipboard to work on" '())]
-    [(unbox ai-streaming?)
-     (cons "AI is already answering — wait for it or ask something new later" '())]
     [else
      (define chat? (string-prefix? arg "chat"))
      (define prompt
        (if chat?
            (string-trim (substring arg 4))
            (build-ai-prompt arg (ai-newest-clipboard-text engine))))
-     (start-ai-stream! chat? arg prompt)
-     (cons "started" '())]))
+     (case (start-ai-stream! chat? arg prompt)
+       [(started) (cons "started" '())]
+       [(busy)
+        (cons "AI is already answering — wait for it or ask something new later" '())]
+       [(closed) (cons "AI service is closed" '())])]))
 
 ;; Drop the last chat exchange — the minimal branching primitive: roll
 ;; the conversation back to try a different direction.
 (define (ai-undo-exchange!)
-  (define hist (ai-history))
-  (cond
-    [(null? hist) (cons "nothing to undo" '())]
-    [else
-     (define kept
-       (let loop ([h hist])
-         (if (<= (length h) 2)
-             '()
-             (cons (car h) (loop (cdr h))))))
-     (ai-set-history! kept)
-     (ai-set-last-answer! "")
-     (cons "ok" (list (cons 'notify "Undone: dropped the last exchange")))]))
+  (if (ai-session-undo! ai-service)
+      (cons "ok" (list (cons 'notify "Undone: dropped the last exchange")))
+      (cons "nothing to undo" '())))
 
 (define (ai-act! engine id arg)
   (case (string->symbol id)
@@ -736,10 +684,7 @@
          (cons "copied" (list (cons 'paste-to-frontmost answer)))
          (cons "no AI answer yet" '()))]
     [(ai.reset)
-     (call-with-semaphore ai-memory-lock
-       (lambda ()
-         (ai-set-history! '())
-         (ai-set-last-answer! "")))
+     (ai-session-reset! ai-service)
      (cons "ok" (list (cons 'notify "AI conversation reset")))]
     [else (cons (format "unknown ai action: ~a" id) '())]))
 
@@ -1773,4 +1718,7 @@
   (state-set! hotkey (settings-get manager 'hotkey))
   (state-set! language (settings-get manager 'language))
   (void engine)
-  (serve-fds in-fd out-fd))
+  (dynamic-wind
+    void
+    (lambda () (serve-fds in-fd out-fd))
+    (lambda () (ai-session-close! ai-service))))
