@@ -16,7 +16,7 @@ concurrency:
 env:
   # Unified immutable upstream revision containing AppImage handoff,
   # branded-DMG signature preservation, and macOS update rollback safety.
-  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
+  RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
 jobs:
   backend:
     name: Backend tests (${{ matrix.os }})
@@ -107,7 +107,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@4cd374f3f783a58306026381a64fc83c0e23ff48
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
       # Installed after the embeddable runtime so the catalog dependency
       # closure (cext-lib, crypto-lib, keel) resolves against the minimal
       # build — it ships no packages of its own.

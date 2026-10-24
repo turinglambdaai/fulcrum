@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  RIVET_PIN: 4cd374f3f783a58306026381a64fc83c0e23ff48
+  RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
 
 jobs:
   installed-upgrade:
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@4cd374f3f783a58306026381a64fc83c0e23ff48
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
       - name: Install Rivet (pinned source)
         run: raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
       - name: Install native and headless GUI dependencies
