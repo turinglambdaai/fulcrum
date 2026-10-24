@@ -15,9 +15,9 @@ PNG = ROOT / "assets/dmg-background.png"
 RVTD = ROOT / "rivet.rktd"
 
 root = ET.parse(SVG).getroot()
-assert root.attrib.get("viewBox") == "0 0 1320 800"
-assert root.attrib.get("width") == "1320"
-assert root.attrib.get("height") == "800"
+assert root.attrib.get("viewBox") == "0 0 660 400"
+assert root.attrib.get("width") == "660"
+assert root.attrib.get("height") == "400"
 assert 'dmg-background . "assets/dmg-background.png"' in RVTD.read_text()
 
 texts = ["".join(el.itertext()).strip()
@@ -29,12 +29,19 @@ assert any("DRAG TO INSTALL" == t for t in texts)
 with PNG.open("rb") as f:
     header = f.read(24)
 assert header[:8] == b"\x89PNG\r\n\x1a\n" and header[12:16] == b"IHDR"
-assert struct.unpack(">II", header[16:24]) == (1320, 800)
+assert struct.unpack(">II", header[16:24]) == (660, 400)
 
 # Pinned Rivet installer.rkt positions the app and Applications link at
 # (130,160), (450,160) in a 660x400 Finder window, with 80pt icons.
-# Validate the arrow is centered between their 2x centers.
+# Validate the arrow cue sits between them on the icon row's center line,
+# and that every text element stays inside the canvas.
 art = SVG.read_text()
-assert 'M 457 419 H 840' in art
-assert 'M 813 391 L 845 419 L 813 447' in art
-print("Fulcrum Finder drag-to-Applications artwork is valid (660x400 @2x).")
+assert 'M 224 214 H 404' in art
+assert 'M 392 204 L 404 214 L 392 224' in art
+ns = {"svg": "http://www.w3.org/2000/svg"}
+for el in ET.parse(SVG).getroot().iter():
+    if not el.tag.endswith("}text"):
+        continue
+    x = float(el.attrib["x"]); y = float(el.attrib["y"])
+    assert 0 < x < 660 and 0 < y < 400, f"text outside canvas at ({x},{y})"
+print("Fulcrum Finder drag-to-Applications artwork is valid (660x400 @1x).")

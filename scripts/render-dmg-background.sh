@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Render the editable Finder DMG SVG to the 2x PNG expected by the pinned
-# Rivet v0.12.0 branded DMG builder (660x400 Finder view).
+# Render the editable Finder DMG SVG to the PNG expected by the pinned
+# Rivet branded DMG builder: 660x400 pixels for the 660x400-point Finder
+# window. Finder draws the icon-view background at its native pixel size
+# (no auto-scaling), so the raster must equal the window exactly.
 #
 # Developers: brew install librsvg; bash scripts/render-dmg-background.sh
 # CI release runners do the same before invoking raco rivet release.
@@ -22,7 +24,7 @@ with open(sys.argv[1], 'rb') as stream:
 if header[:8] != b'\x89PNG\r\n\x1a\n' or header[12:16] != b'IHDR':
     raise SystemExit('Invalid DMG PNG')
 width, height = struct.unpack('>II', header[16:24])
-if (width, height) != (1320, 800):
-    raise SystemExit(f'DMG background must be 1320x800, got {width}x{height}')
-print('Rendered Finder DMG background at 1320x800 (2x).')
+if (width, height) != (660, 400):
+    raise SystemExit(f'DMG background must be 660x400, got {width}x{height}')
+print('Rendered Finder DMG background at 660x400 (1x).')
 PY
