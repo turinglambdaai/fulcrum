@@ -346,7 +346,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
-    @State private var selection: SettingsSection? = .general
+    @State private var selection: SettingsSection = .general
 
     // Translation reads the observable backend setting, so switching language
     // immediately re-renders the visible settings surface.
@@ -357,10 +357,20 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                List(SettingsSection.allCases, selection: $selection) { section in
-                    Label(section.title, systemImage: section.icon)
-                        .tag(section)
-                        .accessibilityIdentifier("settings-sidebar-\(section.rawValue)")
+                List(SettingsSection.allCases) { section in
+                    Button {
+                        selection = section
+                    } label: {
+                        Label(section.title, systemImage: section.icon)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("settings-sidebar-\(section.rawValue)")
+                    .listRowBackground(
+                        selection == section
+                            ? Color.accentColor.opacity(0.16)
+                            : Color.clear)
                 }
                 .listStyle(.sidebar)
                 .frame(width: 170)
@@ -368,7 +378,7 @@ struct SettingsView: View {
                 Divider()
 
                 Group {
-                    switch selection ?? .general {
+                    switch selection {
                     case .general: generalTab
                     case .features: featuresTab
                     case .ai: aiTab
