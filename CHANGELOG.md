@@ -13,6 +13,14 @@ independently per platform packaging run.
   they return with the next release, alongside the AppImage update
   payload in the signed feed.
 
+### Fixed
+
+- **Usable, private native settings.** macOS now keeps every settings page
+  visible in a fixed sidebar and records the summon shortcut instead of
+  exposing the backend grammar. All three settings hosts hide internal
+  updater transport fields, and rejected values no longer leak Racket
+  contract errors into the UI.
+
 ## [0.13.3] - 2026-10-22
 
 ### Added
