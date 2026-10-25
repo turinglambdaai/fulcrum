@@ -18,6 +18,7 @@
          racket/port)
 
 (provide run-command
+         run-command/cancellable
          spawn-command
          resolve-program)
 
@@ -61,10 +62,7 @@
       program
       (find-executable-path program)))
 
-(define/contract (run-command program args #:timeout-ms [timeout-ms 2000])
-  (->* (path-string? (listof path-string?))
-       (#:timeout-ms (and/c exact-integer? (>/c 0)))
-       (or/c string? #f))
+(define (run-command* program args timeout-ms cancel-evt)
   (with-handlers ([exn:fail? (lambda (_) #f)])
     (define resolved (or (resolve-program program)
                          (error 'run-command
@@ -88,7 +86,12 @@
     ;; deadlock for a noisy command even when stdout is drained correctly.
     (define-values (stderr-worker stderr-ch)
       (drain-port/async stderr #:capture? #f))
-    (define exited (sync/timeout (/ timeout-ms 1000) done))
+    (define outcome
+      (sync/timeout
+       (/ timeout-ms 1000)
+       (handle-evt done (lambda (_) 'exited))
+       (handle-evt cancel-evt (lambda (_) 'cancelled))))
+    (define exited (eq? outcome 'exited))
     (unless exited
       (subprocess-kill proc #t)
       ;; Reap after the kill so both pipe readers see EOF before cleanup.
@@ -101,10 +104,28 @@
       (kill-thread waiter))
     (close-input-port stdout)
     (close-input-port stderr)
-    (and exited
-         (pair? stdout-result)
-         (eq? (car stdout-result) 'ok)
-         (cadr stdout-result))))
+    (cond
+      [(eq? outcome 'cancelled) 'cancelled]
+      [(and exited
+            (pair? stdout-result)
+            (eq? (car stdout-result) 'ok))
+       (cadr stdout-result)]
+      [else #f])))
+
+(define/contract (run-command program args #:timeout-ms [timeout-ms 2000])
+  (->* (path-string? (listof path-string?))
+       (#:timeout-ms (and/c exact-integer? (>/c 0)))
+       (or/c string? #f))
+  (run-command* program args timeout-ms never-evt))
+
+(define/contract (run-command/cancellable program args
+                                           #:timeout-ms [timeout-ms 2000]
+                                           #:cancel-evt cancel-evt)
+  (->* (path-string? (listof path-string?)
+        #:cancel-evt evt?)
+       (#:timeout-ms (and/c exact-integer? (>/c 0)))
+       (or/c string? #f 'cancelled))
+  (run-command* program args timeout-ms cancel-evt))
 
 (define/contract (spawn-command program args)
   (-> path-string? (listof path-string?) boolean?)

@@ -6,7 +6,8 @@
 ;; program name ("open", "plutil") silently fails with a nonzero child exit.
 ;; These tests pin PATH resolution for both helpers.
 
-(require rackunit
+(require racket/async-channel
+         rackunit
          "../app/core/proc.rkt")
 
 (unless (eq? (system-type 'os) 'windows)
@@ -47,6 +48,27 @@
      #:timeout-ms 5000))
   (check-true (string? out) "large stdout + stderr must not time out")
   (check-equal? (string-length out) 200000))
+
+(test-case "run-command cancellation terminates the child promptly"
+  (define cancel (make-semaphore 0))
+  (define result (make-async-channel 1))
+  (define errors (open-output-string))
+  (define started (current-inexact-milliseconds))
+  (parameterize ([current-error-port errors])
+    (thread
+     (lambda ()
+       (async-channel-put
+        result
+        (run-command/cancellable
+         "racket" (list "-e" "(sleep 10)")
+         #:timeout-ms 5000
+         #:cancel-evt (semaphore-peek-evt cancel)))))
+    (sleep 0.1)
+    (semaphore-post cancel)
+    (check-equal? (sync/timeout 2 result) 'cancelled))
+  (check-true (< (- (current-inexact-milliseconds) started) 3000)
+              "cancellation must not wait for the five-second timeout")
+  (check-equal? (get-output-string errors) ""))
 
 ;; Regression: a child whose output exceeds the 64 KiB pipe buffer used to
 ;; deadlock run-command (parent waited for exit, child blocked on write)

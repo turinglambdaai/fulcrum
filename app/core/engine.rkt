@@ -511,6 +511,10 @@
                             "File" "" "doc" "" "Timed out"
                             "find file search timeout plocate"
                             85))]
+                  ;; A newer keystroke superseded this query. Every host also
+                  ;; generation-guards painting, so the stale response stays
+                  ;; silent instead of flashing an unavailable/timeout row.
+                  [(cancelled) '()]
                   [else
                    (list (result "noop"
                                  (case (system-type 'os)

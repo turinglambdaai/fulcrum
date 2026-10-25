@@ -5,6 +5,8 @@
 ;; elsewhere.
 
 (require racket/file
+         racket/async-channel
+         racket/list
          racket/string
          rackunit
          "../app/core/engine.rkt"
@@ -45,6 +47,27 @@
                 '(("q3.md" . "C:\\Users\\me\\Reports\\q3.md")
                   ("My Notes.txt" . "D:\\Notes\\My Notes.txt"))))
 
+(test-case "file hits share one deterministic relevance order"
+  (define candidates
+    '(("old-report.md" . "/home/me/archive/old-report.md")
+      ("report-old.md" . "/home/me/report-old.md")
+      ("report.md" . "/home/me/report.md")
+      ("report.md" . "/home/me/project/node_modules/pkg/report.md")
+      ("notes.md" . "/home/me/reports/report-notes.md")))
+  (define ranked (rank-file-hits "report" candidates 5))
+  ;; Exact stem wins; an equally named generated dependency is demoted. A
+  ;; filename prefix beats a match found only in the parent path.
+  (check-equal? (cdr (car ranked)) "/home/me/report.md")
+  (check-true
+   (< (index-of ranked '("report-old.md" . "/home/me/report-old.md"))
+      (index-of ranked '("notes.md" . "/home/me/reports/report-notes.md"))))
+  (check-true
+   (< (index-of ranked '("report.md" . "/home/me/report.md"))
+      (index-of ranked
+                '("report.md" . "/home/me/project/node_modules/pkg/report.md"))))
+  (check-equal? (rank-file-hits "report" candidates 2)
+                (take ranked 2)))
+
 (test-case "windows backend runs the index-first script inside one command"
   (define captured #f)
   (define result
@@ -52,7 +75,8 @@
      "o'brien" 8
      #:os 'windows
      #:resolve (lambda (program) (and (string=? program "powershell.exe") program))
-     #:run (lambda (program args #:timeout-ms [timeout-ms 3000])
+     #:run (lambda (program args #:timeout-ms [timeout-ms 3000]
+                               #:cancel-evt [_cancel-evt never-evt])
              (set! captured (cons program args))
              "file:///C:/Users/me/obrien.txt\n")))
   ;; The call stays a single PowerShell invocation with the 3s budget.
@@ -68,6 +92,8 @@
   (check-true (string-contains? script "CONTAINS(System.FileName,"))
   (check-true (string-contains? script "FREETEXT(System.FileName,"))
   (check-true (string-contains? script "Get-ChildItem"))
+  (check-true (string-contains? script "SELECT TOP 128"))
+  (check-true (string-contains? script "Select-Object -First 128"))
   ;; The query is neutralized for both SQL and PowerShell single quotes.
   (check-false (string-contains? script "o'brien"))
   (check-true (string-contains? script "o''brien")))
@@ -80,7 +106,8 @@
      "report" 8
      #:os 'unix
      #:resolve find-only
-     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]) #f)))
+     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]
+                                   #:cancel-evt [_cancel-evt never-evt]) #f)))
   (check-equal? (file-search-result-status timed-out) 'timeout)
   (check-equal? (file-search-result-backend timed-out) 'find)
   (check-equal? (file-search-result-hits timed-out) '())
@@ -89,11 +116,47 @@
      "report" 8
      #:os 'unix
      #:resolve find-only
-     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000])
+     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]
+                                   #:cancel-evt [_cancel-evt never-evt])
              "/home/me/report.txt\n")))
   (check-equal? (file-search-result-status completed) 'ok)
   (check-equal? (file-search-result-hits completed)
                 '(("report.txt" . "/home/me/report.txt"))))
+
+(test-case "a newer file query cancels the superseded backend"
+  (define first-started (make-semaphore 0))
+  (define calls 0)
+  (define (runner _program _args #:timeout-ms [_timeout-ms 3000]
+                                  #:cancel-evt [cancel-evt never-evt])
+    (set! calls (add1 calls))
+    (if (= calls 1)
+        (begin
+          (semaphore-post first-started)
+          (sync cancel-evt)
+          'cancelled)
+        "/home/me/new-report.txt\n"))
+  (define first-result (make-async-channel 1))
+  (define first-worker
+    (thread
+     (lambda ()
+       (async-channel-put
+        first-result
+        (file-search/status "old" 8
+                            #:os 'unix
+                            #:resolve (lambda (_) "/usr/bin/find")
+                            #:run runner)))))
+  (sync first-started)
+  (define newest
+    (file-search/status "report" 8
+                        #:os 'unix
+                        #:resolve (lambda (_) "/usr/bin/find")
+                        #:run runner))
+  (define superseded (sync/timeout 1 first-result))
+  (check-equal? (file-search-result-status superseded) 'cancelled)
+  (check-equal? (file-search-result-status newest) 'ok)
+  (check-equal? (file-search-result-hits newest)
+                '(("new-report.txt" . "/home/me/new-report.txt")))
+  (check-not-false (sync/timeout 1 (thread-dead-evt first-worker))))
 
 (test-case "engine provider: honest row without Spotlight, real rows with it"
   (define engine (make-engine #:clipboard-store #f

@@ -16,16 +16,48 @@
          racket/path
          racket/string
          net/uri-codec
+         "fuzzy.rkt"
          "proc.rkt")
 
 (provide (struct-out file-search-result)
          file-search-available?
          parse-paths
+         rank-file-hits
          file-search/status
          file-search
          file-open!)
 
 (struct file-search-result (hits status backend) #:transparent)
+
+;; Platform indices are good candidate generators, but their first eight rows
+;; are not a relevance contract.  Pull a modest bounded set and apply the same
+;; deterministic Fulcrum ranking on every host.
+(define file-search-candidate-limit 128)
+
+;; At most one platform query is useful. Native hosts generation-guard their
+;; UI, but without backend cancellation every superseded keystroke still left
+;; a PowerShell/mdfind/locate process running until timeout.
+(define active-search-lock (make-semaphore 1))
+(define active-search-cancel (box #f))
+
+(define (claim-file-search!)
+  (define cancel (make-semaphore 0))
+  (call-with-semaphore
+   active-search-lock
+   (lambda ()
+     (define previous (unbox active-search-cancel))
+     (when previous (semaphore-post previous))
+     (set-box! active-search-cancel cancel)))
+  cancel)
+
+(define (release-file-search! cancel)
+  (call-with-semaphore
+   active-search-lock
+   (lambda ()
+     ;; A late completion must never clear the newer query's cancellation
+     ;; handle.
+     (when (eq? cancel (unbox active-search-cancel))
+       (set-box! active-search-cancel #f)))))
 
 (define (file-search-backend os resolver)
   (case os
@@ -88,20 +120,88 @@
 (define (take-min xs n)
   (if (> (length xs) n) (take xs n) xs))
 
+;; ---- cross-platform relevance --------------------------------------------
+
+(define noisy-path-components
+  '(".git" ".hg" ".svn" "node_modules" "build" "dist" "target"
+    "cache" "caches" "__pycache__"))
+
+(define (normalized-path-components path)
+  (filter (lambda (part) (not (string=? part "")))
+          (regexp-split #px"[/\\\\]+" (string-downcase path))))
+
+(define (file-stem name)
+  ;; Treat the final extension as metadata for ranking ("report" should put
+  ;; report.md ahead of report-old.md). Dotfiles keep their complete name.
+  (if (string-prefix? name ".")
+      name
+      (regexp-replace #px"\\.[^.]*$" name "")))
+
+(define (file-hit-score query hit)
+  (define q (string-downcase (string-trim query)))
+  (define name (string-downcase (car hit)))
+  (define path (string-downcase (cdr hit)))
+  (define stem (file-stem name))
+  (define fuzzy
+    (or (fuzzy-score-fields
+         q
+         (list (cons 1.0 name)
+               (cons 0.35 path)))
+        0))
+  (define intent-bonus
+    (cond
+      [(string=? q name) 2000]
+      [(string=? q stem) 1900]
+      [(string-prefix? name q) 1400]
+      [(string-contains? name q) 900]
+      [else 0]))
+  (define components (normalized-path-components path))
+  (define noise-penalty
+    (if (for/or ([part (in-list components)])
+          (member part noisy-path-components))
+        250
+        0))
+  ;; Prefer a nearby human-facing path when relevance is otherwise equal.
+  (+ fuzzy intent-bonus
+     (- (min 80 (* 2 (length components))))
+     (- noise-penalty)))
+
+(define/contract (rank-file-hits query hits [limit 8])
+  (->* (string? (listof (cons/c string? string?)))
+       (exact-nonnegative-integer?)
+       (listof (cons/c string? string?)))
+  (define scored
+    (for/list ([hit (in-list hits)])
+      (vector (file-hit-score query hit) hit)))
+  (define sorted
+    (sort scored
+          (lambda (a b)
+            (define a-score (vector-ref a 0))
+            (define b-score (vector-ref b 0))
+            (if (= a-score b-score)
+                (string-ci<? (cdr (vector-ref a 1))
+                             (cdr (vector-ref b 1)))
+                (> a-score b-score)))))
+  (take-min (map (lambda (entry) (vector-ref entry 1)) sorted) limit))
+
 ;; Keep "no matches", "no tool", and "tool timed out" distinct. The old
 ;; list-only API collapsed all three to '(), which made stock Ubuntu's slow
 ;; `find` fallback look like a successful empty search.
 (define (file-search/status query [limit 8]
                             #:os [os (system-type 'os)]
                             #:resolve [resolver resolve-program]
-                            #:run [runner run-command])
+                            #:run [runner run-command/cancellable])
   (define backend (file-search-backend os resolver))
   (if (false? backend)
       (file-search-result '() 'unavailable #f)
       (let-values ([(program args)
                     (case backend
                       [(mdfind) (values "mdfind" (list "-name" query))]
-                      [(locate) (values "locate" (list "-i" "-l" "8" query))]
+                      [(locate)
+                       (values "locate"
+                               (list "-i" "-l"
+                                     (number->string file-search-candidate-limit)
+                                     query))]
                       [(find)
                        (values "find"
                                (list (path->string (find-system-path 'home-dir))
@@ -112,10 +212,27 @@
                        (values "powershell.exe"
                                (list "-NoProfile" "-Command"
                                      (windows-find-script query)))])])
-        (define output (runner program args #:timeout-ms 3000))
-        (if (false? output)
-            (file-search-result '() 'timeout backend)
-            (file-search-result (parse-paths output limit) 'ok backend)))))
+        (define cancel (claim-file-search!))
+        (define output
+          (dynamic-wind
+            void
+            (lambda ()
+              (runner program args
+                      #:timeout-ms 3000
+                      #:cancel-evt (semaphore-peek-evt cancel)))
+            (lambda () (release-file-search! cancel))))
+        (cond
+          [(eq? output 'cancelled)
+           (file-search-result '() 'cancelled backend)]
+          [(false? output)
+           (file-search-result '() 'timeout backend)]
+          [else
+           (file-search-result
+            (rank-file-hits
+             query
+             (parse-paths output file-search-candidate-limit)
+             limit)
+            'ok backend)]))))
 
 ;; Compatibility API for callers that only need hits.
 (define (file-search query [limit 8])
@@ -148,18 +265,18 @@
    "try{"
    "$c=New-Object System.Data.OleDb.OleDbConnection(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
    "$c.Open();$cmd=$c.CreateCommand();"
-   "$cmd.CommandText=\"SELECT TOP 8 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
    "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close();"
    "if($out.Count -eq 0){"
-   "$cmd.CommandText=\"SELECT TOP 8 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$qs`\"') AND SCOPE='file:'\";"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$qs`\"') AND SCOPE='file:'\";"
    "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close()"
    "}"
    "$c.Close()"
    "}catch{};"
    "if($out.Count -gt 0){"
-   "$out|Select-Object -First 8|ForEach-Object{[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
+   "$out|Select-Object -First 128|ForEach-Object{[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
    "}else{"
-   "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 8 -ExpandProperty FullName"
+   "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 128 -ExpandProperty FullName"
    "}"))
 
 (define (opener-for-platform)
