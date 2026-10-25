@@ -34,6 +34,17 @@
   (check-equal? (cdr (car parsed)) "C:/Users/me/Reports/q3.md")
   (check-equal? (cdr (cadr parsed)) "C:/Users/me/My Notes.md"))
 
+(test-case "Windows scan paths with backslashes are retained"
+  ;; Get-ChildItem -ExpandProperty FullName emits native backslashes.  The old
+  ;; slash-only filter silently discarded every fallback result. PowerShell's
+  ;; CRLF delimiter must not become part of the path either.
+  (define parsed
+    (parse-paths
+     "C:\\Users\\me\\Reports\\q3.md\r\nD:\\Notes\\My Notes.txt\r\n"))
+  (check-equal? parsed
+                '(("q3.md" . "C:\\Users\\me\\Reports\\q3.md")
+                  ("My Notes.txt" . "D:\\Notes\\My Notes.txt"))))
+
 (test-case "windows backend runs the index-first script inside one command"
   (define captured #f)
   (define result

@@ -54,6 +54,22 @@
 ;; Universal path-list parser: newline-separated absolute paths →
 ;; (name path) pairs, bounded and deduplicated. Works for mdfind, locate,
 ;; find, and PowerShell output alike.
+(define (path-like? line)
+  (or (string-contains? line "/")
+      (string-contains? line "\\")))
+
+(define (portable-file-name path)
+  ;; Do not use the host OS path convention here: tests, remote output and
+  ;; file: URLs can carry Windows and POSIX paths on either platform.
+  (define pieces (regexp-split #px"[/\\\\]+" path))
+  (if (null? pieces) path (last pieces)))
+
+(define (clean-output-line line)
+  ;; PowerShell writes CRLF.  Splitting only on newline otherwise leaves a
+  ;; carriage return in the path, producing a result that cannot be opened.
+  ;; Remove exactly the transport delimiter, not legitimate path whitespace.
+  (regexp-replace #px"\r$" line ""))
+
 (define (parse-paths output [limit 8])
   (if (not (string? output))
       '()
@@ -61,11 +77,12 @@
        (remove-duplicates
         (for/list ([line (in-list
                           (filter (lambda (s)
-                                    (string-contains? s "/"))
-                                  (string-split output "\n")))])
+                                    (and (not (string=? s ""))
+                                         (path-like? s)))
+                                  (map clean-output-line
+                                       (string-split output "\n"))))])
           (define path (file-url->path line))
-          (cons (path->string (file-name-from-path (string->path path)))
-                path)))
+          (cons (portable-file-name path) path)))
        limit)))
 
 (define (take-min xs n)

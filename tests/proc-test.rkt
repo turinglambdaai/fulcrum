@@ -21,15 +21,34 @@
   (check-true (spawn-command "racket" '("-e" "(void)")))
   (check-false (spawn-command "definitely-not-a-real-binary-xyz" '())))
 
+(test-case "run-command timeout closes child pipes quietly"
+  ;; Regression for file-search cancellation: closing stdout while the drain
+  ;; thread was still in port->string printed one exception per superseded
+  ;; query.  Fast typing made the same stack trace fill the launcher.
+  (define errors (open-output-string))
+  (parameterize ([current-error-port errors])
+    (for ([i (in-range 4)])
+      (check-false
+       (run-command "racket" (list "-e" "(sleep 5)") #:timeout-ms 10)))
+    ;; Give an accidentally orphaned reader enough time to report its error.
+    (sleep 0.2))
+  (check-equal? (get-output-string errors) ""))
+
+(test-case "run-command drains both child output pipes"
+  ;; stderr is a separate finite pipe.  A command that fills it must not
+  ;; deadlock while the parent waits for exit.
+  (define out
+    (run-command
+     "racket"
+     (list "-e"
+           (string-append
+            "(begin (display (make-string 200000 #\\x)) "
+            "(eprintf \"~a\" (make-string 200000 #\\e)))"))
+     #:timeout-ms 5000))
+  (check-true (string? out) "large stdout + stderr must not time out")
+  (check-equal? (string-length out) 200000))
+
 ;; Regression: a child whose output exceeds the 64 KiB pipe buffer used to
 ;; deadlock run-command (parent waited for exit, child blocked on write)
-;; and every large file search timed out. Unix-gated like the FPP1
-;; fixtures (/bin/sh).
-(when (member (system-type 'os) '(unix macosx))
-  (test-case "run-command drains output larger than the pipe buffer"
-    (define out
-      (run-command "/bin/sh"
-                   (list "-c" "yes hello-there | head -c 200000")
-                   #:timeout-ms 5000))
-    (check-true (string? out) "large output must not time out")
-    (check-true (> (string-length out) 100000))))
+;; and every large file search timed out.  The portable test above covers both
+;; stdout and stderr on all three supported hosts.
