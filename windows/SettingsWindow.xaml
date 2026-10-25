@@ -253,16 +253,8 @@
                         </Grid>
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="A folder a file sync service replicates (OneDrive, Dropbox, Syncthing); settings and snippets mirror there." />
-                        <Grid Style="{StaticResource Row}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Update feed base URL" Style="{StaticResource RowLabel}" />
-                            <TextBox x:Name="UpdateUrlBox" Grid.Column="1" Tag="update-base-url" MinWidth="280"
-                                     VerticalAlignment="Center" PlaceholderText="https://…"
-                                     LostFocus="Text_LostFocus" KeyDown="Text_KeyDown" />
-                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Fulcrum checks signed releases automatically. Use Check for Updates from the tray menu to check now." />
                     </StackPanel>
                 </Border>
 

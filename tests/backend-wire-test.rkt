@@ -328,10 +328,24 @@
 (check! "settings-list no error (2)" sl2e #f)
 (check! "settings-list booleans read on/off"
         (setting-value sl2 "expansion-enabled") "on")
+(check! "settings-list hides updater transport internals"
+        (for/or ([key (in-list '("update-base-url"
+                                  "update-last-check"
+                                  "update-rollout-bucket"))])
+          (setting-value sl2 key))
+        #f)
 (define-values (ssv sse _ssev)
   (call-rpc 51 (list "settings-set" "expansion-enabled" "off")))
 (check! "settings-set accepts off" sse #f)
 (check! "settings-set returns true" ssv #t)
+(define-values (bad-hotkey bad-hotkey-error _bad-hotkey-events)
+  (call-rpc 65 (list "settings-set" "hotkey" "Option-Space")))
+(check! "invalid hotkey is a normal rejected write"
+        (list bad-hotkey bad-hotkey-error) '(#f #f))
+(define-values (after-bad-hotkey _after-bad-hotkey-error _after-bad-hotkey-events)
+  (call-rpc 66 (list "settings-list")))
+(check! "rejected hotkey leaves state unchanged"
+        (setting-value after-bad-hotkey "hotkey") "alt+space")
 (define-values (sl3 _sl3e _sl3ev) (call-rpc 52 (list "settings-list")))
 (check! "settings-set off round-trips through settings-list"
         (setting-value sl3 "expansion-enabled") "off")

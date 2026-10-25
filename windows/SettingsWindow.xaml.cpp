@@ -178,7 +178,6 @@ void SettingsWindow::Apply(std::map<std::string, std::string> values,
   BaseUrlBox().Text(to_wide(get("ai-base-url")));
   PersonaBox().Text(to_wide(get("ai-persona")));
   SyncRootBox().Text(to_wide(get("sync-root")));
-  UpdateUrlBox().Text(to_wide(get("update-base-url")));
   AiStatusText().Text(
       to_wide(ai_status == "ready" ? std::string("Ready") : ai_status));
   loading_ = false;
@@ -196,7 +195,11 @@ void SettingsWindow::Write(std::string key, std::string value) {
   std::thread([weak, api, dispatcher, key, value]() mutable {
     std::string error;
     try {
-      api->settings_set(key, value).get();
+      if (!api->settings_set(key, value).get()) {
+        error = key == "hotkey"
+            ? "that shortcut is not supported"
+            : "that value is not supported";
+      }
     } catch (std::exception const& e) {
       error = e.what();
     } catch (...) {

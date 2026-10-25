@@ -1358,8 +1358,16 @@
        [else (raise-argument-error 'settings-set "boolean string" value)])]
     [else value]))
 
+(define private-setting-keys
+  '(update-base-url update-last-check update-rollout-bucket))
+
 (define-rpc (settings-list : (List (List String)))
-  (for/list ([entry (in-list (core:settings-list (settings!)))])
+  ;; Update transport and rollout bookkeeping are product internals, not
+  ;; user preferences. Keep them out of the public settings surface so no
+  ;; native host can accidentally render or edit them.
+  (for/list ([entry (in-list (core:settings-list (settings!)))]
+             #:unless (member (string->symbol (settings-entry-key entry))
+                              private-setting-keys))
     (list (settings-entry-key entry)
           (settings-entry-value entry)
           (settings-entry-description entry)
@@ -1370,14 +1378,18 @@
           "")))
 
 (define-rpc (settings-set [key String] [value String] : Bool)
-  (define sym (string->symbol key))
-  (settings-set! (settings!) sym (coerce-setting-value sym value))
-  ;; Reflect the host-rendered keys immediately across every open surface.
-  (case sym
-    [(theme) (state-set! theme (settings-get (settings!) 'theme))]
-    [(hotkey) (state-set! hotkey (settings-get (settings!) 'hotkey))]
-    [(language) (state-set! language (settings-get (settings!) 'language))])
-  #t)
+  ;; A settings form is an untrusted user-input boundary. Schema rejection
+  ;; is a normal false result, not an internal Racket contract failure that
+  ;; should leak through RVT1 into a native error label.
+  (with-handlers ([exn:fail:contract? (lambda (_) #f)])
+    (define sym (string->symbol key))
+    (settings-set! (settings!) sym (coerce-setting-value sym value))
+    ;; Reflect the host-rendered keys immediately across every open surface.
+    (case sym
+      [(theme) (state-set! theme (settings-get (settings!) 'theme))]
+      [(hotkey) (state-set! hotkey (settings-get (settings!) 'hotkey))]
+      [(language) (state-set! language (settings-get (settings!) 'language))])
+    #t))
 
 ;; Readiness of the configured AI provider, for the settings window's AI
 ;; section: "ready", or the honest reason it is not (no provider, no key).

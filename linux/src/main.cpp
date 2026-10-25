@@ -2038,7 +2038,11 @@ void settings_write(std::string const& key, std::string const& value) {
   std::thread([api_raw, key, value]() {
     std::string error;
     try {
-      api_raw->settings_set(key, value).get();
+      if (!api_raw->settings_set(key, value).get()) {
+        error = key == "hotkey"
+            ? "that shortcut is not supported"
+            : "that value is not supported";
+      }
     } catch (std::exception const& e) {
       error = e.what();
     } catch (...) {
@@ -2357,7 +2361,9 @@ void settings_build() {
   settings_hint(sync,
                 "A folder a file sync service replicates (Syncthing, Nextcloud, "
                 "Dropbox); settings and snippets mirror there.");
-  settings_add_text(sync, "Update feed base URL", "update-base-url", "https://…");
+  settings_hint(sync,
+                "Fulcrum checks signed releases automatically. Use Check for "
+                "Updates from the tray menu to check now.");
 
   auto* error = gtk_label_new("");
   gtk_label_set_xalign(GTK_LABEL(error), 0.0);

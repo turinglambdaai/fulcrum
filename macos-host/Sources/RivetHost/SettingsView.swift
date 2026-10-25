@@ -53,14 +53,21 @@ final class SettingsModel: ObservableObject {
         values[key] = value
         Task {
             do {
-                _ = try await api.settingsSet(key: key, value: value)
-                error = nil
-                onChanged(key, value)
-                if key == "ai-provider" {
-                    await refreshAiStatus()
+                let accepted = try await api.settingsSet(key: key, value: value)
+                if accepted {
+                    error = nil
+                    onChanged(key, value)
+                    if key == "ai-provider" {
+                        await refreshAiStatus()
+                    }
+                } else {
+                    self.error = key == "hotkey"
+                        ? "That shortcut is not supported. Record another key combination."
+                        : "\(key): that value is not supported."
+                    await load()
                 }
             } catch {
-                self.error = "\(key): \(error)"
+                self.error = "\(key): the setting could not be saved."
                 await load()
             }
         }
@@ -255,6 +262,11 @@ final class HotkeyRecorder {
         }
     }
 
+    func cancel() {
+        stop()
+        finish(nil)
+    }
+
     private func stop() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
@@ -270,8 +282,71 @@ final class HotkeyRecorder {
     }
 }
 
+/// Global summon shortcut editor. Recording produces only canonical values
+/// accepted by the shared backend grammar, so macOS users never need to know
+/// or type the transport spelling (for example, `alt+space`).
+private struct GlobalHotkeySetting: View {
+    let title: String
+    @ObservedObject var model: SettingsModel
+    @State private var recorder: HotkeyRecorder?
+    @State private var isRecording = false
+
+    var body: some View {
+        LabeledContent(title) {
+            if isRecording {
+                Button("Press keys… (Esc cancels)") {}
+                    .disabled(true)
+            } else {
+                Button(Hotkey.display(model.values["hotkey"] ?? "alt+space")) {
+                    isRecording = true
+                    recorder = HotkeyRecorder { spec in
+                        isRecording = false
+                        if let spec, !spec.isEmpty {
+                            model.set("hotkey", spec)
+                        }
+                        recorder = nil
+                    }
+                    recorder?.start()
+                }
+                .help("Record a new global shortcut")
+                .accessibilityIdentifier("settings-record-hotkey")
+            }
+        }
+        .onDisappear {
+            if isRecording { recorder?.cancel() }
+            recorder = nil
+            isRecording = false
+        }
+    }
+}
+
+private enum SettingsSection: String, CaseIterable, Identifiable {
+    case general, features, ai, commands, sync
+
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .features: return "Features"
+        case .ai: return "AI"
+        case .commands: return "Commands"
+        case .sync: return "Sync & Updates"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .general: return "gearshape"
+        case .features: return "square.grid.2x2"
+        case .ai: return "sparkles"
+        case .commands: return "keyboard"
+        case .sync: return "arrow.triangle.2.circlepath"
+        }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
+    @State private var selection: SettingsSection? = .general
 
     // Translation reads the observable backend setting, so switching language
     // immediately re-renders the visible settings surface.
@@ -281,19 +356,28 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TabView {
-                generalTab
-                    .tabItem { Label("General", systemImage: "gearshape") }
-                featuresTab
-                    .tabItem { Label("Features", systemImage: "square.grid.2x2") }
-                aiTab
-                    .tabItem { Label("AI", systemImage: "sparkles") }
-                commandsTab
-                    .tabItem { Label("Commands", systemImage: "keyboard") }
-                syncTab
-                    .tabItem { Label("Sync & Updates", systemImage: "arrow.triangle.2.circlepath") }
+            HStack(spacing: 0) {
+                List(SettingsSection.allCases, selection: $selection) { section in
+                    Label(section.title, systemImage: section.icon)
+                        .tag(section)
+                        .accessibilityIdentifier("settings-sidebar-\(section.rawValue)")
+                }
+                .listStyle(.sidebar)
+                .frame(width: 170)
+
+                Divider()
+
+                Group {
+                    switch selection ?? .general {
+                    case .general: generalTab
+                    case .features: featuresTab
+                    case .ai: aiTab
+                    case .commands: commandsTab
+                    case .sync: syncTab
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.top, 10)
             if let error = model.error {
                 Text(error)
                     .font(.system(size: 11))
@@ -304,7 +388,7 @@ struct SettingsView: View {
                     .padding(.bottom, 10)
             }
         }
-        .frame(width: 560, height: 470)
+        .frame(width: 720, height: 520)
         .task { await model.load() }
     }
 
@@ -322,9 +406,8 @@ struct SettingsView: View {
                 }
             }
             Section {
-                SettingField(title: t("setting.hotkey"), key: "hotkey",
-                             placeholder: "alt+space", model: model)
-                Text("Modifiers alt / ctrl / shift / cmd plus a key: space, a–z, 0–9, f1–f12, comma, period, minus, equal, tab. Applies immediately; a taken combo falls back to ⌃⌥Space.")
+                GlobalHotkeySetting(title: t("setting.hotkey"), model: model)
+                Text("Select the current shortcut, then press the new modifier and key combination. Applies immediately; a taken combo falls back to ⌃⌥Space.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Stepper("\(t("setting.max-results")): \(model.number("max-results", default: 12).wrappedValue)",
@@ -441,8 +524,9 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Section("Updates") {
-                SettingField(title: "Feed base URL", key: "update-base-url",
-                             placeholder: "https://…", model: model)
+                Text("Fulcrum checks signed releases automatically. You can also choose Check for Updates from the app menu.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

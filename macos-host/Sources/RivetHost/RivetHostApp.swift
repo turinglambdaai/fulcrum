@@ -360,7 +360,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private static func makeSettingsWindow(model: SettingsModel) -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 470),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 520),
                               styleMask: [.titled, .closable, .miniaturizable],
                               backing: .buffered, defer: false)
         window.title = "Fulcrum Settings"

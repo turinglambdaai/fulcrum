@@ -79,6 +79,17 @@ func pressReturn(pid: pid_t) throws {
     down.postToPid(pid)
     up.postToPid(pid)
 }
+func pressCommandComma(pid: pid_t) throws {
+    guard let source = CGEventSource(stateID: .hidSystemState),
+          let down = CGEvent(keyboardEventSource: source, virtualKey: 43, keyDown: true),
+          let up = CGEvent(keyboardEventSource: source, virtualKey: 43, keyDown: false) else {
+        throw DriverError.failure("could not create Command-comma key event")
+    }
+    down.flags = .maskCommand
+    up.flags = .maskCommand
+    down.postToPid(pid)
+    up.postToPid(pid)
+}
 func snapshot(_ element: AXUIElement, depth: Int = 0) -> [String: Any] {
     var result: [String: Any] = ["role": stringAttribute(element, kAXRoleAttribute), "identifier": stringAttribute(element, kAXIdentifierAttribute), "title": stringAttribute(element, kAXTitleAttribute), "label": stringAttribute(element, kAXDescriptionAttribute), "value": stringAttribute(element, kAXValueAttribute)]
     if depth < 8 { result["children"] = children(element).map { snapshot($0, depth: depth + 1) } }
@@ -121,7 +132,40 @@ do {
     _ = try waitFor("calculator action clipboard event") {
         NSPasteboard.general.string(forType: .string) == "144" ? true : nil
     }
-    try writeJSON(["platform": "macos", "actions": ["set:FulcrumQuery=12*12", "press:Return"], "assertions": ["packaged SwiftUI window activated", "FulcrumQuery exposed through Accessibility", "query crossed RVT1 into the embedded backend", "native result list contains 144", "run-action emitted 144 to the native clipboard"]], to: output.appendingPathComponent("interaction-trace.json"))
+
+    // Settings is a separate AppKit window. Exercise the real macOS Settings
+    // command after the launcher has hidden, then prove every destination is
+    // directly discoverable without opening a toolbar overflow menu.
+    try pressCommandComma(pid: pid)
+    let settingsWindow: AXUIElement = try waitFor("Fulcrum Settings window") {
+        (attribute(application, kAXWindowsAttribute) as? [AXUIElement])?.first {
+            stringAttribute($0, kAXTitleAttribute) == "Fulcrum Settings"
+        }
+    }
+    for identifier in ["settings-sidebar-general", "settings-sidebar-features",
+                       "settings-sidebar-ai", "settings-sidebar-commands",
+                       "settings-sidebar-sync"] {
+        guard findByIdentifier(settingsWindow, identifier) != nil else {
+            throw DriverError.failure("settings sidebar is missing \(identifier)")
+        }
+    }
+    guard findByIdentifier(settingsWindow, "settings-record-hotkey") != nil else {
+        throw DriverError.failure("settings hotkey recorder is unavailable")
+    }
+    guard !contains(settingsWindow, fragment: "Feed base URL"),
+          !contains(settingsWindow, fragment: "update-base-url"),
+          !contains(settingsWindow, fragment: "releases/latest/download") else {
+        throw DriverError.failure("settings exposes the internal update feed")
+    }
+    guard let syncRow = findByIdentifier(settingsWindow, "settings-sidebar-sync"),
+          AXUIElementPerformAction(syncRow, kAXPressAction as CFString) == .success else {
+        throw DriverError.failure("could not select Sync & Updates directly")
+    }
+    _ = try waitFor("Sync & Updates page") {
+        contains(settingsWindow, fragment: "Fulcrum checks signed releases automatically") ? true : nil
+    }
+    try writeJSON(snapshot(application), to: output.appendingPathComponent("settings-accessibility.json"))
+    try writeJSON(["platform": "macos", "actions": ["set:FulcrumQuery=12*12", "press:Return", "press:CommandComma", "press:settings-sidebar-sync"], "assertions": ["packaged SwiftUI window activated", "FulcrumQuery exposed through Accessibility", "query crossed RVT1 into the embedded backend", "native result list contains 144", "run-action emitted 144 to the native clipboard", "all five settings destinations are directly accessible", "global hotkey uses a recorder control", "internal update feed is absent", "Sync & Updates opens without a toolbar overflow menu"]], to: output.appendingPathComponent("interaction-trace.json"))
     guard let running = NSRunningApplication(processIdentifier: pid), running.terminate() else { throw DriverError.failure("native application rejected termination") }
 } catch {
     if let application = diagnosticApplication, let output = diagnosticOutput { try? writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility-failure.json")) }
