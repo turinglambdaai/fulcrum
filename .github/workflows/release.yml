@@ -514,10 +514,51 @@ jobs:
     needs: github-release
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve draft release REST id
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          # `gh release view --json id` returns a GraphQL node id, while the
+          # REST update endpoint requires the numeric database id. The tagged
+          # release endpoint returns 404 for drafts, so locate it in the
+          # authenticated releases collection before publishing.
+          release_id="$(
+            gh api "repos/$GH_REPO/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"$tag\" and .draft == true) | .id" \
+              | head -n1
+          )"
+          [[ "$release_id" =~ ^[0-9]+$ ]] || {
+            echo "::error::Could not resolve numeric draft release id for $tag"
+            exit 1
+          }
+          echo "id=$release_id" >> "$GITHUB_OUTPUT"
+
+      - name: Banner unsigned releases before they go public
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          FULCRUM_UNSIGNED_RELEASE_APPROVED: ${{ vars.FULCRUM_UNSIGNED_RELEASE_APPROVED }}
+        if: ${{ !contains(github.ref_name, '-rc.') }}
+        run: |
+          set -euo pipefail
+          [[ "$FULCRUM_UNSIGNED_RELEASE_APPROVED" == "true" ]] || exit 0
+          body="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID" --jq '.body')"
+          banner="> ⚠️ **Unsigned release.** Publisher accounts are not provisioned yet: macOS packages are ad-hoc signed (right-click the app → Open on first launch), Windows packages carry no Authenticode signature (SmartScreen will warn). The update channel itself is Ed25519-signed, and Linux artifacts keep their detached signatures."
+          [[ "$body" == "$banner"* ]] || \
+            gh api -X PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+              -f body="$(printf '%s\n\n%s' "$banner" "$body")" >/dev/null
+
       - name: Verify installers and signed feed exist before publishing
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
           FULCRUM_STABLE_RELEASE_APPROVED: ${{ vars.FULCRUM_STABLE_RELEASE_APPROVED }}
           FULCRUM_UNSIGNED_RELEASE_APPROVED: ${{ vars.FULCRUM_UNSIGNED_RELEASE_APPROVED }}
         shell: bash
@@ -571,25 +612,9 @@ jobs:
               echo "::error::Missing release asset $name"; exit 1;
             }
           done
-          # releases/tags/{tag} 404s while the release is still a draft;
-          # gh release view resolves drafts, so the id comes from there.
-          release_id="$(gh release view "$tag" --json id --jq '.id')"
-          gh api -X PATCH "repos/$GH_REPO/releases/$release_id" \
-            -F draft=false -F prerelease="$prerelease" -f make_latest="$make_latest" >/dev/null
+          gh api -X PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+            -f tag_name="$tag" -f target_commitish="$GITHUB_SHA" -f name="$tag" \
+            -F draft=false -F prerelease="$prerelease" \
+            -f make_latest="$make_latest" >/dev/null
           gh release view "$tag" --json isDraft,isPrerelease \
             --jq '[.isDraft, .isPrerelease] | @tsv' | grep -Fx $'false\t'"$prerelease"
-
-      - name: Banner unsigned releases before they go public
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          FULCRUM_UNSIGNED_RELEASE_APPROVED: ${{ vars.FULCRUM_UNSIGNED_RELEASE_APPROVED }}
-        if: ${{ !contains(github.ref_name, '-rc.') }}
-        run: |
-          set -euo pipefail
-          [[ "$FULCRUM_UNSIGNED_RELEASE_APPROVED" == "true" ]] || exit 0
-          tag="${GITHUB_REF_NAME}"
-          body="$(gh release view "$tag" --repo "$GH_REPO" --json body --jq '.body')"
-          banner="> ⚠️ **Unsigned release.** Publisher accounts are not provisioned yet: macOS packages are ad-hoc signed (right-click the app → Open on first launch), Windows packages carry no Authenticode signature (SmartScreen will warn). The update channel itself is Ed25519-signed, and Linux artifacts keep their detached signatures."
-          release_id="$(gh release view "$tag" --repo "$GH_REPO" --json id --jq '.id')"
-          gh api -X PATCH "repos/$GH_REPO/releases/$release_id" -f body="$(printf '%s\n\n%s' "$banner" "$body")"
