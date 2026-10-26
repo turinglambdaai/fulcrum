@@ -53,6 +53,30 @@
      (check-equal? (file-index-count path) 1)
      (check-equal? (file-index-search path "beta" 8) '()))))
 
+(test-case "pinyin terms follow file add rename and remove"
+  (with-index
+   (lambda (path)
+     (check-true
+      (file-index-upsert-hits!
+       path
+       '(("微信计划.md" . "D:\\资料\\微信计划.md")
+         ("臺灣行程.txt" . "/docs/臺灣行程.txt"))))
+     (check-equal? (map car (file-index-search path "weixin" 8))
+                   '("微信计划.md"))
+     (check-equal? (map car (file-index-search path "wxjh" 8))
+                   '("微信计划.md"))
+     (check-equal? (map car (file-index-search path "taiwan" 8))
+                   '("臺灣行程.txt"))
+     (check-true
+      (file-index-rename! path
+                          "D:\\资料\\微信计划.md"
+                          "D:\\资料\\钉钉计划.md"))
+     (check-equal? (file-index-search path "weixin" 8) '())
+     (check-equal? (map car (file-index-search path "dingding" 8))
+                   '("钉钉计划.md"))
+     (check-true (file-index-remove-paths! path '("D:\\资料\\钉钉计划.md")))
+     (check-equal? (file-index-search path "dingding" 8) '()))))
+
 (test-case "corrupt cache is discarded and rebuilt safely"
   (with-index
    (lambda (path)

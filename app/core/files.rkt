@@ -18,7 +18,8 @@
          net/uri-codec
          "file-index.rkt"
          "fuzzy.rkt"
-         "proc.rkt")
+         "proc.rkt"
+         "search-normalize.rkt")
 
 (provide (struct-out file-search-result)
          file-search-available?
@@ -146,8 +147,9 @@
   (define fuzzy
     (or (fuzzy-score-fields
          q
-         (list (cons 1.0 name)
-               (cons 0.35 path)))
+         (search-fields-with-pinyin
+          (list (cons 1.0 name)
+                (cons 0.35 path))))
         0))
   (define intent-bonus
     (cond

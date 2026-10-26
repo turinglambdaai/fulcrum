@@ -124,6 +124,22 @@ do {
         throw DriverError.failure("could not press FulcrumAcceptanceQuery")
     }
     _ = try waitFor("calculator result 144 from embedded backend") { contains(window, fragment: "144") ? true : nil }
+
+    // Exercise the complete macOS capture path, not just backend store tests:
+    // NSPasteboard change -> one-second host watcher -> clipboard-record RPC ->
+    // the documented clip launcher query.
+    let clipboardFixture = "Fulcrum clipboard acceptance 7F3A9C"
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(clipboardFixture, forType: .string)
+    Thread.sleep(forTimeInterval: 1.2)
+    try replaceText(query, with: "clip", pid: pid)
+    _ = try waitFor("clipboard history row from macOS pasteboard watcher") {
+        contains(window, fragment: clipboardFixture) ? true : nil
+    }
+    try replaceText(query, with: "12*12", pid: pid)
+    _ = try waitFor("calculator result after clipboard journey") {
+        contains(window, fragment: "144") ? true : nil
+    }
     try writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility.json"))
     guard AXUIElementSetAttributeValue(query, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
         throw DriverError.failure("could not refocus FulcrumQuery before Return")
@@ -165,7 +181,7 @@ do {
         contains(settingsWindow, fragment: "Fulcrum checks signed releases automatically") ? true : nil
     }
     try writeJSON(snapshot(application), to: output.appendingPathComponent("settings-accessibility.json"))
-    try writeJSON(["platform": "macos", "actions": ["set:FulcrumQuery=12*12", "press:Return", "press:CommandComma", "press:settings-sidebar-sync"], "assertions": ["packaged SwiftUI window activated", "FulcrumQuery exposed through Accessibility", "query crossed RVT1 into the embedded backend", "native result list contains 144", "run-action emitted 144 to the native clipboard", "all five settings destinations are directly accessible", "global hotkey uses a recorder control", "internal update feed is absent", "Sync & Updates opens without a toolbar overflow menu"]], to: output.appendingPathComponent("interaction-trace.json"))
+    try writeJSON(["platform": "macos", "actions": ["copy:clipboard-fixture", "set:FulcrumQuery=clip", "set:FulcrumQuery=12*12", "press:Return", "press:CommandComma", "press:settings-sidebar-sync"], "assertions": ["packaged SwiftUI window activated", "FulcrumQuery exposed through Accessibility", "macOS pasteboard watcher recorded text through RVT1", "clip query listed clipboard history", "query crossed RVT1 into the embedded backend", "native result list contains 144", "run-action emitted 144 to the native clipboard", "all five settings destinations are directly accessible", "global hotkey uses a recorder control", "internal update feed is absent", "Sync & Updates opens without a toolbar overflow menu"]], to: output.appendingPathComponent("interaction-trace.json"))
     guard let running = NSRunningApplication(processIdentifier: pid), running.terminate() else { throw DriverError.failure("native application rejected termination") }
 } catch {
     if let application = diagnosticApplication, let output = diagnosticOutput { try? writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility-failure.json")) }

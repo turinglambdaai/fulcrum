@@ -31,6 +31,7 @@
          "paths.rkt"
          "plugins.rkt"
          "quicklinks.rkt"
+         "search-normalize.rkt"
          "store.rkt"
          "snippets.rkt"
          "syscmd.rkt"
@@ -62,16 +63,24 @@
 
 ;; Prepared application rows: the fuzzy fields are immutable per rebuild,
 ;; so pre-join the keywords once instead of on every keystroke for every
-;; application. Each entry is a vector (id name path keywords-joined icon).
+;; application. Each entry is a vector
+;; (id name path keywords-joined icon weighted-search-fields).
 ;; The icon token stays part of the 8-column result-row contract: Linux
 ;; consumes a freedesktop Icon name or path; macOS/Windows use native file APIs.
 (define (prepare-app-rows index)
   (for/list ([app (in-list (hash-values index))])
+    (define name (application-name app))
+    (define path (application-path app))
+    (define keywords (string-join (application-keywords app) " "))
     (vector (application-id app)
-            (application-name app)
-            (application-path app)
-            (string-join (application-keywords app) " ")
-            (application-icon app))))
+            name
+            path
+            keywords
+            (application-icon app)
+            (search-fields-with-pinyin
+             (list (cons 1.0 name)
+                   (cons 0.7 keywords)
+                   (cons 0.4 path))))))
 
 ;; Cheap first-character prefilter: a subsequence match must start
 ;; somewhere, so the query's first character has to appear (case-folded) in
@@ -83,9 +92,8 @@
       (and (>= i 0)
            (or (char=? (char-downcase (string-ref s i)) ch)
                (loop (sub1 i))))))
-  (or (contains? (vector-ref row 1))
-      (contains? (vector-ref row 3))
-      (contains? (vector-ref row 2))))
+  (for/or ([field (in-list (vector-ref row 5))])
+    (contains? (cdr field))))
 
 
 (define (result->row r)
@@ -173,11 +181,7 @@
         (for/list ([row (in-list rows)]
                    #:when (row-matches-first-char? row q0))
           (define score
-            (fuzzy-score-fields
-             query
-             (list (cons 1.0 (vector-ref row 1))
-                   (cons 0.7 (vector-ref row 3))
-                   (cons 0.4 (vector-ref row 2)))))
+            (fuzzy-score-fields query (vector-ref row 5)))
           (and score
                (result "app.launch" (vector-ref row 1)
                        (vector-ref row 2) "Application"
@@ -209,27 +213,52 @@
       (result "calc.copy" (car pair) (cdr pair) "Calculator" (car pair)
               "calculator" "" "Copy" "" 130))))
 
+(define clipboard-history-queries
+  '("clip" "clipboard" "clipboard history" "剪贴板" "剪贴板历史"))
+
+(define (clipboard-message-row title subtitle badge)
+  (result "noop" title subtitle "Clipboard" "" "clipboard" "" badge
+          "clipboard clip history 剪贴板" 650))
+
 (define (clipboard-provider engine)
   (define store (engine-clipboard engine))
-  (if store
-      (lambda (query)
-        (for/list ([item (in-list (if (zero? (string-length query))
-                                      (clipboard-list store 6)
-                                      (clipboard-search store query)))])
-          (define preview
-            (let ([text (string-replace (clipboard-item-text item) "\n" " ")])
-              (if (> (string-length text) 120)
-                  (string-append (substring text 0 120) "…")
-                  text)))
-          (result "clip.paste" preview
-                  (format "~a · pinned: ~a"
-                          (clipboard-item-id item)
-                          (if (clipboard-item-pinned? item) "yes" "no"))
-                  "Clipboard"
-                  (clipboard-item-id item) "clipboard" "" ""
-                  (clipboard-item-text item)
-                  (if (zero? (string-length query)) 60 80))))
-      (lambda (query) '())))
+  (lambda (query)
+    (define history-query?
+      (member (string-downcase (string-trim query)) clipboard-history-queries))
+    (cond
+      [(not store)
+       (if history-query?
+           (list (clipboard-message-row
+                  "Clipboard history is disabled"
+                  "enable clipboard-enabled in Settings to start recording"
+                  "Disabled"))
+           '())]
+      [else
+       (define items
+         (cond
+           [(zero? (string-length query)) (clipboard-list store 6)]
+           [history-query? (clipboard-list store 25)]
+           [else (clipboard-search store query)]))
+       (if (and history-query? (null? items))
+           (list (clipboard-message-row
+                  "Clipboard history is empty"
+                  "copy some text, then type clip again"
+                  "Empty"))
+           (for/list ([item (in-list items)])
+             (define preview
+               (let ([text (string-replace (clipboard-item-text item) "\n" " ")])
+                 (if (> (string-length text) 120)
+                     (string-append (substring text 0 120) "…")
+                     text)))
+             (result "clip.paste" preview
+                     (format "~a · pinned: ~a"
+                             (clipboard-item-id item)
+                             (if (clipboard-item-pinned? item) "yes" "no"))
+                     "Clipboard"
+                     (clipboard-item-id item) "clipboard" "" ""
+                     (clipboard-item-text item)
+                     (if history-query? 650
+                         (if (zero? (string-length query)) 60 80)))))])))
 
 (define (snippets-provider engine)
   (define store (engine-snippets engine))

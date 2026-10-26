@@ -23,7 +23,7 @@ Filename search is local by default. Content search is a separate, explicit
 mode because it has different latency, privacy and indexing costs. Indexed
 names and paths never enter Fulcrum sync or telemetry.
 
-## Current slice (schema 3)
+## Current slice (schema 4)
 
 `file-index.sqlite3` is a rebuildable local B-tree of file names and paths.
 The first `find` query starts a cancellable background inventory of Desktop,
@@ -39,6 +39,12 @@ the platform process times out or its tool is temporarily unavailable. The
 catalog is rescanned once per process after its first file query; host-native
 change streams are not wired yet.
 
+Schema 4 adds a sparse pinyin term table for Chinese basenames. Tone-free full
+pinyin and initials are generated offline from a pinned MIT-licensed dataset;
+literal name/stem/prefix matches retain the larger ranking bonuses. Only names
+containing mapped Han characters add rows, so ordinary Latin-only indexes do
+not pay a two-terms-per-file storage tax.
+
 The checked-in benchmark generates one million synthetic paths in the OS temp
 directory. On the 2026-10-26 Windows development machine, schema 3 measured:
 
@@ -51,6 +57,12 @@ The query SLO passes. Initial build time, disk size, substring recall and live
 filesystem coverage do not yet meet the final product contract. Run the same
 workload with `racket scripts/benchmark-file-index.rkt`; smaller diagnostic
 runs accept `--entries` and `--queries`.
+
+The issue #95 mixed-language workload uses 100,000 synthetic paths with 20%
+Chinese basenames and 300 full-pinyin/initial/literal queries. On the same
+Windows development machine, schema 4 measured 12.9 seconds to ingest, 43.0
+MiB on disk, p50 3.672 ms, p95 5.467 ms and max 6.279 ms. Reproduce it with
+`racket scripts/benchmark-pinyin-index.rkt`.
 
 ## Target index
 

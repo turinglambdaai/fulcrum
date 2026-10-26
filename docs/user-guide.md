@@ -37,7 +37,9 @@ is detail.
 
 Type any part of an app's name — `firefox`, `term`, `calc`. Fulcrum
 matches loosely: `ffx` finds Firefox, typos tolerated. Frequently
-launched apps rank higher over time.
+launched apps rank higher over time. Chinese names also match offline by
+tone-free full pinyin or initials: `weixin` and `wx` both find `微信`,
+while the literal Chinese name remains the strongest match.
 
 ### Paste anything, anywhere
 
@@ -155,6 +157,8 @@ local match, Fulcrum says so honestly.
 Type `file index` to see whether the local catalog is idle, scanning, ready,
 partially ready because a folder was unreadable, or failed. A partial scan
 preserves older entries instead of treating an access denial as deletion.
+Chinese basenames in the local catalog are searchable by tone-free full
+pinyin and initials as well as their original characters.
 
 ### System commands
 

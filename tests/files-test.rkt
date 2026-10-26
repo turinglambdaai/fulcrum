@@ -68,6 +68,15 @@
   (check-equal? (rank-file-hits "report" candidates 2)
                 (take ranked 2)))
 
+(test-case "cross-platform reranking recognizes pinyin candidates"
+  (define ranked
+    (rank-file-hits
+     "weixin"
+     '(("unrelated.txt" . "C:\\Users\\me\\unrelated.txt")
+       ("微信计划.md" . "C:\\Users\\me\\Documents\\微信计划.md"))
+     2))
+  (check-equal? (car (car ranked)) "微信计划.md"))
+
 (test-case "windows backend runs the index-first script inside one command"
   (define captured #f)
   (define result
