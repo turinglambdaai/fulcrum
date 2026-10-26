@@ -49,6 +49,10 @@ require 'FULCRUM_STABLE_RELEASE_APPROVED'
 require 'Release (unsigned, honestly labeled)'
 require 'Banner unsigned releases before they go public'
 require 'Unsigned release.** Publisher accounts are not provisioned yet'
+require 'Resolve draft release REST id'
+require 'releases?per_page=100'
+require 'RELEASE_ID: ${{ steps.release.outputs.id }}'
+require '-f tag_name="$tag" -f target_commitish="$GITHUB_SHA"'
 require 'needs: github-release'
 require 'Verify installers and signed feed exist before publishing'
 require 'Require green CI and Product Acceptance for tagged commit'
@@ -57,4 +61,14 @@ require 'actions: read'
 require "prerelease: \${{ contains(github.ref_name, '-rc.') }}"
 require "make_latest: \${{ contains(github.ref_name, '-rc.') && 'false' || 'true' }}"
 require "if: \${{ !contains(github.ref_name, '-rc.') }}"
+if grep -Eq 'release_id=.*gh release view .*--json id' "$release"; then
+  echo 'release-safety: gh release view returns a GraphQL node id; REST updates require the numeric database id' >&2
+  exit 1
+fi
+banner_line="$(grep -n -m1 'name: Banner unsigned releases before they go public' "$release" | cut -d: -f1)"
+publish_line="$(grep -n -m1 'name: Verify installers and signed feed exist before publishing' "$release" | cut -d: -f1)"
+if [[ "$banner_line" -ge "$publish_line" ]]; then
+  echo 'release-safety: the unsigned warning must be attached while the release is still a draft' >&2
+  exit 1
+fi
 echo 'release-safety: stable production-signing gates present (explicit unsigned channel verified)'
