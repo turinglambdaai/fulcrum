@@ -24,6 +24,7 @@
          "clipboard.rkt"
          "convert.rkt"
          "emoji.rkt"
+         "file-catalog.rkt"
          "files.rkt"
          "fuzzy.rkt"
          "gallery.rkt"
@@ -40,6 +41,9 @@
          make-engine
          engine-search
          engine-run
+         engine-start-file-catalog!
+         engine-stop!
+         engine-file-catalog-status
          engine-rebuild-index!
          engine-app-count
          engine-record-use!
@@ -53,7 +57,7 @@
   #:transparent)
 
 (struct engine
-  (apps-index apps-prepared clipboard snippets quicklinks bindings plugins syscmds recents-path recents recents-lock max-results file-index-path)
+  (apps-index apps-prepared clipboard snippets quicklinks bindings plugins syscmds recents-path recents recents-lock max-results file-index-path file-catalog-roots file-catalog-worker file-catalog-lock)
   #:mutable)
 
 ;; Prepared application rows: the fuzzy fields are immutable per rebuild,
@@ -480,54 +484,113 @@
     ("win.restore" "Restore" "window restore undo")))
 
 (define find-file-prefix "find ")
+(define file-index-status-queries '("file index" "file search status"))
+
+(define (engine-start-file-catalog! engine)
+  (when (and (engine-file-index-path engine)
+             (pair? (engine-file-catalog-roots engine)))
+    (call-with-semaphore
+     (engine-file-catalog-lock engine)
+     (lambda ()
+       (unless (engine-file-catalog-worker engine)
+         (set-engine-file-catalog-worker!
+          engine
+          (start-file-catalog! (engine-file-index-path engine)
+                               (engine-file-catalog-roots engine))))))))
+
+(define (engine-file-catalog-status engine)
+  (define worker (engine-file-catalog-worker engine))
+  (if worker
+      (file-catalog-current-status worker)
+      (file-catalog-status 'idle 0 0
+                           (length (engine-file-catalog-roots engine)) #f)))
+
+(define (engine-stop! engine)
+  (define worker (engine-file-catalog-worker engine))
+  (when worker (stop-file-catalog! worker))
+  (void))
+
+(define (file-index-status-row engine)
+  (define status (engine-file-catalog-status engine))
+  (define state (file-catalog-status-state status))
+  (define indexed (file-catalog-status-indexed status))
+  (define completed (file-catalog-status-roots-completed status))
+  (define total (file-catalog-status-roots-total status))
+  (result
+   "noop"
+   (case state
+     [(idle) "File index is ready to start"]
+     [(starting) "Starting the local file index…"]
+     [(scanning) (format "Indexing files… ~a found" indexed)]
+     [(ready) (format "File index ready · ~a files scanned" indexed)]
+     [(partial) (format "File index partially ready · ~a files scanned" indexed)]
+     [(cancelled) "File indexing stopped"]
+     [else "File index needs attention"])
+   (case state
+     [(idle) "run find <query> to build Desktop, Documents and Downloads in the background"]
+     [(starting scanning) (format "~a of ~a search roots complete" completed total)]
+     [(ready) (format "~a search roots complete · platform search still covers broader locations" completed)]
+     [(partial) "some folders could not be read; existing entries were preserved and platform search fills the gaps"]
+     [(cancelled) "the next app session can rebuild the local catalog"]
+     [else "the platform search remains available; restart Fulcrum to retry the local catalog"])
+   "File" "" "doc" "" (symbol->string state)
+   "file index search status catalog"
+   120))
 
 ;; `find <query>` claims file search. All three platforms have a real
 ;; provider (files.rkt); the honest row below appears only when the
 ;; platform's search tool is missing entirely, naming what would restore it.
 (define (files-provider engine)
   (lambda (query)
-    (if (not (string-prefix? (string-downcase query) find-file-prefix))
-        '()
-        (let ([text (string-trim (substring query (string-length find-file-prefix)))])
-          (if (zero? (string-length text))
-              '()
-              (let ([search (file-search/status
-                             text
-                             8
-                             #:index-path (engine-file-index-path engine))])
-                (case (file-search-result-status search)
-                  [(ok)
-                   (for/list ([hit (in-list (file-search-result-hits search))])
-                     (result "file.open" (car hit)
-                             (cdr hit) "File"
-                             (cdr hit) "doc" "" ""
-                             (car hit)
+    (define lowered (string-downcase query))
+    (cond
+      [(member lowered file-index-status-queries)
+       (list (file-index-status-row engine))]
+      [(not (string-prefix? lowered find-file-prefix)) '()]
+      [else
+       (let ([text (string-trim (substring query (string-length find-file-prefix)))])
+         (if (zero? (string-length text))
+             '()
+             (begin
+               (engine-start-file-catalog! engine)
+               (let ([search (file-search/status
+                              text
+                              8
+                              #:index-path (engine-file-index-path engine))])
+                 (case (file-search-result-status search)
+                   [(ok)
+                    (for/list ([hit (in-list (file-search-result-hits search))])
+                      (result "file.open" (car hit)
+                              (cdr hit) "File"
+                              (cdr hit) "doc" "" ""
+                              (car hit)
+                              85))]
+                   [(timeout)
+                    (list
+                     (result "noop"
+                             "File search timed out"
+                             (if (and (eq? (system-type 'os) 'unix)
+                                      (eq? (file-search-result-backend search) 'find))
+                                 "the unindexed find fallback exceeded 3 seconds — install plocate for fast indexed search"
+                                 "the platform search tool did not respond within 3 seconds — try again")
+                             "File" "" "doc" "" "Timed out"
+                             "find file search timeout plocate"
                              85))]
-                  [(timeout)
-                   (list
-                    (result "noop"
-                            "File search timed out"
-                            (if (and (eq? (system-type 'os) 'unix)
-                                     (eq? (file-search-result-backend search) 'find))
-                                "the unindexed find fallback exceeded 3 seconds — install plocate for fast indexed search"
-                                "the platform search tool did not respond within 3 seconds — try again")
-                            "File" "" "doc" "" "Timed out"
-                            "find file search timeout plocate"
-                            85))]
-                  ;; A newer keystroke superseded this query. Every host also
-                  ;; generation-guards painting, so the stale response stays
-                  ;; silent instead of flashing an unavailable/timeout row.
-                  [(cancelled) '()]
-                  [else
-                   (list (result "noop"
-                                 (case (system-type 'os)
-                                   [(macosx) "File search needs mdfind (Spotlight CLI)"]
-                                   [(windows) "File search needs PowerShell"]
-                                   [else "File search needs locate or find — install plocate for indexed results"])
-                                 "no search tool on PATH — install one and this turns into real results"
-                                 "File" "" "doc" "" "Unavailable"
-                                 "find file search"
-                                 85))])))))))
+                   ;; A newer keystroke superseded this query. Every host also
+                   ;; generation-guards painting, so the stale response stays
+                   ;; silent instead of flashing an unavailable/timeout row.
+                   [(cancelled) '()]
+                   [else
+                    (list
+                     (result "noop"
+                             (case (system-type 'os)
+                               [(macosx) "File search needs mdfind (Spotlight CLI)"]
+                               [(windows) "File search needs PowerShell"]
+                               [else "File search needs locate or find — install plocate for indexed results"])
+                             "no search tool on PATH — install one and this turns into real results"
+                             "File" "" "doc" "" "Unavailable"
+                             "find file search"
+                             85))])))))])))
 
 (define (window-provider engine)
   (lambda (query)
@@ -703,14 +766,16 @@
                   #:bindings-store [bindings-store #f]
                   #:plugin-manager [plugin-manager #f]
                   #:max-results [max-results 12]
-                  #:file-index-path [file-index-path #f])
+                  #:file-index-path [file-index-path #f]
+                  #:file-catalog-roots [file-catalog-roots '()])
   (->* (#:clipboard-store (or/c clipboard-store? #f)
         #:snippet-store (or/c snippet-store? #f)
         #:plugin-manager (or/c plugin-manager? #f))
        (#:quicklink-store (or/c quicklink-store? #f)
         #:bindings-store (or/c bindings-store? #f)
         #:max-results (and/c exact-integer? (>=/c 1) (<=/c 50))
-        #:file-index-path (or/c path-string? #f))
+        #:file-index-path (or/c path-string? #f)
+        #:file-catalog-roots (listof path-string?))
        engine?)
   (engine (make-hash) #f
           clipboard-store
@@ -723,7 +788,10 @@
           (load-recents (recents-path))
           (make-semaphore 1)
           max-results
-          file-index-path))
+          file-index-path
+          file-catalog-roots
+          #f
+          (make-semaphore 1)))
 
 (define (engine-rebuild-index! engine)
   (define apps (discover-applications))

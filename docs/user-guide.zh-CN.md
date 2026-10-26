@@ -95,7 +95,9 @@ add link yt https://youtube.com/search?q={query}
 
 ### 找文件
 
-`find 发票` 先通过平台索引搜文件名：macOS 用 Spotlight，Windows 用 Windows Search（索引未开启时回退到有界慢扫描），Linux 用 `plocate`/`locate`。命中结果同时写入 Fulcrum 的本地持久化文件名索引；平台搜索超时或暂不可用时，已知文件的精确与前缀查询仍可返回。Linux 安装 `plocate` 后宽泛搜索更快；平台没有结果且本地也没有已知匹配时，Fulcrum 会如实说明。
+`find 发票` 先通过平台索引搜文件名：macOS 用 Spotlight，Windows 用 Windows Search（索引未开启时回退到有界慢扫描），Linux 用 `plocate`/`locate`。命中结果同时写入 Fulcrum 的本地持久化文件名索引。第一次文件查询还会在后台建立 Desktop、Documents、Downloads 清单；存在时同时覆盖 Windows OneDrive、macOS iCloud Drive 与 Linux 本地化 XDG 用户目录，并跳过 `.git`、`node_modules`、`.cache` 等依赖/缓存树。建库期间仍由平台索引立即回答；完成后即使平台搜索超时或暂不可用，常用目录内文件的精确与前缀查询仍可返回。Linux 安装 `plocate` 后宽泛搜索更快；平台没有结果且本地也没有已知匹配时，Fulcrum 会如实说明。
+
+输入 `file index` 可查看本地清单处于 idle、scanning、ready、因目录不可读而 partially ready，还是 failed。部分扫描会保留旧记录，不会把拒绝访问误判为文件已删除。
 
 ### 系统命令
 

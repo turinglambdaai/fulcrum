@@ -142,11 +142,19 @@ applied to whatever window was in front before you summoned Fulcrum.
 `find invoice` searches file names using the platform index: Spotlight
 on macOS, Windows Search on Windows (with a bounded slow scan as fallback
 when the index is off), and `plocate`/`locate` on Linux. Results also seed
-Fulcrum's local persistent filename index. Exact and prefix queries can
-therefore still return known files if the platform search times out or is
-temporarily unavailable. Install `plocate` on Linux for fast broad searches;
-with neither platform results nor a known local match, Fulcrum says so
-honestly.
+Fulcrum's local persistent filename index. The first file query starts a
+background catalog of Desktop, Documents and Downloads; Windows OneDrive,
+macOS iCloud Drive and localized Linux XDG user folders are included when
+present. Dependency/cache trees such as `.git`, `node_modules` and `.cache`
+are skipped. The platform index answers while that catalog is still building.
+Later exact and prefix queries can therefore return common files even if the
+platform search times out or is temporarily unavailable. Install `plocate`
+on Linux for fast broad searches; with neither platform results nor a known
+local match, Fulcrum says so honestly.
+
+Type `file index` to see whether the local catalog is idle, scanning, ready,
+partially ready because a folder was unreadable, or failed. A partial scan
+preserves older entries instead of treating an access denial as deletion.
 
 ### System commands
 

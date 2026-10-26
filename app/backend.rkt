@@ -26,6 +26,7 @@
          "core/bindings.rkt"
          "core/clipboard.rkt"
          "core/engine.rkt"
+         "core/file-catalog.rkt"
          "core/fuzzy.rkt"
          "core/gallery.rkt"
          "core/paths.rkt"
@@ -1712,7 +1713,8 @@
                  #:bindings-store bindings-store
                  #:plugin-manager plug-mgr
                  #:max-results (settings-get manager 'max-results)
-                 #:file-index-path (file-index-path)))
+                 #:file-index-path (file-index-path)
+                 #:file-catalog-roots (default-file-catalog-roots)))
   (engine-rebuild-index! engine)
   ;; The startup rebuild IS the fresh state; stamping the cache here keeps
   ;; the first search from re-scanning the roots redundantly.
@@ -1734,4 +1736,6 @@
   (dynamic-wind
     void
     (lambda () (serve-fds in-fd out-fd))
-    (lambda () (ai-session-close! ai-service))))
+    (lambda ()
+      (engine-stop! engine)
+      (ai-session-close! ai-service))))

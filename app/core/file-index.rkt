@@ -17,10 +17,12 @@
 (provide file-index-count
          file-index-search
          file-index-upsert-hits!
+         file-index-upsert-scan-hits!
+         file-index-finish-scan!
          file-index-remove-paths!
          file-index-rename!)
 
-(define schema-version 2)
+(define schema-version 3)
 (define max-candidates 256)
 
 (define (fold text)
@@ -56,13 +58,19 @@
      connection
      (lambda ()
        (query-exec connection "DROP TABLE IF EXISTS files")
+       (query-exec connection "DROP TABLE IF EXISTS roots")
+       (query-exec
+        connection
+        "CREATE TABLE roots (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE)")
        (query-exec
         connection
         (string-append
          "CREATE TABLE files ("
          "path TEXT PRIMARY KEY NOT NULL,"
          "name TEXT NOT NULL,"
-         "folded_name TEXT NOT NULL"
+         "folded_name TEXT NOT NULL,"
+         "root_id INTEGER NOT NULL DEFAULT 0,"
+         "generation INTEGER NOT NULL DEFAULT 0"
          ") WITHOUT ROWID"))
        (query-exec connection
                    "CREATE INDEX files_name_prefix ON files(folded_name, path)")
@@ -120,6 +128,48 @@
           (define full-path (cdr hit))
           (query-exec connection upsert
                       full-path name (fold name)))))
+     #t)))
+
+(define (root-id connection root)
+  (query-exec connection "INSERT OR IGNORE INTO roots(path) VALUES(?)" root)
+  (query-value connection "SELECT id FROM roots WHERE path = ?" root))
+
+;; Scan writes carry a root and generation. A completed scan can therefore
+;; remove paths that disappeared without touching platform-learned rows or a
+;; different root. Interrupted scans never call finish and never prune.
+(define (file-index-upsert-scan-hits! path root generation hits)
+  (call-with-index
+   path #f
+   (lambda (connection)
+     (define rid (root-id connection root))
+     (define upsert
+       (prepare
+        connection
+        (string-append
+         "INSERT INTO files(path,name,folded_name,root_id,generation) VALUES(?,?,?,?,?) "
+         "ON CONFLICT(path) DO UPDATE SET "
+         "name=excluded.name, folded_name=excluded.folded_name, "
+         "root_id=excluded.root_id, generation=excluded.generation")))
+     (call-with-transaction
+      connection
+      (lambda ()
+        (for ([hit (in-list hits)] #:when (valid-hit? hit))
+          (define name (car hit))
+          (define full-path (cdr hit))
+          (query-exec connection upsert
+                      full-path name (fold name) rid generation))))
+     #t)))
+
+(define (file-index-finish-scan! path root generation)
+  (call-with-index
+   path #f
+   (lambda (connection)
+     (define rid
+       (query-maybe-value connection "SELECT id FROM roots WHERE path = ?" root))
+     (when rid
+       (query-exec connection
+                   "DELETE FROM files WHERE root_id = ? AND generation <> ?"
+                   rid generation))
      #t)))
 
 (define (file-index-count path)

@@ -23,22 +23,29 @@ Filename search is local by default. Content search is a separate, explicit
 mode because it has different latency, privacy and indexing costs. Indexed
 names and paths never enter Fulcrum sync or telemetry.
 
-## Current slice (schema 2)
+## Current slice (schema 3)
 
-`file-index.sqlite3` is a rebuildable local B-tree of file names and paths
-previously returned by a platform search. Exact and filename-prefix queries
-are merged with fresh platform candidates and then ranked by the common Racket
-ranker. Cached candidates rescue a query when the platform process times out
-or its tool is temporarily unavailable. Adds, renames and removes have an
-incremental storage API; host change streams are not wired yet.
+`file-index.sqlite3` is a rebuildable local B-tree of file names and paths.
+The first `find` query starts a cancellable background inventory of Desktop,
+Documents and Downloads, plus OneDrive/iCloud/XDG equivalents when present.
+It writes bounded batches and tags every row with a root and generation; only
+a successfully completed root scan prunes unseen paths, so cancellation or an
+I/O failure cannot turn a partial scan into mass deletion. Dependency/cache
+trees are excluded. Results returned by a platform search also seed the index.
+
+Exact and filename-prefix queries are merged with fresh platform candidates
+and ranked by the common Racket ranker. Cached candidates rescue a query when
+the platform process times out or its tool is temporarily unavailable. The
+catalog is rescanned once per process after its first file query; host-native
+change streams are not wired yet.
 
 The checked-in benchmark generates one million synthetic paths in the OS temp
-directory. On the 2026-10-26 Windows development machine, schema 2 measured:
+directory. On the 2026-10-26 Windows development machine, schema 3 measured:
 
-- initial insertion: 175.2 seconds;
-- database size: 184.5 MiB;
+- initial insertion: 163.0 seconds;
+- database size: 188.6 MiB;
 - 500 warm prefix queries (including one- and two-character prefixes):
-  p50 5.412 ms, p95 7.818 ms, max 9.307 ms.
+  p50 4.586 ms, p95 8.752 ms, max 11.948 ms.
 
 The query SLO passes. Initial build time, disk size, substring recall and live
 filesystem coverage do not yet meet the final product contract. Run the same
