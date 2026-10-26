@@ -26,7 +26,9 @@ jobs:
           architecture: x64
       - name: Install pinned Rivet updater dependencies
         shell: bash
-        run: raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#a92877c02b6453b1826bfd061d7bbe70647ce5fa'
+        run: |
+          racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
+          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#a92877c02b6453b1826bfd061d7bbe70647ce5fa'
       - name: Verify official signed update discovery and MSI payload
         shell: bash
         run: racket scripts/acceptance/windows-signed-feed-smoke.rkt
