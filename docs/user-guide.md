@@ -37,7 +37,9 @@ is detail.
 
 Type any part of an app's name — `firefox`, `term`, `calc`. Fulcrum
 matches loosely: `ffx` finds Firefox, typos tolerated. Frequently
-launched apps rank higher over time.
+launched apps rank higher over time. Chinese names also match offline by
+tone-free full pinyin or initials: `weixin` and `wx` both find `微信`,
+while the literal Chinese name remains the strongest match.
 
 ### Paste anything, anywhere
 
@@ -139,11 +141,24 @@ applied to whatever window was in front before you summoned Fulcrum.
 
 ### Find files
 
-`find invoice` searches file names over the platform's own index:
-Spotlight on macOS, Windows Search on Windows (with a bounded slow
-scan as fallback on machines where the index is off), and
-`plocate`/`locate` on Linux. Install `plocate` on Linux and it gets
-fast; with no search tool at all, Fulcrum says so honestly.
+`find invoice` searches file names using the platform index: Spotlight
+on macOS, Windows Search on Windows (with a bounded slow scan as fallback
+when the index is off), and `plocate`/`locate` on Linux. Results also seed
+Fulcrum's local persistent filename index. The first file query starts a
+background catalog of Desktop, Documents and Downloads; Windows OneDrive,
+macOS iCloud Drive and localized Linux XDG user folders are included when
+present. Dependency/cache trees such as `.git`, `node_modules` and `.cache`
+are skipped. The platform index answers while that catalog is still building.
+Later exact and prefix queries can therefore return common files even if the
+platform search times out or is temporarily unavailable. Install `plocate`
+on Linux for fast broad searches; with neither platform results nor a known
+local match, Fulcrum says so honestly.
+
+Type `file index` to see whether the local catalog is idle, scanning, ready,
+partially ready because a folder was unreadable, or failed. A partial scan
+preserves older entries instead of treating an access denial as deletion.
+Chinese basenames in the local catalog are searchable by tone-free full
+pinyin and initials as well as their original characters.
 
 ### System commands
 
@@ -293,7 +308,7 @@ sync.
 
 ## Privacy
 
-Local files include clipboard/snippet data, AI history and ai-keys.json. AI requests send selected context and authenticate with the configured provider; plugins and currency refreshes can also make network requests. Folder sync sends its selected records through your chosen sync service. Review the data and recovery guidance below.
+Local files include clipboard/snippet data, AI history, ai-keys.json, and a rebuildable index of file names and paths previously returned by file search. AI requests send selected context and authenticate with the configured provider; plugins and currency refreshes can also make network requests. Folder sync sends its selected records through your chosen sync service; the file index is never included. Review the data and recovery guidance below.
 
 ---
 
@@ -373,7 +388,8 @@ auto-expansion does not work on Linux.
   `mod+key` spec.
 
 - **Where is my data?** One directory (`FULCRUM_DATA_DIR`): stores as
-  JSON, keys in `ai-keys.json`. Delete it and Fulcrum starts clean.
+  JSON, keys in `ai-keys.json`, and the rebuildable local file-name/path
+  cache in `file-index.sqlite3`. Delete it and Fulcrum starts clean.
 
 ---
 
@@ -414,7 +430,7 @@ Use [official Releases](https://github.com/turinglambdaai/fulcrum/releases), sel
 
 ## Data, backup and recovery
 
-Back up the configured application-data directory after quitting Fulcrum. Clipboard history, snippets, plugin settings and AI history may be sensitive. Test recovery on a copy; do not publish a full diagnostic directory as a bug attachment.
+Back up the configured application-data directory after quitting Fulcrum. Clipboard history, snippets, plugin settings, AI history and the local filename/path index may be sensitive. `file-index.sqlite3` is a rebuildable cache and does not need to be restored or synced. Test recovery on a copy; do not publish a full diagnostic directory as a bug attachment.
 
 ## Network, keys and privacy
 

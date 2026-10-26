@@ -34,7 +34,7 @@
 
 ### 启动应用
 
-输入应用名的任意片段——`firefox`、`term`、`calc`。模糊匹配：`ffx` 能找到 Firefox，手滑打错也能容忍。常用的应用会越来越靠前。
+输入应用名的任意片段——`firefox`、`term`、`calc`。模糊匹配：`ffx` 能找到 Firefox，手滑打错也能容忍。常用的应用会越来越靠前。中文名称还支持离线的无声调全拼和首字母搜索：`weixin`、`wx` 都能找到“微信”，直接输入中文仍然拥有更高权重。
 
 ### 粘贴任何东西到任何地方
 
@@ -95,7 +95,11 @@ add link yt https://youtube.com/search?q={query}
 
 ### 找文件
 
-`find 发票` 走各平台自己的索引搜文件名：macOS 用 Spotlight，Windows 用 Windows Search（索引未开启的机器回退到有界慢扫描），Linux 用 `plocate`/`locate`。Linux 上装了 `plocate` 就快；一个搜索工具都没有时，Fulcrum 会如实说明。
+`find 发票` 先通过平台索引搜文件名：macOS 用 Spotlight，Windows 用 Windows Search（索引未开启时回退到有界慢扫描），Linux 用 `plocate`/`locate`。命中结果同时写入 Fulcrum 的本地持久化文件名索引。第一次文件查询还会在后台建立 Desktop、Documents、Downloads 清单；存在时同时覆盖 Windows OneDrive、macOS iCloud Drive 与 Linux 本地化 XDG 用户目录，并跳过 `.git`、`node_modules`、`.cache` 等依赖/缓存树。建库期间仍由平台索引立即回答；完成后即使平台搜索超时或暂不可用，常用目录内文件的精确与前缀查询仍可返回。Linux 安装 `plocate` 后宽泛搜索更快；平台没有结果且本地也没有已知匹配时，Fulcrum 会如实说明。
+
+输入 `file index` 可查看本地清单处于 idle、scanning、ready、因目录不可读而 partially ready，还是 failed。部分扫描会保留旧记录，不会把拒绝访问误判为文件已删除。
+
+本地清单中的中文文件名除原文外，也可用无声调全拼和拼音首字母搜索。
 
 ### 系统命令
 
@@ -188,7 +192,7 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 ## 隐私
 
-本地文件包含剪贴板、片段、AI 历史与 ai-keys.json。AI 请求会向配置的服务商发送选定上下文并用密钥鉴权；插件与汇率刷新也会联网。文件夹同步会经你选择的同步服务传输选定记录。数据与恢复说明见下文。
+本地文件包含剪贴板、片段、AI 历史、ai-keys.json，以及文件搜索曾返回的文件名与路径可重建索引。AI 请求会向配置的服务商发送选定上下文并用密钥鉴权；插件与汇率刷新也会联网。文件夹同步会经你选择的同步服务传输选定记录；文件索引永不参与同步。数据与恢复说明见下文。
 
 ---
 
@@ -235,7 +239,7 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 - **想要的热键被占。** `settings` → `hotkey` 循环切换。
 
-- **数据在哪？** 全部在一个数据目录里（`FULCRUM_DATA_DIR`）。删掉就是全新状态。
+- **数据在哪？** 全部在一个数据目录里（`FULCRUM_DATA_DIR`）：JSON 数据、`ai-keys.json`，以及可重建的文件名/路径缓存 `file-index.sqlite3`。删掉就是全新状态。
 
 ---
 
@@ -267,7 +271,7 @@ Fulcrum 建在 [Rivet](https://rivet.jrtx.site) 之上：一个 Racket 大脑嵌
 
 ## 数据、备份与恢复
 
-退出 Fulcrum 后备份配置使用的应用数据目录。剪贴板历史、片段、插件设置和 AI 历史可能含敏感信息。先用副本验证恢复，不要把完整诊断目录直接公开上传。
+退出 Fulcrum 后备份配置使用的应用数据目录。剪贴板历史、片段、插件设置、AI 历史和本地文件名/路径索引可能含敏感信息。`file-index.sqlite3` 是可重建缓存，不需要恢复或同步。先用副本验证恢复，不要把完整诊断目录直接公开上传。
 
 ## 联网、密钥与隐私
 

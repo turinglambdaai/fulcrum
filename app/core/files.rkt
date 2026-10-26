@@ -16,16 +16,50 @@
          racket/path
          racket/string
          net/uri-codec
-         "proc.rkt")
+         "file-index.rkt"
+         "fuzzy.rkt"
+         "proc.rkt"
+         "search-normalize.rkt")
 
 (provide (struct-out file-search-result)
          file-search-available?
          parse-paths
+         rank-file-hits
          file-search/status
          file-search
          file-open!)
 
 (struct file-search-result (hits status backend) #:transparent)
+
+;; Platform indices are good candidate generators, but their first eight rows
+;; are not a relevance contract.  Pull a modest bounded set and apply the same
+;; deterministic Fulcrum ranking on every host.
+(define file-search-candidate-limit 128)
+
+;; At most one platform query is useful. Native hosts generation-guard their
+;; UI, but without backend cancellation every superseded keystroke still left
+;; a PowerShell/mdfind/locate process running until timeout.
+(define active-search-lock (make-semaphore 1))
+(define active-search-cancel (box #f))
+
+(define (claim-file-search!)
+  (define cancel (make-semaphore 0))
+  (call-with-semaphore
+   active-search-lock
+   (lambda ()
+     (define previous (unbox active-search-cancel))
+     (when previous (semaphore-post previous))
+     (set-box! active-search-cancel cancel)))
+  cancel)
+
+(define (release-file-search! cancel)
+  (call-with-semaphore
+   active-search-lock
+   (lambda ()
+     ;; A late completion must never clear the newer query's cancellation
+     ;; handle.
+     (when (eq? cancel (unbox active-search-cancel))
+       (set-box! active-search-cancel #f)))))
 
 (define (file-search-backend os resolver)
   (case os
@@ -54,6 +88,22 @@
 ;; Universal path-list parser: newline-separated absolute paths →
 ;; (name path) pairs, bounded and deduplicated. Works for mdfind, locate,
 ;; find, and PowerShell output alike.
+(define (path-like? line)
+  (or (string-contains? line "/")
+      (string-contains? line "\\")))
+
+(define (portable-file-name path)
+  ;; Do not use the host OS path convention here: tests, remote output and
+  ;; file: URLs can carry Windows and POSIX paths on either platform.
+  (define pieces (regexp-split #px"[/\\\\]+" path))
+  (if (null? pieces) path (last pieces)))
+
+(define (clean-output-line line)
+  ;; PowerShell writes CRLF.  Splitting only on newline otherwise leaves a
+  ;; carriage return in the path, producing a result that cannot be opened.
+  ;; Remove exactly the transport delimiter, not legitimate path whitespace.
+  (regexp-replace #px"\r$" line ""))
+
 (define (parse-paths output [limit 8])
   (if (not (string? output))
       '()
@@ -61,15 +111,81 @@
        (remove-duplicates
         (for/list ([line (in-list
                           (filter (lambda (s)
-                                    (string-contains? s "/"))
-                                  (string-split output "\n")))])
+                                    (and (not (string=? s ""))
+                                         (path-like? s)))
+                                  (map clean-output-line
+                                       (string-split output "\n"))))])
           (define path (file-url->path line))
-          (cons (path->string (file-name-from-path (string->path path)))
-                path)))
+          (cons (portable-file-name path) path)))
        limit)))
 
 (define (take-min xs n)
   (if (> (length xs) n) (take xs n) xs))
+
+;; ---- cross-platform relevance --------------------------------------------
+
+(define noisy-path-components
+  '(".git" ".hg" ".svn" "node_modules" "build" "dist" "target"
+    "cache" "caches" "__pycache__"))
+
+(define (normalized-path-components path)
+  (filter (lambda (part) (not (string=? part "")))
+          (regexp-split #px"[/\\\\]+" (string-downcase path))))
+
+(define (file-stem name)
+  ;; Treat the final extension as metadata for ranking ("report" should put
+  ;; report.md ahead of report-old.md). Dotfiles keep their complete name.
+  (if (string-prefix? name ".")
+      name
+      (regexp-replace #px"\\.[^.]*$" name "")))
+
+(define (file-hit-score query hit)
+  (define q (string-downcase (string-trim query)))
+  (define name (string-downcase (car hit)))
+  (define path (string-downcase (cdr hit)))
+  (define stem (file-stem name))
+  (define fuzzy
+    (or (fuzzy-score-fields
+         q
+         (search-fields-with-pinyin
+          (list (cons 1.0 name)
+                (cons 0.35 path))))
+        0))
+  (define intent-bonus
+    (cond
+      [(string=? q name) 2000]
+      [(string=? q stem) 1900]
+      [(string-prefix? name q) 1400]
+      [(string-contains? name q) 900]
+      [else 0]))
+  (define components (normalized-path-components path))
+  (define noise-penalty
+    (if (for/or ([part (in-list components)])
+          (member part noisy-path-components))
+        250
+        0))
+  ;; Prefer a nearby human-facing path when relevance is otherwise equal.
+  (+ fuzzy intent-bonus
+     (- (min 80 (* 2 (length components))))
+     (- noise-penalty)))
+
+(define/contract (rank-file-hits query hits [limit 8])
+  (->* (string? (listof (cons/c string? string?)))
+       (exact-nonnegative-integer?)
+       (listof (cons/c string? string?)))
+  (define scored
+    (for/list ([hit (in-list hits)])
+      (vector (file-hit-score query hit) hit)))
+  (define sorted
+    (sort scored
+          (lambda (a b)
+            (define a-score (vector-ref a 0))
+            (define b-score (vector-ref b 0))
+            (if (= a-score b-score)
+                (string-ci<? (cdr (vector-ref a 1))
+                             (cdr (vector-ref b 1)))
+                (> a-score b-score)))))
+  (take-min (map (lambda (entry) (vector-ref entry 1)) sorted) limit))
 
 ;; Keep "no matches", "no tool", and "tool timed out" distinct. The old
 ;; list-only API collapsed all three to '(), which made stock Ubuntu's slow
@@ -77,14 +193,30 @@
 (define (file-search/status query [limit 8]
                             #:os [os (system-type 'os)]
                             #:resolve [resolver resolve-program]
-                            #:run [runner run-command])
+                            #:run [runner run-command/cancellable]
+                            #:index-path [index-path #f])
   (define backend (file-search-backend os resolver))
+  ;; Claim before touching the persistent index. Otherwise an older request
+  ;; delayed in SQLite could claim after a newer request and cancel the wrong
+  ;; process when RVT1 workers run concurrently.
+  (define cancel (and backend (claim-file-search!)))
+  (define cached
+    (if index-path
+        (file-index-search index-path query file-search-candidate-limit)
+        '()))
   (if (false? backend)
-      (file-search-result '() 'unavailable #f)
+      (if (null? cached)
+          (file-search-result '() 'unavailable #f)
+          (file-search-result (rank-file-hits query cached limit)
+                              'ok 'fulcrum-index))
       (let-values ([(program args)
                     (case backend
                       [(mdfind) (values "mdfind" (list "-name" query))]
-                      [(locate) (values "locate" (list "-i" "-l" "8" query))]
+                      [(locate)
+                       (values "locate"
+                               (list "-i" "-l"
+                                     (number->string file-search-candidate-limit)
+                                     query))]
                       [(find)
                        (values "find"
                                (list (path->string (find-system-path 'home-dir))
@@ -95,10 +227,40 @@
                        (values "powershell.exe"
                                (list "-NoProfile" "-Command"
                                      (windows-find-script query)))])])
-        (define output (runner program args #:timeout-ms 3000))
-        (if (false? output)
-            (file-search-result '() 'timeout backend)
-            (file-search-result (parse-paths output limit) 'ok backend)))))
+        (define output
+          (dynamic-wind
+            void
+            (lambda ()
+              (runner program args
+                      #:timeout-ms 3000
+                      #:cancel-evt (semaphore-peek-evt cancel)))
+            (lambda () (release-file-search! cancel))))
+        (cond
+          [(eq? output 'cancelled)
+           (file-search-result '() 'cancelled backend)]
+          [(false? output)
+           (if (null? cached)
+               (file-search-result '() 'timeout backend)
+               (file-search-result (rank-file-hits query cached limit)
+                                   'ok 'fulcrum-index))]
+          [else
+           (define platform-hits
+             (parse-paths output file-search-candidate-limit))
+           (when (and index-path (pair? platform-hits))
+             (file-index-upsert-hits! index-path platform-hits))
+           (define candidates
+             (remove-duplicates (append platform-hits cached)
+                                string=?
+                                #:key cdr))
+           (file-search-result
+            (rank-file-hits
+             query
+             candidates
+             limit)
+            'ok
+            (if (and (null? platform-hits) (pair? cached))
+                'fulcrum-index
+                backend))]))))
 
 ;; Compatibility API for callers that only need hits.
 (define (file-search query [limit 8])
@@ -131,18 +293,18 @@
    "try{"
    "$c=New-Object System.Data.OleDb.OleDbConnection(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
    "$c.Open();$cmd=$c.CreateCommand();"
-   "$cmd.CommandText=\"SELECT TOP 8 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
    "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close();"
    "if($out.Count -eq 0){"
-   "$cmd.CommandText=\"SELECT TOP 8 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$qs`\"') AND SCOPE='file:'\";"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$qs`\"') AND SCOPE='file:'\";"
    "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close()"
    "}"
    "$c.Close()"
    "}catch{};"
    "if($out.Count -gt 0){"
-   "$out|Select-Object -First 8|ForEach-Object{[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
+   "$out|Select-Object -First 128|ForEach-Object{[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
    "}else{"
-   "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 8 -ExpandProperty FullName"
+   "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 128 -ExpandProperty FullName"
    "}"))
 
 (define (opener-for-platform)

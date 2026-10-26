@@ -71,6 +71,30 @@ void position_launcher(HWND hwnd) {
   ::SetWindowPos(hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE);
 }
 
+UINT tray_menu_alignment(POINT anchor) {
+  HMONITOR const monitor =
+      ::MonitorFromPoint(anchor, MONITOR_DEFAULTTONEAREST);
+  MONITORINFO info{};
+  info.cbSize = sizeof(info);
+  if (!::GetMonitorInfoW(monitor, &info)) {
+    return TPM_LEFTALIGN | TPM_TOPALIGN;
+  }
+
+  // rcWork excludes the taskbar.  Grow the menu away from that edge so it is
+  // adjacent to the icon whether the bar is bottom/top/left/right, including
+  // on a secondary monitor.
+  if (info.rcWork.bottom < info.rcMonitor.bottom) {
+    return TPM_LEFTALIGN | TPM_BOTTOMALIGN;
+  }
+  if (info.rcWork.top > info.rcMonitor.top) {
+    return TPM_LEFTALIGN | TPM_TOPALIGN;
+  }
+  if (info.rcWork.right < info.rcMonitor.right) {
+    return TPM_RIGHTALIGN | TPM_TOPALIGN;
+  }
+  return TPM_LEFTALIGN | TPM_TOPALIGN;
+}
+
 bool is_acceptance_run() {
   wchar_t value[8]{};
   auto const length =
@@ -1074,9 +1098,24 @@ void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
         ::AppendMenuW(menu, MF_STRING, kTrayMenuAbout, t("trayAbout").c_str());
         ::AppendMenuW(menu, MF_STRING, kTrayMenuQuit, t("trayQuit").c_str());
         ::SetForegroundWindow(hwnd);  // so outside clicks dismiss the menu
+        // TrackPopupMenu coordinates are screen pixels.  (0, 0) anchored the
+        // menu at a screen corner regardless of which tray icon was clicked.
+        // The pointer is the stable anchor across bottom, top and side
+        // taskbars, including secondary monitors with negative coordinates.
+        POINT anchor{};
+        if (!::GetCursorPos(&anchor)) {
+          anchor.x = 0;
+          anchor.y = 0;
+        }
         int const choice = ::TrackPopupMenu(
-            menu, TPM_RETURNCMD | TPM_NONOTIFY, 0, 0, 0, hwnd, nullptr);
+            menu,
+            TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON |
+                tray_menu_alignment(anchor),
+            anchor.x, anchor.y, 0, hwnd, nullptr);
         ::DestroyMenu(menu);
+        // Required by the Win32 foreground-menu contract so a subsequent
+        // tray invocation is not swallowed after outside-click dismissal.
+        ::PostMessageW(hwnd, WM_NULL, 0, 0);
         if (choice == kTrayMenuOpen) {
           ShowLauncher();
         } else if (choice == kTrayMenuSettings) {

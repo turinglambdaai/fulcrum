@@ -211,6 +211,15 @@
 (check! "clipboard-history has the row"
         (and (pair? chv) (string-contains? (list-ref (car chv) 1) "fulcrum-release"))
         #t)
+(define-values (clip-search clip-search-error _clip-search-events)
+  (call-rpc 111 (list "search" "clip")))
+(check! "clip launcher query no error" clip-search-error #f)
+(check! "clip launcher query lists clipboard history"
+        (and (for/or ([row (in-list clip-search)])
+               (and (string=? (list-ref row 3) "Clipboard")
+                    (string-contains? (list-ref row 1) "fulcrum-release")))
+             #t)
+        #t)
 
 ;; clipboard-clear removes it and reports the count
 (define-values (_ccv cce _ccev) (call-rpc 12 (list "clipboard-clear")))

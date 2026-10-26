@@ -78,6 +78,21 @@
                  "app rows stay Applications; web fallback is the only other kind")
      (check-false (member "Terminal" (map row-title rows))))))
 
+(test-case "Chinese applications match full pinyin and initials"
+  (with-fresh-data-dir
+   (lambda ()
+     (define chinese-apps
+       (list (application "wechat" "微信" "C:\\Apps\\WeChat.exe"
+                          "app" '("聊天") "wechat")
+             (application "notes" "笔记 Work" "C:\\Apps\\Notes.exe"
+                          "app" '() "notes")))
+     (define engine (fixture-engine #:apps chinese-apps))
+     (for ([query (in-list '("微信" "weixin" "wx"))])
+       (define rows (engine-search engine query))
+       (check-equal? (row-title (car rows)) "微信"))
+     (define mixed (engine-search engine "bj work"))
+     (check-equal? (row-title (car mixed)) "笔记 Work"))))
+
 (test-case "application icon metadata survives ranking into native result rows"
   (with-fresh-data-dir
    (lambda ()
@@ -154,11 +169,30 @@
      (snippet-save! (engine-snippets engine) "Release checklist" "1. tag 2. build" "rel")
      (define rows (engine-search engine "release"))
      (check-true (and (findf (lambda (r) (equal? (row-kind r) "Clipboard")) rows) #t))
+     ;; The documented store keyword lists history; it is not treated as a
+     ;; literal search term inside clipboard contents.
+     (define clip-rows (engine-search engine "clip"))
+     (check-true
+      (and (findf (lambda (r)
+                    (and (equal? (row-kind r) "Clipboard")
+                         (string-contains? (row-title r) "fulcrum release")))
+                  clip-rows)
+           #t))
      (check-true (and (findf (lambda (r) (equal? (row-kind r) "Snippet")) rows) #t))
      ;; Clipboard rows paste to the frontmost app as the primary action;
      ;; Copy stays one ⌘K away.
      (define clip-row (findf (lambda (r) (equal? (row-kind r) "Clipboard")) rows))
      (check-equal? (row-id clip-row) "clip.paste"))))
+
+(test-case "clipboard keyword explains empty and disabled history"
+  (with-fresh-data-dir
+   (lambda ()
+     (define empty-rows (engine-search (fixture-engine) "clip"))
+     (check-equal? (row-title (car empty-rows)) "Clipboard history is empty")
+     (define disabled-rows
+       (engine-search (fixture-engine #:clipboard #f) "clipboard"))
+     (check-equal? (row-title (car disabled-rows))
+                   "Clipboard history is disabled"))))
 
 (test-case "querying the store name lists every snippet"
   (with-fresh-data-dir
