@@ -37,7 +37,9 @@
 
 (test-case "run-command drains both child output pipes"
   ;; stderr is a separate finite pipe.  A command that fills it must not
-  ;; deadlock while the parent waits for exit.
+  ;; deadlock while the parent waits for exit. Keep the deadline well above
+  ;; cold Racket startup on a contended macOS CI runner; this is a deadlock
+  ;; regression, not a subprocess-startup benchmark.
   (define out
     (run-command
      "racket"
@@ -45,7 +47,7 @@
            (string-append
             "(begin (display (make-string 200000 #\\x)) "
             "(eprintf \"~a\" (make-string 200000 #\\e)))"))
-     #:timeout-ms 5000))
+     #:timeout-ms 15000))
   (check-true (string? out) "large stdout + stderr must not time out")
   (check-equal? (string-length out) 200000))
 
