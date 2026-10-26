@@ -53,7 +53,7 @@
   #:transparent)
 
 (struct engine
-  (apps-index apps-prepared clipboard snippets quicklinks bindings plugins syscmds recents-path recents recents-lock max-results)
+  (apps-index apps-prepared clipboard snippets quicklinks bindings plugins syscmds recents-path recents recents-lock max-results file-index-path)
   #:mutable)
 
 ;; Prepared application rows: the fuzzy fields are immutable per rebuild,
@@ -491,7 +491,10 @@
         (let ([text (string-trim (substring query (string-length find-file-prefix)))])
           (if (zero? (string-length text))
               '()
-              (let ([search (file-search/status text)])
+              (let ([search (file-search/status
+                             text
+                             8
+                             #:index-path (engine-file-index-path engine))])
                 (case (file-search-result-status search)
                   [(ok)
                    (for/list ([hit (in-list (file-search-result-hits search))])
@@ -699,13 +702,15 @@
                   #:quicklink-store [quicklink-store #f]
                   #:bindings-store [bindings-store #f]
                   #:plugin-manager [plugin-manager #f]
-                  #:max-results [max-results 12])
+                  #:max-results [max-results 12]
+                  #:file-index-path [file-index-path #f])
   (->* (#:clipboard-store (or/c clipboard-store? #f)
         #:snippet-store (or/c snippet-store? #f)
         #:plugin-manager (or/c plugin-manager? #f))
        (#:quicklink-store (or/c quicklink-store? #f)
         #:bindings-store (or/c bindings-store? #f)
-        #:max-results (and/c exact-integer? (>=/c 1) (<=/c 50)))
+        #:max-results (and/c exact-integer? (>=/c 1) (<=/c 50))
+        #:file-index-path (or/c path-string? #f))
        engine?)
   (engine (make-hash) #f
           clipboard-store
@@ -717,7 +722,8 @@
           (recents-path)
           (load-recents (recents-path))
           (make-semaphore 1)
-          max-results))
+          max-results
+          file-index-path))
 
 (define (engine-rebuild-index! engine)
   (define apps (discover-applications))

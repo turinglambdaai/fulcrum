@@ -16,6 +16,7 @@
          racket/path
          racket/string
          net/uri-codec
+         "file-index.rkt"
          "fuzzy.rkt"
          "proc.rkt")
 
@@ -190,10 +191,22 @@
 (define (file-search/status query [limit 8]
                             #:os [os (system-type 'os)]
                             #:resolve [resolver resolve-program]
-                            #:run [runner run-command/cancellable])
+                            #:run [runner run-command/cancellable]
+                            #:index-path [index-path #f])
   (define backend (file-search-backend os resolver))
+  ;; Claim before touching the persistent index. Otherwise an older request
+  ;; delayed in SQLite could claim after a newer request and cancel the wrong
+  ;; process when RVT1 workers run concurrently.
+  (define cancel (and backend (claim-file-search!)))
+  (define cached
+    (if index-path
+        (file-index-search index-path query file-search-candidate-limit)
+        '()))
   (if (false? backend)
-      (file-search-result '() 'unavailable #f)
+      (if (null? cached)
+          (file-search-result '() 'unavailable #f)
+          (file-search-result (rank-file-hits query cached limit)
+                              'ok 'fulcrum-index))
       (let-values ([(program args)
                     (case backend
                       [(mdfind) (values "mdfind" (list "-name" query))]
@@ -212,7 +225,6 @@
                        (values "powershell.exe"
                                (list "-NoProfile" "-Command"
                                      (windows-find-script query)))])])
-        (define cancel (claim-file-search!))
         (define output
           (dynamic-wind
             void
@@ -225,14 +237,28 @@
           [(eq? output 'cancelled)
            (file-search-result '() 'cancelled backend)]
           [(false? output)
-           (file-search-result '() 'timeout backend)]
+           (if (null? cached)
+               (file-search-result '() 'timeout backend)
+               (file-search-result (rank-file-hits query cached limit)
+                                   'ok 'fulcrum-index))]
           [else
+           (define platform-hits
+             (parse-paths output file-search-candidate-limit))
+           (when (and index-path (pair? platform-hits))
+             (file-index-upsert-hits! index-path platform-hits))
+           (define candidates
+             (remove-duplicates (append platform-hits cached)
+                                string=?
+                                #:key cdr))
            (file-search-result
             (rank-file-hits
              query
-             (parse-paths output file-search-candidate-limit)
+             candidates
              limit)
-            'ok backend)]))))
+            'ok
+            (if (and (null? platform-hits) (pair? cached))
+                'fulcrum-index
+                backend))]))))
 
 ;; Compatibility API for callers that only need hits.
 (define (file-search query [limit 8])

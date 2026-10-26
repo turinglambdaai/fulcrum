@@ -1711,7 +1711,8 @@
                  #:quicklink-store link-store
                  #:bindings-store bindings-store
                  #:plugin-manager plug-mgr
-                 #:max-results (settings-get manager 'max-results)))
+                 #:max-results (settings-get manager 'max-results)
+                 #:file-index-path (file-index-path)))
   (engine-rebuild-index! engine)
   ;; The startup rebuild IS the fresh state; stamping the cache here keeps
   ;; the first search from re-scanning the roots redundantly.

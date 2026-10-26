@@ -158,6 +158,45 @@
                 '(("new-report.txt" . "/home/me/new-report.txt")))
   (check-not-false (sync/timeout 1 (thread-dead-evt first-worker))))
 
+(test-case "platform results seed the persistent index and rescue a timeout"
+  (define dir (make-temporary-file "fulcrum-search-index-~a" 'directory))
+  (define index-path (build-path dir "index.sqlite3"))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define seeded
+        (file-search/status
+         "report" 8
+         #:os 'unix
+         #:resolve (lambda (_) "/usr/bin/locate")
+         #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]
+                                       #:cancel-evt [_cancel-evt never-evt])
+                 "/home/me/report.md\n")
+         #:index-path index-path))
+      (check-equal? (file-search-result-status seeded) 'ok)
+      (define rescued
+        (file-search/status
+         "report" 8
+         #:os 'unix
+         #:resolve (lambda (_) "/usr/bin/locate")
+         #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]
+                                       #:cancel-evt [_cancel-evt never-evt]) #f)
+         #:index-path index-path))
+      (check-equal? (file-search-result-status rescued) 'ok)
+      (check-equal? (file-search-result-backend rescued) 'fulcrum-index)
+      (check-equal? (file-search-result-hits rescued)
+                    '(("report.md" . "/home/me/report.md")))
+      ;; The same cache is useful even when the host search utility disappears.
+      (define offline
+        (file-search/status "report" 8
+                            #:os 'unix
+                            #:resolve (lambda (_) #f)
+                            #:index-path index-path))
+      (check-equal? (file-search-result-status offline) 'ok)
+      (check-equal? (file-search-result-hits offline)
+                    '(("report.md" . "/home/me/report.md"))))
+    (lambda () (delete-directory/files dir))))
+
 (test-case "engine provider: honest row without Spotlight, real rows with it"
   (define engine (make-engine #:clipboard-store #f
                               #:snippet-store #f

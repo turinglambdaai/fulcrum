@@ -22,6 +22,7 @@
          ai-keys-path
          ai-memory-path
          recents-path
+         file-index-path
          rates-path
          bindings-path
          plugins-dir
@@ -94,6 +95,12 @@
 
 (define (recents-path)
   (build-path (data-dir) "recents.json"))
+
+;; Rebuildable local filename index. Unlike settings and user-authored stores,
+;; this cache is never synced and may be discarded after corruption or a
+;; schema upgrade.
+(define (file-index-path)
+  (build-path (data-dir) "file-index.sqlite3"))
 
 ;; Daily currency-rate cache for the inline converter. A cache, not a
 ;; setting or a secret: safe to delete, never synced, refreshed in the

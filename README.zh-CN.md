@@ -35,13 +35,13 @@
 - **Web 搜索 bang** —— `!g`、`!gh`、`!so`、`!w`、`!yt`、`!m`、`!d`、`!t`
 - **Quicklinks** —— 自带关键词的 URL 模板（`yt nature` 直达搜索），在启动器内一行创建
 - **窗口管理** —— 左/右半屏、最大化、近最大化、居中、还原，三平台各自原生实现
-- **文件搜索** —— `find <query>` 走各平台索引：macOS 用 Spotlight，Windows 用 Windows Search，Linux 用 `plocate`/`locate`
+- **文件搜索** —— `find <query>` 合并本地持久化文件名索引与平台索引：macOS 用 Spotlight，Windows 用 Windows Search，Linux 用 `plocate`/`locate`
 - **BYOK AI（流式）** —— 自带 OpenAI / Anthropic / Ollama 密钥：`ai summarize`、`ai clean`、`ai translate <lang>`、`ai explain`、`ai chat <msg>`、`ai <question>`——答案在面板里流式生成，完成后自动进剪贴板；密钥只存本机、绝不参与同步
 - **系统命令** —— 锁屏、睡眠、重启
 - **插件** —— 任何能通过 stdio 说 JSON 的语言（[FPP1](docs/plugins.md)），附二十六个第一方插件，可在启动器内直接安装（查询 `gallery`）
 - **同步（beta）** —— 设置与片段镜像到任意云盘同步目录；机器数据被清空后可从镜像恢复
 
-本地搜索、历史与片段保存在设备上；插件、BYOK 请求和配置的同步具有各自的联网与数据去向。
+本地搜索（包括已索引的文件名与路径）、历史与片段保存在设备上；插件、BYOK 请求和配置的同步具有各自的联网与数据去向。
 
 ## 为什么还要一个启动器？
 

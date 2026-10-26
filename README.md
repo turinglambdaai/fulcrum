@@ -35,13 +35,13 @@ Press one global hotkey and a floating command palette appears:
 - **Web-search bangs** — `!g`, `!gh`, `!so`, `!w`, `!yt`, `!m`, `!d`, `!t`
 - **Quicklinks** — your own URL templates claimed by a keyword (`yt nature`), created from the launcher itself
 - **Window management** — left/right half, maximize, almost-maximize, center, restore, natively on all three platforms
-- **File search** — `find <query>` over the platform index: Spotlight on macOS, Windows Search on Windows, `plocate`/`locate` on Linux
+- **File search** — `find <query>` merges a local persistent filename index with Spotlight on macOS, Windows Search on Windows, and `plocate`/`locate` on Linux
 - **BYOK AI with streaming** — bring your own OpenAI / Anthropic / Ollama key: `ai summarize`, `ai clean`, `ai translate <lang>`, `ai explain`, `ai chat <msg>`, `ai <question>` — the answer streams into the panel as it is generated and copies to your clipboard when done; the key is used to authenticate requests to your configured provider; it must not be included in sync or diagnostics
 - **System commands** — lock, sleep, restart
 - **Plugins** — any language that speaks JSON over stdio ([FPP1](docs/plugins.md)), plus twenty-six first-party plugins installed from the launcher itself (query `gallery`)
 - **Sync (beta)** — settings and snippets mirrored to any cloud-synced folder; a wiped machine restores from the mirror
 
-Local search, history and snippets are stored on your device. Plugins, BYOK requests and configured sync have separate network/data destinations.
+Local search (including indexed file names and paths), history and snippets are stored on your device. Plugins, BYOK requests and configured sync have separate network/data destinations.
 
 ## Why another launcher?
 
