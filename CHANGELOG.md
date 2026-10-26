@@ -6,20 +6,72 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-27
+
+### Added
+
+- **Fast, durable file search on every desktop.** A SQLite-backed catalog now
+  discovers files safely in the background, survives restarts, refreshes
+  incrementally, and serves ranked results without launching a new operating
+  system search process for every keystroke. Stale queries are cancelled so
+  current input always wins.
+- **Chinese pinyin recall.** Application names and file basenames match both
+  full pinyin and initials while preserving exact and literal matches ahead of
+  transliterations. The bundled transliteration data and generator are
+  documented and licensed for reproducible builds.
+- **Measured search performance.** Repeatable 100k-entry file-index and pinyin
+  benchmarks accompany the architecture and regression suites.
+
 ### Changed
 
 - **Rivet pin moved to a92877c**, which fixes the release pipeline crash
   that kept native Linux installers (deb/rpm/AppImage) out of 0.13.3 —
-  they return with the next release, alongside the AppImage update
+  they return in this release, alongside the AppImage update
   payload in the signed feed.
+- **Native search remains platform-shaped.** Windows keeps WinUI 3, macOS keeps
+  SwiftUI/AppKit, and Linux keeps GTK4 while sharing the same indexing, ranking,
+  cancellation, pinyin, and history semantics in the Racket backend.
 
 ### Fixed
 
+- **Reliable file-search process cleanup.** Concurrent stdout and stderr are
+  drained without deadlock, process ports have one owner, and cancellation no
+  longer reads an already-closed subprocess stdout port. The repeated
+  `read-bytes-avail!: input port is closed` failure is covered by stress tests.
+- **Windows tray menus open at the pointer.** Right-clicking the lower-left tray
+  icon no longer anchors the context menu to the upper-right corner.
+- **Clipboard history is reachable again.** Typing `clip` routes directly to
+  clipboard history, and the macOS packaged-product test seeds the real system
+  pasteboard before verifying that the copied value appears and can be chosen.
 - **Usable, private native settings.** macOS now keeps every settings page
   visible in a fixed sidebar and records the summon shortcut instead of
   exposing the backend grammar. All three settings hosts hide internal
   updater transport fields, and rejected values no longer leak Racket
   contract errors into the UI.
+- **Correct macOS installer artwork.** The DMG backdrop is authored at Finder's
+  expected scale and verified against the real drag-to-Applications layout.
+- **Reliable release publication.** Draft lookup uses GitHub's release API,
+  stable Linux archive aliases follow the assets actually shipped, and every
+  build runner provisions the SQLite runtime dependency required by the index.
+
+### Verification
+
+- The exact feature commit passed backend and native-host CI on Windows, macOS,
+  and Linux; packaged WinUI/SwiftUI/GTK4 product acceptance (including macOS
+  arm64 and x64); Windows MSI upgrade; Linux AppImage upgrade on x64 and arm64;
+  and macOS signed-feed installation on arm64 and x64. Its merged main-branch
+  commit repeated CI and Product Acceptance successfully. The release tag is
+  created only after the exact 0.14.0 version commit repeats both gates.
+
+### Distribution status of this release
+
+- **This version uses the explicitly approved unsigned desktop channel** until
+  Apple and Windows publisher accounts are provisioned: macOS packages are
+  ad-hoc signed (right-click the app and choose Open on first launch), while
+  Windows packages have no Authenticode signature and may trigger SmartScreen.
+- **Integrity remains authenticated:** the update channel is Ed25519-signed,
+  and both Linux tarballs carry detached Ed25519 artifact signatures. The
+  fail-closed production gate remains the default after this release.
 
 ## [0.13.3] - 2026-10-22
 
