@@ -4,6 +4,18 @@ Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
 
+# WM_APP+6 is accepted only with FULCRUM_ACCEPTANCE=1. It calls the same
+# QuitApplication method as the tray menu, so we can assert a real clean exit
+# without attempting to drive the system tray in an unattended CI session.
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class FulcrumNative {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+}
+'@
+
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $output = Join-Path $repo '.rivet\acceptance\windows'
 $data = Join-Path $output "data-$PID"
@@ -80,6 +92,12 @@ try {
         $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
     }
     $query = Wait-Until 'Fulcrum query field' { Find-ById $window 'QueryBox' }
+    # The first visible WinUI frame must be initialized, not the old empty
+    # XAML scaffold showing only the "Search apps" placeholder.
+    $firstStatus = Find-ById $window 'StatusText'
+    if (-not $firstStatus -or $firstStatus.Current.Name -match 'Starting embedded') {
+        throw 'the launcher appeared before the backend completed startup'
+    }
     [void](Wait-Until 'embedded backend ready status' {
         $status = Find-ById $window 'StatusText'
         if ($status -and $status.Current.Name -match 'Ready') { return $true }
@@ -117,11 +135,62 @@ try {
         if ($text -and $text.TrimEnd() -eq '144') { return $true }
         return $false
     })
+    # Starting a second EXE while the resident host owns the lease must not
+    # leave another invisible Fulcrum process. It should summon the original.
+    $secondary = Start-Process -FilePath $executable.FullName -PassThru -WorkingDirectory $repo
+    try {
+        if (-not $secondary.WaitForExit(15000)) {
+            throw 'secondary single-instance process stayed alive'
+        }
+        if ($secondary.ExitCode -ne 0) {
+            throw "secondary instance exited with code $($secondary.ExitCode)"
+        }
+        if ($process.HasExited) { throw 'secondary launch killed the primary instance' }
+        [void](Wait-Until 'primary launcher re-summoned by secondary launch' {
+            $condition = [System.Windows.Automation.PropertyCondition]::new(
+                [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+            $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+        })
+    } finally {
+        if (-not $secondary.HasExited) { Stop-Process -Id $secondary.Id -Force -ErrorAction SilentlyContinue }
+        $secondary.Dispose()
+    }
+
+    # Close through the exact production QuitApplication function and demand
+    # natural process exit (not a test force-kill). The next primary must be
+    # free to acquire the same instance ID and expose a usable window again.
+    $hwnd = [IntPtr]::new([int64]$window.Current.NativeWindowHandle)
+    if ($hwnd -eq [IntPtr]::Zero -or -not [FulcrumNative]::PostMessage(
+        $hwnd, [uint32]0x8006, [IntPtr]::Zero, [IntPtr]::Zero)) {
+        throw 'could not request acceptance-only QuitApplication'
+    }
+    if (-not $process.WaitForExit(30000)) {
+        throw 'Fulcrum did not terminate after QuitApplication'
+    }
+    if ($process.ExitCode -ne 0) {
+        throw "Fulcrum quit with code $($process.ExitCode)"
+    }
+    $process.Dispose()
+    $process = Start-Process -FilePath $executable.FullName -PassThru `
+        -WorkingDirectory $repo `
+        -RedirectStandardOutput (Join-Path $output 'relaunch.stdout.log') `
+        -RedirectStandardError (Join-Path $output 'relaunch.stderr.log')
+    $restarted = Wait-Until 'restarted Fulcrum launcher' {
+        $condition = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+        $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    }
+    [void](Wait-Until 'restarted query field' { Find-ById $restarted 'QueryBox' })
+    $restartedStatus = Find-ById $restarted 'StatusText'
+    if (-not $restartedStatus -or $restartedStatus.Current.Name -match 'Starting embedded') {
+        throw 'restarted launcher showed uninitialized scaffold'
+    }
+
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','press:Enter')
-        assertions = @('packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard')
+        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
     $env:FULCRUM_DATA_DIR = $savedData
