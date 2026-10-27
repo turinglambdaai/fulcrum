@@ -54,9 +54,8 @@ struct MainWindow : MainWindowT<MainWindow> {
       winrt::Windows::Foundation::IInspectable const&,
       Microsoft::UI::Xaml::Input::DoubleTappedRoutedEventArgs const&);
 
-  // Called by App.xaml.cpp after the window is shown: native-only setup that
-  // needs the final HWND (topmost overlay chrome, global hotkey, clipboard
-  // listener).
+  // Called after backend initialization, before the first window is shown:
+  // native-only setup for the HWND (overlay chrome, hotkey, clipboard, tray).
   void FinishNativeSetup();
   // Shared orderly exit for tray Quit and the verified MSI handoff.
   void QuitApplication();
