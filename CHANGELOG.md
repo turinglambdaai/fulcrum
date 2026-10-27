@@ -43,8 +43,17 @@ independently per platform packaging run.
   results when the launcher is visible. Actual startup failures, hotkey
   conflicts, download errors, and progress notices remain discoverable.
 
+- **File search is part of the normal launcher query on all three desktop hosts.**
+  Typing a filename now blends matches from the asynchronously warmed local
+  Desktop/Documents/Downloads catalog with app results; `find <name>` remains
+  the explicit broader Spotlight / Windows Search / locate command. Ordinary
+  typing never launches a potentially three-second PowerShell search process.
+
 ### Regression coverage
 
+- Windows packaged WinUI acceptance seeds a real Documents file and queries
+  it by its ordinary filename without `find`; backend coverage includes
+  indexed Windows paths, Chinese filename pinyin, and native file result rows.
 - Linux GTK widget regression checks image/input vertical alignment and
   routine-ready visibility while preserving actionable status messages; its
   packaged Wayland/AT-SPI acceptance uses backend result readiness rather than
