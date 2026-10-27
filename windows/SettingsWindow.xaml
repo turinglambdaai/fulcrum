@@ -261,7 +261,8 @@
                 </StackPanel>
 
                 <StackPanel x:Name="CommandsSection" Visibility="Collapsed" AutomationProperties.AutomationId="settings-commands-content">
-                    <TextBlock Text="Commands" Style="{StaticResource SectionTitle}" />
+                    <TextBlock x:Name="CommandsTitle" Text="Commands" Style="{StaticResource SectionTitle}"
+                               AutomationProperties.AutomationId="settings-commands-title" />
                     <TextBlock Text="Give a command a search alias or a global shortcut. Focus a shortcut box and press modifiers plus a key; Esc cancels." Style="{StaticResource Hint}" />
                     <TextBlock x:Name="BindingErrorText" Foreground="#D13438" TextWrapping="Wrap" Visibility="Collapsed" />
                     <Border Style="{StaticResource Card}">
