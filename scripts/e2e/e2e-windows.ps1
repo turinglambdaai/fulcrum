@@ -238,6 +238,42 @@ try {
     ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
     [void](Wait-Until 'recordable global hotkey in General settings' { Find-ById $settings 'settings-record-hotkey' })
 
+    # Start at login must be a *working local OS toggle*, not a backend-only
+    # setting. Verify native UI Automation changes HKCU Run and restores it.
+    $loginControl = Wait-Until 'Start at login native ToggleSwitch' {
+        Find-ById $settings 'settings-start-at-login'
+    }
+    $toggle = $loginControl.GetCurrentPattern(
+        [System.Windows.Automation.TogglePattern]::Pattern)
+    $toggle = [System.Windows.Automation.TogglePattern]$toggle
+    $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    $priorRunValue = (Get-ItemProperty -Path $runKey -Name Fulcrum -ErrorAction SilentlyContinue).Fulcrum
+    try {
+        if ($toggle.Current.ToggleState -eq [System.Windows.Automation.ToggleState]::Off) {
+            $toggle.Toggle()
+            [void](Wait-Until 'Windows startup Run entry registered' {
+                $value = (Get-ItemProperty -Path $runKey -Name Fulcrum -ErrorAction SilentlyContinue).Fulcrum
+                if ($value -and $value.Contains('--background')) { return $true }
+                return $false
+            })
+        } else {
+            $toggle.Toggle()
+            [void](Wait-Until 'Windows startup Run entry removed' {
+                if (-not (Get-ItemProperty -Path $runKey -Name Fulcrum -ErrorAction SilentlyContinue).Fulcrum) {
+                    return $true
+                }
+                return $false
+            })
+        }
+    } finally {
+        if ($null -ne $priorRunValue) {
+            New-ItemProperty -Path $runKey -Name Fulcrum -Value $priorRunValue -PropertyType String -Force | Out-Null
+        } else {
+            Remove-ItemProperty -Path $runKey -Name Fulcrum -ErrorAction SilentlyContinue
+        }
+    }
+
+
     # WinUI titles don't automatically inherit the EXE icon. The settings
     # window must explicitly set it from Rivet's branded numeric resource.
     $settingsHwnd = [IntPtr]::new([int64]$settings.Current.NativeWindowHandle)
@@ -315,8 +351,8 @@ try {
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','search:find-explicit-windows-document','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
-        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','find prefix locates a real Windows Documents file using packaged RVT1/WinUI','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
+        actions = @('set:QueryBox=12*12','search:find-explicit-windows-document','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:startup-registry-roundtrip','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','find prefix locates a real Windows Documents file using packaged RVT1/WinUI','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','Windows Start at login toggle changes HKCU Run then restores previous value','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
     Remove-Item -LiteralPath $fixturePath -Force -ErrorAction SilentlyContinue
