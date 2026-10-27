@@ -273,7 +273,7 @@ For Linux AppImage copies, keep the AppImage at a stable path.
 On Linux, Settings has the same five sidebar areas as macOS/Windows:
 General, Features, AI, Commands and Sync & Updates. Commands can edit
 aliases and shortcut specifications through the shared backend, although
-Linux currently uses text entry for the shortcut instead of a key recorder.
+Linux also supports pressing a shortcut directly while its field is focused.
 The initial launcher panel appears only when its first search results or an
 actionable startup failure is available.
 
