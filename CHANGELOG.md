@@ -55,7 +55,9 @@ independently per platform packaging run.
 - **Linux Settings uses native five-section navigation.** General, Features,
   AI, Commands and Sync & Updates now share one GTK sidebar/stack, matching
   the information architecture of macOS and Windows; Commands uses the same
-  bindings-commands/list/set/clear backend API.
+  bindings-commands/list/set/clear backend API for aliases; desktop-wide
+  command hotkey execution is explicitly disabled on Linux until a native
+  binding runner is implemented.
 - **Start at login is available as an opt-in per-device control on all hosts.**
   Linux uses XDG Autostart, Windows uses the current-user Run key, and macOS
   uses SMAppService's main-app Login Item with system approval. No automatic
