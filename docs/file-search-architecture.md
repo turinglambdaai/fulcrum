@@ -26,13 +26,8 @@ names and paths never enter Fulcrum sync or telemetry.
 ## Current slice (schema 4)
 
 `file-index.sqlite3` is a rebuildable local B-tree of file names and paths.
-The backend starts a cancellable background inventory at application boot of
-Desktop, Documents and Downloads, plus OneDrive/iCloud/XDG equivalents when
-present. Normal launcher queries of at least two characters read only the
-bounded local SQLite filename/pinyin index, merge those matches with apps and
-other suggestions, and do not spawn PowerShell or a slow filesystem walk on
-every keystroke. The explicit `find <query>` command continues to ask the
-platform index and its configured fallback for broader locations.
+The first `find` query starts a cancellable background inventory of Desktop,
+Documents and Downloads, plus OneDrive/iCloud/XDG equivalents when present.
 It writes bounded batches and tags every row with a root and generation; only
 a successfully completed root scan prunes unseen paths, so cancellation or an
 I/O failure cannot turn a partial scan into mass deletion. Dependency/cache
