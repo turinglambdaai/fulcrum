@@ -19,7 +19,7 @@
             x:Name="QueryBox"
             Grid.Row="0"
             Margin="18,16,18,8"
-            PlaceholderText="Search apps, clipboard, snippets, the web…"
+            PlaceholderText="Search apps, files, clipboard, snippets, the web…"
             IsSpellCheckEnabled="False"
             TextChanged="QueryBox_TextChanged"
             KeyDown="QueryBox_KeyDown"
