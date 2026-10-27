@@ -271,9 +271,9 @@ setting; Linux uses `~/.config/autostart` (or `XDG_CONFIG_HOME`).
 For Linux AppImage copies, keep the AppImage at a stable path.
 
 On Linux, Settings has the same five sidebar areas as macOS/Windows:
-General, Features, AI, Commands and Sync & Updates. Commands can edit
-aliases and shortcut specifications through the shared backend, although
-Linux also supports pressing a shortcut directly while its field is focused.
+General, Features, AI, Commands and Sync & Updates. Commands can edit aliases through the shared backend. Linux can record the
+global summon shortcut by pressing keys in General, but individual command
+hotkeys are visibly disabled until native desktop registration is supported.
 The initial launcher panel appears only when its first search results or an
 actionable startup failure is available.
 
