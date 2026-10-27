@@ -87,6 +87,19 @@
                                      VerticalAlignment="Center" PlaceholderText="Focus and press a shortcut"
                                      IsReadOnly="True" KeyDown="Hotkey_KeyDown" />
                         </Grid>
+                        <Grid Style="{StaticResource Row}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Start at login" Style="{StaticResource RowLabel}" />
+                            <ToggleSwitch x:Name="LoginStartupSwitch" Grid.Column="1" Tag="local-login-startup"
+                                          AutomationProperties.AutomationId="settings-start-at-login"
+                                          OnContent="" OffContent="" MinWidth="0"
+                                          VerticalAlignment="Center" Toggled="Toggle_Toggled" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Runs quietly after sign-in. This setting belongs to this PC." />
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="Focus the hotkey box, then press Alt/Ctrl/Shift/Win plus a key. Esc cancels; a taken combo is rejected with an error." />
                         <Grid Style="{StaticResource Row}">
