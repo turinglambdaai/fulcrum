@@ -35,8 +35,20 @@ independently per platform packaging run.
   now installs the embedded resource ID 1 through `SetIcon(IconId)` instead of
   passing `RivetHost.exe` to the `.ico`-path overload.
 
+- **Linux GTK search icon aligns with the search placeholder.** The themed
+  magnifying-glass glyph and editable query now occupy one vertically centered
+  horizontal row instead of relying on GtkSearchEntry's internally padded icon.
+- **Linux hides the redundant resident-ready banner.** The normal `Ready —
+  hotkey or fulcrum --toggle` status no longer sits permanently above search
+  results when the launcher is visible. Actual startup failures, hotkey
+  conflicts, download errors, and progress notices remain discoverable.
+
 ### Regression coverage
 
+- Linux GTK widget regression checks image/input vertical alignment and
+  routine-ready visibility while preserving actionable status messages; its
+  packaged Wayland/AT-SPI acceptance uses backend result readiness rather than
+  depending on a permanent idle status row.
 - Windows packaged native-UI acceptance exercises ready-on-first-frame,
   duplicate-launch handoff, normal process exit, and clean restart. Stable
   release remains subject to the exact-commit CI, installer, signing, and
