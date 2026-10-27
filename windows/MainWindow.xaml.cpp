@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "MainWindow.xaml.h"
+#include "Autostart.h"
 #if __has_include("MainWindow.g.cpp")
 #include "MainWindow.g.cpp"
 #endif
@@ -1638,7 +1639,9 @@ void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
   UpdateEnterChips();
   if (!startup_presented_) {
     startup_presented_ = true;
-    ShowLauncher(false);  // show only after the first native rows are built
+    if (!fulcrum::windows::BackgroundLaunch()) {
+      ShowLauncher(false);  // show only after the first native rows are built
+    }
   }
 }
 
