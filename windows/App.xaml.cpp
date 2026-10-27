@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "App.xaml.h"
 #include "MainWindow.xaml.h"
+#include "WindowsInstance.h"
 
 namespace winrt::RivetHost::implementation {
 
@@ -24,19 +25,13 @@ void App::OnLaunched(Microsoft::UI::Xaml::LaunchActivatedEventArgs const&) {
   // first-party rivet lease, not a hand-rolled mutex). Product acceptance
   // supplies a per-run id so the packaged candidate never forwards into an
   // installed production instance on the same runner.
-  std::wstring application_id = L"site.jrtx.fulcrum";
-  wchar_t isolated[256]{};
-  auto const isolated_length =
-      ::GetEnvironmentVariableW(L"FULCRUM_INSTANCE_ID", isolated, 256);
-  if (isolated_length > 0 && isolated_length < 256) {
-    application_id.assign(isolated, isolated_length);
-  }
+  auto const application_id = fulcrum::windows::InstanceId();
   instance_lease_ = std::make_unique<rivet::system::SingleInstanceLease>(
       application_id);
   if (!instance_lease_->is_primary()) {
     // Reopen the resident launcher; never leave a second headless process.
-    if (HWND existing = ::FindWindowW(nullptr, L"Fulcrum")) {
-      ::PostMessageW(existing, WM_APP + 5, 0, 0);
+    if (HWND existing = fulcrum::windows::FindResidentWindow()) {
+      ::PostMessageW(existing, fulcrum::windows::kSummonResidentMessage, 0, 0);
     }
     Microsoft::UI::Xaml::Application::Current().Exit();
     return;

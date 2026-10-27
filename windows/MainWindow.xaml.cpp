@@ -7,6 +7,7 @@
 #include "GeneratedI18n.hpp"
 #include "SettingsWindow.xaml.h"
 #include "WindowCommands.h"
+#include "WindowsInstance.h"
 
 #include <shellapi.h>
 #include <commctrl.h>
@@ -828,7 +829,7 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
               if (auto window = weak.get()) {
                 // Rebinding needs the HWND; the subclass route reads it the
                 // same way FinishNativeSetup does.
-                if (HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum")) {
+                if (HWND hwnd = window->WindowHandle()) {
                   window->ApplyHotkey(spec_copy);
                 }
               }
@@ -953,11 +954,10 @@ LRESULT CALLBACK expansion_hook_proc(int code, WPARAM wParam, LPARAM lParam) {
 }
 
 void MainWindow::FinishNativeSetup() {
-  // HWND lookup via the window title: Fulcrum is single-instance and owns
-  // exactly one window with this title. This avoids depending on the
-  // WindowsAppSDK interop surface, whose projection shape moved between
-  // releases; the official interop call is the 0.2 follow-up.
-  auto const hwnd = ::FindWindowW(nullptr, L"Fulcrum");
+  // Rivet's pinned WinUI interop resolves our own HWND even when another
+  // isolated Fulcrum installation is running with the same window title.
+  auto const hwnd = WindowHandle();
+  fulcrum::windows::MarkResidentWindow(hwnd);
 
   // Frosted glass: the system Desktop Acrylic backdrop is the window's
   // surface (the root grid paints nothing). The macOS host's vibrancy is
@@ -1028,12 +1028,12 @@ void MainWindow::FinishNativeSetup() {
                         self->RepairExpansion(static_cast<std::size_t>(wParam));
                       }
                       // Second launch asks the existing process to reopen.
-                      if (msg == WM_APP + 5 && self != nullptr) {
+                      if (msg == fulcrum::windows::kSummonResidentMessage && self != nullptr) {
                         self->ShowLauncher();
                         return 0;
                       }
                       // Acceptance-only path through the same tray Quit logic.
-                      if (msg == WM_APP + 6 && self != nullptr &&
+                      if (msg == fulcrum::windows::kAcceptanceQuitMessage && self != nullptr &&
                           is_acceptance_run()) {
                         self->QuitApplication();
                         return 0;
@@ -1201,13 +1201,13 @@ void MainWindow::ShowLauncher(bool reset_query) {
   }
   // Re-evaluate pointer monitor and DPI for every summon; users may have
   // moved between displays or changed scaling since app startup.
-  position_launcher(::FindWindowW(nullptr, L"Fulcrum"));
+  position_launcher(WindowHandle());
   this->Activate();
   // The hotkey path runs in a WM_HOTKEY handler, which grants the
   // foreground right; claiming it explicitly also covers the tray-open
   // path and the first re-summon after AppWindow().Hide(), which WinUI
   // otherwise shows without bringing to the foreground.
-  if (HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum")) {
+  if (HWND hwnd = WindowHandle()) {
     ::SetForegroundWindow(hwnd);
   }
   // Focusing synchronously with the show races the activation: the caret
@@ -1231,7 +1231,9 @@ void MainWindow::QuitApplication() {
     expansion_hook_ = nullptr;
   }
   g_expansion_window = nullptr;
-  if (HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum")) {
+  if (HWND hwnd = WindowHandle()) {
+    auto const property = fulcrum::windows::InstanceProperty();
+    ::RemovePropW(hwnd, property.c_str());
     ::UnregisterHotKey(hwnd, kHotkeyIdPrimary);
     ::UnregisterHotKey(hwnd, kHotkeyIdFallback);
     if (clipboard_listener_installed_.exchange(false)) {
@@ -1330,7 +1332,7 @@ void MainWindow::ApplyTheme(std::string const& theme) {
 }
 
 void MainWindow::ApplyHotkey(std::string const& spec) {
-  HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum");
+  HWND hwnd = WindowHandle();
   if (hwnd == nullptr) {
     return;
   }
@@ -1866,7 +1868,7 @@ void MainWindow::ShowSettings() {
 
 void MainWindow::OnExpansionKey(std::uint32_t vk) {
   // The user typing into Fulcrum's own panel must never self-expand.
-  if (::GetForegroundWindow() == ::FindWindowW(nullptr, L"Fulcrum")) {
+  if (::GetForegroundWindow() == WindowHandle()) {
     expansion_buffer_.clear();
     return;
   }
@@ -1900,7 +1902,7 @@ void MainWindow::OnExpansionKey(std::uint32_t vk) {
   for (std::size_t i = 0; i < expansion_triggers_.size(); ++i) {
     if (expansion_triggers_[i].first == candidate) {
       expansion_ignore_.store(true, std::memory_order_relaxed);
-      HWND const hwnd = ::FindWindowW(nullptr, L"Fulcrum");
+      HWND const hwnd = WindowHandle();
       if (hwnd != nullptr) {
         ::PostMessageW(hwnd, kExpansionRepairMessage,
                        static_cast<WPARAM>(i), 0);

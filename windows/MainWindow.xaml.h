@@ -3,6 +3,7 @@
 #include "pch.h"
 #include "MainWindow.g.h"
 #include "GeneratedBackend.hpp"
+#include "winui_window.hpp"
 
 #include <string>
 #include <vector>
@@ -57,6 +58,9 @@ struct MainWindow : MainWindowT<MainWindow> {
   // Called after backend initialization, before the first window is shown:
   // native-only setup for the HWND (overlay chrome, hotkey, clipboard, tray).
   void FinishNativeSetup();
+  [[nodiscard]] HWND WindowHandle() {
+    return rivet::system::NativeWindowHandle(*this);
+  }
   // Shared orderly exit for tray Quit and the verified MSI handoff.
   void QuitApplication();
 
