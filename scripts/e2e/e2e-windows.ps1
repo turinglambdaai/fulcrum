@@ -224,15 +224,32 @@ try {
     ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
     # StackPanel is a layout-only element: UIA does not expose it. Assert
     # the actual titled content and functional Save control instead.
-    $commandsTitle = Wait-Until 'Commands settings content' {
-        Find-ById $settings 'settings-commands-title'
+    # WinUI NavigationView SelectionChanged and its layout run asynchronously.
+    # A collapsed TextBlock may still be discoverable by UIA before the new
+    # section is mapped, so wait for genuinely visible content rather than
+    # immediately failing on the stale IsOffscreen value.
+    try {
+        [void](Wait-Until 'visible Commands settings editor' {
+            $title = Find-ById $settings 'settings-commands-title'
+            if ($title -and -not $title.Current.IsOffscreen) { return $title }
+            return $null
+        })
+        [void](Wait-Until 'visible functional command binding Save action' {
+            $buttons = $settings.FindAll(
+                [System.Windows.Automation.TreeScope]::Descendants,
+                [System.Windows.Automation.PropertyCondition]::new(
+                    [System.Windows.Automation.AutomationElement]::NameProperty, 'Save'))
+            for ($i = 0; $i -lt $buttons.Count; $i++) {
+                $button = $buttons[$i]
+                if ($button.Current.ControlType -eq [System.Windows.Automation.ControlType]::Button -and
+                    -not $button.Current.IsOffscreen) { return $button }
+            }
+            return $null
+        })
+    } catch {
+        Save-AccessibilitySnapshot $settings (Join-Path $output 'settings-navigation-failure-accessibility.json')
+        throw "Commands tab did not reveal its visible binding editor: $($_.Exception.Message)"
     }
-    if ($commandsTitle.Current.IsOffscreen) {
-        throw 'Commands tab selected but the editor is not visible'
-    }
-    [void](Wait-Until 'functional command binding Save action' {
-        Find-ByName $settings 'Save'
-    })
     $generalTab = Find-ById $settings 'settings-sidebar-general'
     $selection = $generalTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
     ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
