@@ -68,11 +68,20 @@ show the product icon from the packaged numeric icon resource; borderless
 launcher windows do not need a fake titlebar or caption icon. macOS follows
 AppKit window decoration, not Win32 caption-icon conventions.
 
-Linux currently has a GTK grouped scrollable settings form rather than the
-five-tab sidebar, and lacks the Commands editor. This is an explicit existing
-Linux UI-parity gap, not a claim that all three surfaces have shipped the
-same navigation. The launcher shortcuts/CLI and backend binding APIs remain
-available, and Linux parity requires its own native-UI acceptance coverage.
+Linux now uses a GTK StackSidebar + five scrollable native content pages
+(General, Features, AI, Commands, Sync & Updates). Its Commands editor uses
+the same backend validation API for aliases/shortcuts as WinUI and SwiftUI;
+Linux currently accepts the canonical shortcut string in the editor rather
+than the in-window recording gesture used on Windows/macOS. Treat this as a
+remaining *control parity gap*, not a reason to claim every native gesture is
+identical. The GTK widget and packaged Wayland acceptance suites must pass.
+
+Start at login is a **per-device opt-in** in General on all three hosts, not
+a synced Racket setting: macOS uses SMAppService and system approval, Windows
+uses HKCU Run, and Linux writes its own XDG autostart .desktop entry. An OS
+login launches a resident *hidden* host; an ordinary interactive launch keeps
+the existing summon behavior. Background login for an already running host
+must never toggle its visible panel.
 
 ## Acceptance contract
 
