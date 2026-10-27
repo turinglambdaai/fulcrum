@@ -6,6 +6,29 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-27
+
+### Fixed
+
+- **Windows launcher no longer flashes an empty search panel.** It waits for
+  the embedded backend's first search result and builds the native rows before
+  showing the window. Startup failures surface a visible diagnostic instead.
+- **Windows second-launch behavior is recoverable.** Launching Fulcrum again
+  summons the resident panel and exits the secondary process cleanly, rather
+  than accumulating headless copies; activation respects the exact lease ID.
+- **Windows Quit releases the background process.** The tray Quit and verified
+  MSI installation paths unregister native hooks, shut down the embedded
+  Racket/RVT1 backend, and terminate WinUI. Esc and Alt+F4 still hide the
+  launcher without quitting the resident service.
+
+### Regression coverage
+
+- Windows packaged native-UI acceptance exercises ready-on-first-frame,
+  duplicate-launch handoff, normal process exit, and clean restart. Stable
+  release remains subject to the exact-commit CI, installer, signing, and
+  publishing gates documented in the release runbook.
+
+
 ## [0.14.0] - 2026-10-27
 
 ### Added
