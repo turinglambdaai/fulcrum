@@ -263,6 +263,16 @@ Write your own plugin: one manifest + one script. See
 
 ## Settings
 
+On **Windows and macOS**, open **Settings** from the tray/menu bar or launcher,
+then choose **General**, **Features**, **AI**, **Commands**, or **Sync & Updates**
+from the left sidebar. Select the hotkey field in General and press your desired
+modifier plus a key (Esc cancels); Windows now records it instead of requiring
+you to type `alt+space`. Under **Commands**, configure each command's alias
+and keyboard shortcut. Windows uses native WinUI controls and shows the Fulcrum
+app icon in its Settings title bar; macOS uses native AppKit/SwiftUI window
+chrome. Linux currently offers a grouped scrollable GTK settings form, without
+the separate Commands page.
+
 Query `settings` and run a row to change it:
 
 | Setting | What it does |
