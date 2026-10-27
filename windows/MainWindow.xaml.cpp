@@ -7,6 +7,7 @@
 #include "GeneratedI18n.hpp"
 #include "SettingsWindow.xaml.h"
 #include "WindowCommands.h"
+#include "WindowsInstance.h"
 
 #include <shellapi.h>
 #include <commctrl.h>
@@ -828,7 +829,7 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
               if (auto window = weak.get()) {
                 // Rebinding needs the HWND; the subclass route reads it the
                 // same way FinishNativeSetup does.
-                if (HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum")) {
+                if (HWND hwnd = window->WindowHandle()) {
                   window->ApplyHotkey(spec_copy);
                 }
               }
@@ -921,6 +922,10 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
     dispatcher.TryEnqueue([weak, message = std::move(message)] {
       if (auto window = weak.get()) {
         window->SetStatusError(to_wide(message));
+        // Surface boot failures rather than staying permanently invisible.
+        window->FinishNativeSetup();
+        window->startup_presented_ = true;
+        window->ShowLauncher(false);
       }
     });
   }
@@ -949,11 +954,10 @@ LRESULT CALLBACK expansion_hook_proc(int code, WPARAM wParam, LPARAM lParam) {
 }
 
 void MainWindow::FinishNativeSetup() {
-  // HWND lookup via the window title: Fulcrum is single-instance and owns
-  // exactly one window with this title. This avoids depending on the
-  // WindowsAppSDK interop surface, whose projection shape moved between
-  // releases; the official interop call is the 0.2 follow-up.
-  auto const hwnd = ::FindWindowW(nullptr, L"Fulcrum");
+  // Rivet's pinned WinUI interop resolves our own HWND even when another
+  // isolated Fulcrum installation is running with the same window title.
+  auto const hwnd = WindowHandle();
+  fulcrum::windows::MarkResidentWindow(hwnd);
 
   // Frosted glass: the system Desktop Acrylic backdrop is the window's
   // surface (the root grid paints nothing). The macOS host's vibrancy is
@@ -990,18 +994,17 @@ void MainWindow::FinishNativeSetup() {
     }
     // Alt+F4 and system close requests hide the panel instead of ending
     // the process — the Linux host made the same call for its WM close
-    // button. Quitting lives in the tray menu, whose Destroy() bypasses
-    // this handler.
+    // button. Explicit Quit bypasses hide-on-close via the quitting_ guard.
     appWindow.Closing([this](auto&&, auto&& args) {
+      if (quitting_) return;  // An explicit Application.Exit is not a hide.
       args.Cancel(true);
       this->HideLauncher();
     });
   }
   position_launcher(hwnd);
 
-  // Bootstrap hotkey (Alt+Space, honest fallback) so the launcher works
-  // before the backend answers; PullHostSettings re-binds from the stored
-  // spec once the hotkey state arrives.
+  // Bootstrap hotkey (Alt+Space, honest fallback) after runtime startup;
+  // PullHostSettings re-binds from the persisted setting.
   ApplyHotkey("alt+space");
 
   // Window subclass for WM_HOTKEY and clipboard updates. Runs for the
@@ -1023,6 +1026,17 @@ void MainWindow::FinishNativeSetup() {
                       }
                       if (msg == kExpansionRepairMessage && self != nullptr) {
                         self->RepairExpansion(static_cast<std::size_t>(wParam));
+                      }
+                      // Second launch asks the existing process to reopen.
+                      if (msg == fulcrum::windows::kSummonResidentMessage && self != nullptr) {
+                        self->ShowLauncher();
+                        return 0;
+                      }
+                      // Acceptance-only path through the same tray Quit logic.
+                      if (msg == fulcrum::windows::kAcceptanceQuitMessage && self != nullptr &&
+                          is_acceptance_run()) {
+                        self->QuitApplication();
+                        return 0;
                       }
                       if (msg == WM_NCHITTEST && self != nullptr) {
                         // The borderless panel has no titlebar to drag by,
@@ -1125,7 +1139,7 @@ void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
         } else if (choice == kTrayMenuAbout) {
           ShowAbout();
         } else if (choice == kTrayMenuQuit) {
-          this->AppWindow().Destroy();
+          this->QuitApplication();
         }
       }
       break;
@@ -1174,22 +1188,26 @@ void MainWindow::OnClipboardUpdate() {
   api_->clipboard_record(to_utf8(text));
 }
 
-void MainWindow::ShowLauncher() {
-  actions_mode_ = false;
-  HintBar().Text(t("navigationHint"));
-  DismissAiPanel();
-  DismissDetailPanel();
-  QueryBox().Text(L"");
-  SearchAsync(std::wstring(L""));
+void MainWindow::ShowLauncher(bool reset_query) {
+  // Never flash the blank XAML scaffold or show the UI mid-shutdown.
+  if (!startup_presented_ || quitting_) return;
+  if (reset_query) {
+    actions_mode_ = false;
+    HintBar().Text(t("navigationHint"));
+    DismissAiPanel();
+    DismissDetailPanel();
+    QueryBox().Text(L"");
+    SearchAsync(std::wstring(L""));
+  }
   // Re-evaluate pointer monitor and DPI for every summon; users may have
   // moved between displays or changed scaling since app startup.
-  position_launcher(::FindWindowW(nullptr, L"Fulcrum"));
+  position_launcher(WindowHandle());
   this->Activate();
   // The hotkey path runs in a WM_HOTKEY handler, which grants the
   // foreground right; claiming it explicitly also covers the tray-open
   // path and the first re-summon after AppWindow().Hide(), which WinUI
   // otherwise shows without bringing to the foreground.
-  if (HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum")) {
+  if (HWND hwnd = WindowHandle()) {
     ::SetForegroundWindow(hwnd);
   }
   // Focusing synchronously with the show races the activation: the caret
@@ -1202,6 +1220,43 @@ void MainWindow::ShowLauncher() {
 }
 
 void MainWindow::HideLauncher() { this->AppWindow().Hide(); }
+
+void MainWindow::QuitApplication() {
+  if (quitting_) return;
+  quitting_ = true;
+
+  // Release native resources before closing their owner HWND.
+  if (expansion_hook_) {
+    ::UnhookWindowsHookEx(expansion_hook_);
+    expansion_hook_ = nullptr;
+  }
+  g_expansion_window = nullptr;
+  if (HWND hwnd = WindowHandle()) {
+    auto const property = fulcrum::windows::InstanceProperty();
+    ::RemovePropW(hwnd, property.c_str());
+    ::UnregisterHotKey(hwnd, kHotkeyIdPrimary);
+    ::UnregisterHotKey(hwnd, kHotkeyIdFallback);
+    if (clipboard_listener_installed_.exchange(false)) {
+      ::RemoveClipboardFormatListener(hwnd);
+    }
+  }
+  tray_icon_.reset();
+
+  // RVT1 Shutdown can join Racket worker threads: never block WinUI's
+  // event pump while stopping them. Exit the *application*, not one window.
+  if (backend_) {
+    auto backend = backend_;
+    auto dispatcher = DispatcherQueue();
+    std::thread([backend = std::move(backend), dispatcher]() mutable {
+      try { backend->stop(); } catch (...) { /* still exit the host */ }
+      dispatcher.TryEnqueue([] {
+        Microsoft::UI::Xaml::Application::Current().Exit();
+      });
+    }).detach();
+  } else {
+    Microsoft::UI::Xaml::Application::Current().Exit();
+  }
+}
 
 void MainWindow::ApplyLanguage() {
   QueryBox().PlaceholderText(t("searchPlaceholder"));
@@ -1277,7 +1332,7 @@ void MainWindow::ApplyTheme(std::string const& theme) {
 }
 
 void MainWindow::ApplyHotkey(std::string const& spec) {
-  HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum");
+  HWND hwnd = WindowHandle();
   if (hwnd == nullptr) {
     return;
   }
@@ -1516,6 +1571,10 @@ winrt::fire_and_forget MainWindow::SearchAsync(std::wstring const& query) {
     dispatcher.TryEnqueue([weak, message = std::move(message)] {
       if (auto window = weak.get()) {
         window->SetStatusError(to_wide(message));
+        if (!window->startup_presented_) {
+          window->startup_presented_ = true;
+          window->ShowLauncher(false);
+        }
       }
     });
   }
@@ -1546,6 +1605,10 @@ void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
     ResultsList().SelectedIndex(-1);
   }
   UpdateEnterChips();
+  if (!startup_presented_) {
+    startup_presented_ = true;
+    ShowLauncher(false);  // show only after the first native rows are built
+  }
 }
 
 void MainWindow::UpdateEnterChips() {
@@ -1698,10 +1761,9 @@ void MainWindow::RunSelected() {
               auto const msi = std::filesystem::path(to_wide(*update_path));
               rivet::update::MsiHandoff::LaunchVerifiedInstaller(
                   L"site.jrtx.fulcrum", msi, executable_path());
-              // Existing tray Quit uses Destroy() as the supported process
-              // exit path; the detached handoff waits for this PID to leave,
-              // upgrades with msiexec /passive /norestart, then relaunches.
-              window->AppWindow().Destroy();
+              // The MSI handoff waits for this PID; share the tray's orderly
+              // backend shutdown and WinUI application exit.
+              window->QuitApplication();
             } catch (std::exception const& e) {
               window->SetStatusError(
                   L"Update install failed: " + to_wide(e.what()));
@@ -1806,7 +1868,7 @@ void MainWindow::ShowSettings() {
 
 void MainWindow::OnExpansionKey(std::uint32_t vk) {
   // The user typing into Fulcrum's own panel must never self-expand.
-  if (::GetForegroundWindow() == ::FindWindowW(nullptr, L"Fulcrum")) {
+  if (::GetForegroundWindow() == WindowHandle()) {
     expansion_buffer_.clear();
     return;
   }
@@ -1840,7 +1902,7 @@ void MainWindow::OnExpansionKey(std::uint32_t vk) {
   for (std::size_t i = 0; i < expansion_triggers_.size(); ++i) {
     if (expansion_triggers_[i].first == candidate) {
       expansion_ignore_.store(true, std::memory_order_relaxed);
-      HWND const hwnd = ::FindWindowW(nullptr, L"Fulcrum");
+      HWND const hwnd = WindowHandle();
       if (hwnd != nullptr) {
         ::PostMessageW(hwnd, kExpansionRepairMessage,
                        static_cast<WPARAM>(i), 0);

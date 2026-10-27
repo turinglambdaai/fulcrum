@@ -3,6 +3,7 @@
 #include "pch.h"
 #include "MainWindow.g.h"
 #include "GeneratedBackend.hpp"
+#include "winui_window.hpp"
 
 #include <string>
 #include <vector>
@@ -54,10 +55,14 @@ struct MainWindow : MainWindowT<MainWindow> {
       winrt::Windows::Foundation::IInspectable const&,
       Microsoft::UI::Xaml::Input::DoubleTappedRoutedEventArgs const&);
 
-  // Called by App.xaml.cpp after the window is shown: native-only setup that
-  // needs the final HWND (topmost overlay chrome, global hotkey, clipboard
-  // listener).
+  // Called after backend initialization, before the first window is shown:
+  // native-only setup for the HWND (overlay chrome, hotkey, clipboard, tray).
   void FinishNativeSetup();
+  [[nodiscard]] HWND WindowHandle() {
+    return rivet::system::NativeWindowHandle(*this);
+  }
+  // Shared orderly exit for tray Quit and the verified MSI handoff.
+  void QuitApplication();
 
   // Global hotkey message pump hook. Returns true when the message was the
   // Fulcrum hotkey.
@@ -102,7 +107,7 @@ struct MainWindow : MainWindowT<MainWindow> {
   winrt::fire_and_forget InitializeBackendAsync();
   winrt::fire_and_forget SearchAsync(std::wstring const& query);
   void RunSelected();
-  void ShowLauncher();
+  void ShowLauncher(bool reset_query = true);
   void HideLauncher();
   void ApplyLanguage();
   void MoveSelection(int delta);
@@ -147,6 +152,8 @@ struct MainWindow : MainWindowT<MainWindow> {
   std::wstring last_recorded_clipboard_;
   std::unique_ptr<rivet::system::TrayIcon> tray_icon_;
   std::atomic<bool> update_polling_{false};
+  bool startup_presented_{false};
+  bool quitting_{false};
   // ⌘K (Ctrl+K) mode: rows_ currently holds secondary actions and
   // search_rows_ remembers the live result list.
   bool actions_mode_{false};
