@@ -5,6 +5,7 @@
 ;; elsewhere.
 
 (require racket/file
+         racket/path
          racket/async-channel
          racket/list
          racket/string
@@ -79,6 +80,7 @@
 
 (test-case "windows backend runs the index-first script inside one command"
   (define captured #f)
+  (define captured-timeout-ms #f)
   (define result
     (file-search/status
      "o'brien" 8
@@ -87,16 +89,25 @@
      #:run (lambda (program args #:timeout-ms [timeout-ms 3000]
                                #:cancel-evt [_cancel-evt never-evt])
              (set! captured (cons program args))
+             (set! captured-timeout-ms timeout-ms)
              "file:///C:/Users/me/obrien.txt\n")))
-  ;; The call stays a single PowerShell invocation with the 3s budget.
+  ;; The explicit find command gets a Windows-specific 9s budget; ordinary
+  ;; launcher typing never invokes this search.
+  (check-equal? captured-timeout-ms 9000)
+  ;; The call stays a single PowerShell invocation with known-folder first
+  ;; and Windows Search / bounded profile fallback.
   (check-equal? (car captured) "powershell.exe")
   (check-equal? (cadr captured) "-NoProfile")
   (check-equal? (file-search-result-status result) 'ok)
   (check-equal? (file-search-result-hits result)
                 '(("obrien.txt" . "C:/Users/me/obrien.txt")))
   (define script (cadddr captured))
-  ;; Index-first: SYSTEMINDEX query, then the honest scan fallback — both
-  ;; inside the same invocation so any index failure still answers.
+  ;; A failed/hung Windows Search provider must not starve a real file in
+  ;; Documents or in redirected OneDrive. Search common folders before OLE DB.
+  (check-true (string-contains? script "GetFolderPath('MyDocuments')"))
+  (check-true (string-contains? script "OneDriveConsumer"))
+  (check-true (string-contains? script "OutputEncoding"))
+  (check-true (string-contains? script "if($out.Count -eq 0){try{"))
   (check-true (string-contains? script "SYSTEMINDEX"))
   (check-true (string-contains? script "CONTAINS(System.FileName,"))
   (check-true (string-contains? script "FREETEXT(System.FileName,"))
@@ -106,6 +117,35 @@
   ;; The query is neutralized for both SQL and PowerShell single quotes.
   (check-false (string-contains? script "o'brien"))
   (check-true (string-contains? script "o''brien")))
+
+(test-case "Windows explicit find resolves a real fixture with the production PowerShell runner"
+  (when (eq? (system-type 'os) 'windows)
+    ;; Native backend smoke, not a string-mock: proves the Windows scanner
+    ;; returns usable filesystem paths when SYSTEMINDEX is unavailable.
+    (define profile (getenv "USERPROFILE"))
+    (when profile
+      (define downloads (build-path profile "Downloads"))
+      (define already-exists? (directory-exists? downloads))
+      (make-directory* downloads)
+      (define fixture-name
+        (format "fulcrum-find-smoke-~a.txt" (current-process-milliseconds)))
+      (define fixture (build-path downloads fixture-name))
+      (dynamic-wind
+        (lambda () (display-to-file "test" fixture #:exists 'truncate))
+        (lambda ()
+          (define result
+            (file-search/status
+             (path->string (path-replace-extension (file-name-from-path fixture) #""))
+             8 #:os 'windows))
+          (check-equal? (file-search-result-status result) 'ok)
+          (check-true
+           (for/or ([hit (in-list (file-search-result-hits result))])
+             (string-ci=? (car hit) fixture-name))))
+        (lambda ()
+          (when (file-exists? fixture) (delete-file fixture))
+          (when (not already-exists?)
+            (with-handlers ([exn:fail? (lambda (_) (void))])
+              (delete-directory downloads))))))))
 
 (test-case "Linux find fallback reports timeout instead of an empty success"
   (define (find-only program)
