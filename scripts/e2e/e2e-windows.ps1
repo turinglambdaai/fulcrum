@@ -80,7 +80,17 @@ $process = $null
 $savedData = $env:FULCRUM_DATA_DIR
 $savedInstanceId = $env:FULCRUM_INSTANCE_ID
 $savedAcceptance = $env:FULCRUM_ACCEPTANCE
+# Verify the explicit file-search command against a real, existing file
+# in the shell-resolved Documents directory. Seed before app launch so the
+# query does not depend on the asynchronous catalog finishing its first scan.
+$documentRoot = [Environment]::GetFolderPath('MyDocuments')
+if (-not $documentRoot) { $documentRoot = Join-Path $env:USERPROFILE 'Documents' }
+$createdDocumentRoot = -not (Test-Path -LiteralPath $documentRoot -PathType Container)
+$fixtureName = "fulcrum-find-acceptance-$PID.txt"
+$fixturePath = Join-Path $documentRoot $fixtureName
 try {
+    New-Item -ItemType Directory -Force -Path $documentRoot | Out-Null
+    Set-Content -LiteralPath $fixturePath -Value 'find command acceptance fixture' -Encoding utf8
     $env:FULCRUM_DATA_DIR = $data
     $env:FULCRUM_INSTANCE_ID = "site.jrtx.fulcrum.acceptance.$PID"
     $env:FULCRUM_ACCEPTANCE = '1'
@@ -130,6 +140,32 @@ try {
         throw "$($_.Exception.Message); status=$statusText"
     }
 
+    # A normal filename query is NOT supposed to invoke the file provider.
+    # File search is an explicit user command: "find <filename>". Exercise
+    # the real PowerShell/Windows Search fallback through packaged RVT1/WinUI.
+    $query.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('^a')
+    [System.Windows.Forms.SendKeys]::SendWait("find fulcrum-find-acceptance-$PID")
+    try {
+        [void](Wait-Until 'find command displays a real Documents file' {
+            $candidate = Find-ByName $window $fixtureName
+            if ($candidate -and -not $candidate.Current.IsOffscreen) { return $true }
+            return $false
+        } 90)
+    } catch {
+        Save-AccessibilitySnapshot $window (Join-Path $output 'file-search-failure-accessibility.json')
+        $status = Find-ById $window 'StatusText'
+        $statusText = if ($status) { $status.Current.Name } else { '<missing>' }
+        throw "$($_.Exception.Message); status=$statusText"
+    }
+    Save-AccessibilitySnapshot $window (Join-Path $output 'file-search-accessibility.json')
+    # Restore the arithmetic query for the existing action and clipboard test.
+    $query.SetFocus()
+    [System.Windows.Forms.SendKeys]::SendWait('^a')
+    [System.Windows.Forms.SendKeys]::SendWait('12*12')
+    [void](Wait-Until 'calculator result returns after explicit file search' {
+        Find-ByNameFragment $window '144'
+    })
     Save-AccessibilitySnapshot $window (Join-Path $output 'accessibility.json')
 
     $query.SetFocus()
@@ -279,10 +315,14 @@ try {
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
-        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
+        actions = @('set:QueryBox=12*12','search:find-explicit-windows-document','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','find prefix locates a real Windows Documents file using packaged RVT1/WinUI','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
+    Remove-Item -LiteralPath $fixturePath -Force -ErrorAction SilentlyContinue
+    if ($createdDocumentRoot) {
+        Remove-Item -LiteralPath $documentRoot -ErrorAction SilentlyContinue
+    }
     $env:FULCRUM_DATA_DIR = $savedData
     $env:FULCRUM_INSTANCE_ID = $savedInstanceId
     $env:FULCRUM_ACCEPTANCE = $savedAcceptance
