@@ -156,12 +156,11 @@
                         '("launcher-plan.md"))
           ;; The unified launcher must return catalog files for ordinary
           ;; filename queries as soon as their async scan is complete.
-          (define normal-rows (engine-search engine "launcher-plan"))
           (check-not-false
            (findf (lambda (row)
                     (and (string=? (car row) "file.open")
                          (string=? (cadr row) "launcher-plan.md")))
-                  normal-rows))
+                  (engine-search engine "launcher-plan")))
           (check-not-false
            (findf (lambda (row) (string-contains? (cadr row) "File index ready"))
                   (engine-search engine "file index")))]
