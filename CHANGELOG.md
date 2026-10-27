@@ -34,6 +34,12 @@ independently per platform packaging run.
 - **Windows Settings shows Fulcrum's brand icon in the title bar.** The window
   now installs the embedded resource ID 1 through `SetIcon(IconId)` instead of
   passing `RivetHost.exe` to the `.ico`-path overload.
+- **Windows explicit `find <filename>` search works even if Windows Search is
+  unavailable.** The PowerShell command now searches the user's actual
+  Documents, Desktop, Downloads and redirected OneDrive locations before
+  trying the Windows Search index or a bounded profile fallback; it handles
+  UTF-8 paths. File results remain behind the explicit `find` command —
+  plain searches and the search placeholder are deliberately unchanged.
 
 - **Linux GTK search icon aligns with the search placeholder.** The themed
   magnifying-glass glyph and editable query now occupy one vertically centered
@@ -45,6 +51,9 @@ independently per platform packaging run.
 
 ### Regression coverage
 
+- Windows backend tests and packaged WinUI acceptance seed a real user file
+  and require `find <name>` to return its actual path, not simply invoke a
+  search subprocess. This check is a release gate on the final commit.
 - Linux GTK widget regression checks image/input vertical alignment and
   routine-ready visibility while preserving actionable status messages; its
   packaged Wayland/AT-SPI acceptance uses backend result readiness rather than
