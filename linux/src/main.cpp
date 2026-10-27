@@ -2312,6 +2312,1311 @@ void refresh_settings_language() {
   }
 }
 
+// Native per-device XDG autostart; never synced with the backend settings.
+std::filesystem::path linux_autostart_file() {
+  char const* config = std::getenv("XDG_CONFIG_HOME");
+  auto const root = config && *config
+      ? std::filesystem::path(config)
+      : std::filesystem::path(g_get_home_dir()) / ".config";
+  return root / "autostart" / "site.jrtx.fulcrum.desktop";
+}
+
+bool linux_autostart_enabled() {
+  return std::filesystem::is_regular_file(linux_autostart_file());
+}
+
+std::string linux_autostart_exec_quote(std::string const& executable) {
+  std::string result = "\"";
+  for (char const c : executable) {
+    if (c == '%') result += "%%";
+    else {
+      if (c == '
+  auto* window = gtk_window_new();
+  g_settings_form->window = GTK_WINDOW(window);
+  gtk_window_set_title(GTK_WINDOW(window), "Fulcrum Settings");
+  gtk_window_set_default_size(GTK_WINDOW(window), 760, 560);
+  gtk_window_set_hide_on_close(GTK_WINDOW(window), TRUE);
+
+  // Mirror native macOS/WinUI Settings information architecture: five
+  // named sidebar categories, one current scrollable content page.
+  auto* layout = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  auto* content = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  gtk_widget_set_hexpand(content, TRUE);
+  gtk_widget_set_vexpand(content, TRUE);
+  auto* stack = gtk_stack_new();
+  g_settings_form->stack = stack;
+  gtk_widget_set_hexpand(stack, TRUE);
+  gtk_widget_set_vexpand(stack, TRUE);
+  auto* sidebar = gtk_stack_sidebar_new();
+  gtk_stack_sidebar_set_stack(GTK_STACK_SIDEBAR(sidebar), GTK_STACK(stack));
+  gtk_widget_set_size_request(sidebar, 170, -1);
+  gtk_widget_add_css_class(sidebar, "navigation-sidebar");
+  gtk_box_append(GTK_BOX(layout), sidebar);
+  gtk_box_append(GTK_BOX(layout), gtk_separator_new(GTK_ORIENTATION_VERTICAL));
+  gtk_box_append(GTK_BOX(content), stack);
+  gtk_box_append(GTK_BOX(layout), content);
+  gtk_window_set_child(GTK_WINDOW(window), layout);
+
+  auto make_page = [stack](char const* id, char const* title) -> GtkWidget* {
+    auto* scrolled = gtk_scrolled_window_new();
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+                                   GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    auto* page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
+    gtk_widget_set_margin_top(page, 8);
+    gtk_widget_set_margin_bottom(page, 24);
+    gtk_widget_set_margin_start(page, 24);
+    gtk_widget_set_margin_end(page, 24);
+    gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), page);
+    gtk_stack_add_titled(GTK_STACK(stack), scrolled, id, title);
+    return page;
+  };
+
+  auto* general_page = make_page("general", "General");
+  auto* general = settings_section(general_page, "General");
+  settings_add_choice(general, "Language", "language",
+                      {{"中文", "zh"}, {"English", "en"}});
+  settings_add_choice(general, "Theme", "theme",
+                      {{"System", "system"}, {"Light", "light"}, {"Dark", "dark"}});
+  settings_add_text(general, "Hotkey", "hotkey", "alt+space");
+  settings_hint(general,
+                "Modifiers alt / ctrl / shift / super plus a key: space, a–z, 0–9, "
+                "f1–f12, comma, period, minus, equal, tab. Applies immediately; "
+                "a taken combo falls back to Ctrl+Alt+Space.");
+  settings_add_number(general, "Maximum results", "max-results", 5, 25);
+  auto* login_switch = gtk_switch_new();
+  gtk_switch_set_active(GTK_SWITCH(login_switch), linux_autostart_enabled());
+  settings_row(general, "Start at login", login_switch);
+  g_signal_connect(login_switch, "notify::active",
+                   G_CALLBACK(on_linux_autostart_changed), nullptr);
+  settings_hint(general, "Starts quietly after signing in; "
+                        "stored in this device's desktop settings.");
+
+  auto* features = settings_section(make_page("features", "Features"), "Features");
+  settings_add_toggle(features, "Record clipboard history", "clipboard-enabled");
+  settings_add_number(features, "Clipboard history limit", "clipboard-limit", 10, 100000);
+  settings_add_toggle(features, "Web search rows (bangs and fallback)", "web-search-enabled");
+  settings_add_choice(features, "Default bang", "default-engine",
+                      {{"!g", "!g"}, {"!d", "!d"}, {"!gh", "!gh"}, {"!so", "!so"},
+                       {"!w", "!w"}, {"!yt", "!yt"}, {"!m", "!m"}, {"!t", "!t"}});
+  auto* expansion = settings_add_toggle(
+      features, "Expand snippet keywords as you type in any app",
+      "expansion-enabled");
+  gtk_widget_set_sensitive(expansion, FALSE);
+  settings_hint(features,
+                "Snippet expansion is not supported on Linux yet; the setting "
+                "is shown so the three hosts expose the same feature map.");
+  settings_add_toggle(features, "Load plugins", "plugins-enabled");
+  settings_add_number(features, "Plugin call timeout (ms)", "plugins-timeout-ms", 100, 10000);
+
+  auto* ai = settings_section(make_page("ai", "AI"), "AI");
+  settings_add_choice(ai, "Provider", "ai-provider",
+                      {{"Off", ""}, {"OpenAI", "openai"},
+                       {"Anthropic", "anthropic"}, {"Ollama", "ollama"}});
+  settings_add_text(ai, "Model", "ai-model", "provider default");
+  settings_add_text(ai, "Base URL", "ai-base-url", "provider default");
+  settings_add_text(ai, "Persona", "ai-persona", "prepended to every request");
+  auto* key_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+  auto* key_entry = gtk_password_entry_new();
+  gtk_password_entry_set_show_peek_icon(GTK_PASSWORD_ENTRY(key_entry), TRUE);
+  gtk_widget_set_size_request(key_entry, 240, -1);
+  g_signal_connect(key_entry, "activate", G_CALLBACK(on_key_entry_activate), nullptr);
+  auto* save = gtk_button_new_with_label("Save");
+  g_signal_connect(save, "clicked", G_CALLBACK(on_save_key_clicked), nullptr);
+  gtk_box_append(GTK_BOX(key_box), key_entry);
+  gtk_box_append(GTK_BOX(key_box), save);
+  g_settings_form->key_entry = key_entry;
+  settings_row(ai, "API key", key_box);
+  auto* status = gtk_label_new("");
+  gtk_label_set_xalign(GTK_LABEL(status), 0.0);
+  gtk_widget_add_css_class(status, "dim-label");
+  gtk_widget_set_margin_start(status, 14);
+  gtk_widget_set_margin_end(status, 14);
+  gtk_box_append(GTK_BOX(ai), status);
+  g_settings_form->ai_status = GTK_LABEL(status);
+  auto* notice = gtk_label_new("");
+  gtk_label_set_xalign(GTK_LABEL(notice), 0.0);
+  gtk_label_set_wrap(GTK_LABEL(notice), TRUE);
+  gtk_widget_add_css_class(notice, "caption");
+  gtk_widget_add_css_class(notice, "dim-label");
+  gtk_widget_set_margin_start(notice, 14);
+  gtk_widget_set_margin_end(notice, 14);
+  gtk_box_append(GTK_BOX(ai), notice);
+  g_settings_form->key_notice = GTK_LABEL(notice);
+  settings_hint(ai, "Stored in ai-keys.json on this machine; never mirrored to the sync folder.");
+
+  // Commands is a real backend-owned editor, not just a placeholder label.
+  auto* commands_page = make_page("commands", "Commands");
+  auto* commands = settings_section(commands_page, "Commands");
+  settings_hint(commands, "Set a short alias and optional global shortcut for each command.");
+  auto* commands_list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+  gtk_box_append(GTK_BOX(commands), commands_list);
+  g_settings_form->commands_list = commands_list;
+  auto* commands_message = gtk_label_new("Loading command bindings…");
+  gtk_label_set_xalign(GTK_LABEL(commands_message), 0);
+  gtk_label_set_wrap(GTK_LABEL(commands_message), TRUE);
+  gtk_box_append(GTK_BOX(commands), commands_message);
+  g_settings_form->commands_message = commands_message;
+
+  auto* sync_page = make_page("sync", "Sync & Updates");
+  auto* sync = settings_section(sync_page, "Sync & Updates");
+  settings_add_text(sync, "Sync folder (beta)", "sync-root", "empty = off");
+  settings_hint(sync,
+                "A folder a file sync service replicates (Syncthing, Nextcloud, "
+                "Dropbox); settings and snippets mirror there.");
+  settings_hint(sync,
+                "Fulcrum checks signed releases automatically. Use Check for "
+                "Updates from the tray menu to check now.");
+
+  auto* error = gtk_label_new("");
+  gtk_label_set_xalign(GTK_LABEL(error), 0.0);
+  gtk_label_set_wrap(GTK_LABEL(error), TRUE);
+  gtk_label_set_selectable(GTK_LABEL(error), TRUE);
+  gtk_widget_add_css_class(error, "error");
+  gtk_widget_set_margin_top(error, 12);
+  gtk_widget_set_visible(error, FALSE);
+  // Errors belong to a persistent shared footer, not an arbitrary section.
+  // It stays under the content pages while users navigate the sidebar.
+  gtk_box_append(GTK_BOX(content), error);
+  g_settings_form->error = GTK_LABEL(error);
+}
+
+void settings_apply(std::map<std::string, std::string> values, std::string ai_status) {
+  if (g_settings_form == nullptr) return;
+  g_settings_form->values = std::move(values);
+  g_settings_form->loading = true;
+  for (auto const& binding : g_settings_form->bindings) {
+    auto const it = g_settings_form->values.find(binding->key);
+    std::string const value = it == g_settings_form->values.end() ? "" : it->second;
+    switch (binding->kind) {
+      case SettingKind::toggle:
+        gtk_switch_set_active(GTK_SWITCH(binding->widget), value == "on");
+        break;
+      case SettingKind::choice: {
+        guint selected = GTK_INVALID_LIST_POSITION;
+        for (std::size_t i = 0; i < binding->choices.size(); ++i) {
+          if (binding->choices[i] == value) {
+            selected = static_cast<guint>(i);
+            break;
+          }
+        }
+        gtk_drop_down_set_selected(GTK_DROP_DOWN(binding->widget), selected);
+        break;
+      }
+      case SettingKind::number: {
+        double number = 0;
+        try {
+          number = std::stod(value);
+        } catch (...) {
+        }
+        gtk_spin_button_set_value(GTK_SPIN_BUTTON(binding->widget), number);
+        break;
+      }
+      case SettingKind::text:
+        gtk_editable_set_text(GTK_EDITABLE(binding->widget), value.c_str());
+        break;
+    }
+  }
+  gtk_label_set_text(g_settings_form->ai_status,
+                     ai_status == "ready" ? "Ready" : ai_status.c_str());
+  g_settings_form->loading = false;
+}
+
+void settings_load() {
+  auto* api_raw = Launcher::instance().api.get();
+  if (api_raw == nullptr || g_settings_form == nullptr) return;
+  std::thread([api_raw]() {
+    auto* payload = new std::pair<std::map<std::string, std::string>, std::string>();
+    try {
+      // settings-list rows: (key value description …); booleans read on/off.
+      for (auto const& row : api_raw->settings_list().get()) {
+        if (row.size() >= 2) {
+          payload->first[row[0]] = row[1];
+        }
+      }
+    } catch (...) {
+    }
+    try {
+      payload->second = api_raw->ai_status().get();
+    } catch (...) {
+    }
+    g_idle_add([](gpointer user_data) -> int {
+      std::unique_ptr<std::pair<std::map<std::string, std::string>, std::string>>
+          loaded(static_cast<std::pair<std::map<std::string, std::string>,
+                                       std::string>*>(user_data));
+      settings_apply(std::move(loaded->first), std::move(loaded->second));
+      return G_SOURCE_REMOVE;
+    }, payload);
+  }).detach();
+}
+
+// Native Commands editor mirrors the existing bindings-commands,
+// bindings-list, binding-set and binding-clear RVT1 API of macOS/Windows.
+// It never invents a Linux-only config file or bypasses backend validation.
+struct LinuxCommandRow {
+  std::string id;
+  GtkWidget* alias{nullptr};
+  GtkWidget* hotkey{nullptr};
+};
+
+void settings_load_commands();
+
+void settings_commit_binding(std::string id, std::string alias,
+                             std::string hotkey, bool clear) {
+  auto* api = Launcher::instance().api.get();
+  if (!api || !g_settings_form) return;
+  gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message), "Saving…");
+  std::thread([api, id = std::move(id), alias = std::move(alias),
+               hotkey = std::move(hotkey), clear] {
+    std::string message;
+    try {
+      bool const ok = clear
+          ? api->binding_clear(id).get()
+          : api->binding_set(id, alias, hotkey).get();
+      if (!ok) message = "Binding rejected (shortcut conflict or invalid alias/key)";
+    } catch (std::exception const& e) { message = e.what(); }
+    g_idle_add([](gpointer data) -> gboolean {
+      std::unique_ptr<std::string> error(static_cast<std::string*>(data));
+      if (g_settings_form) {
+        if (error->empty()) {
+          settings_load_commands();
+        } else {
+          gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
+                             error->c_str());
+        }
+      }
+      return G_SOURCE_REMOVE;
+    }, new std::string(std::move(message)));
+  }).detach();
+}
+
+void settings_load_commands() {
+  auto* api = Launcher::instance().api.get();
+  if (!api || !g_settings_form || !g_settings_form->commands_list) return;
+  using Commands = std::vector<std::vector<std::string>>;
+  struct Payload { Commands commands; Commands bindings; std::string error; };
+  std::thread([api] {
+    auto* payload = new Payload;
+    try {
+      payload->commands = api->bindings_commands().get();
+      payload->bindings = api->bindings_list().get();
+    } catch (std::exception const& e) { payload->error = e.what(); }
+    g_idle_add([](gpointer data) -> gboolean {
+      std::unique_ptr<Payload> payload(static_cast<Payload*>(data));
+      if (!g_settings_form) return G_SOURCE_REMOVE;
+      auto* list = g_settings_form->commands_list;
+      for (auto* child = gtk_widget_get_first_child(list); child;) {
+        auto* next = gtk_widget_get_next_sibling(child);
+        gtk_box_remove(GTK_BOX(list), child);
+        child = next;
+      }
+      if (!payload->error.empty()) {
+        gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
+                           payload->error.c_str());
+        return G_SOURCE_REMOVE;
+      }
+      for (auto const& command : payload->commands) {
+        if (command.size() < 2) continue;
+        std::string alias, hotkey;
+        for (auto const& saved : payload->bindings) {
+          if (saved.size() >= 3 && saved[0] == command[0]) {
+            alias = saved[1]; hotkey = saved[2]; break;
+          }
+        }
+        auto* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+        gtk_widget_set_margin_top(row, 6);
+        gtk_widget_set_margin_bottom(row, 6);
+        auto* title = gtk_label_new(command[1].c_str());
+        gtk_label_set_xalign(GTK_LABEL(title), 0);
+        gtk_widget_set_hexpand(title, TRUE);
+        gtk_widget_set_size_request(title, 110, -1);
+        auto* alias_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(alias_entry), "Alias");
+        gtk_editable_set_text(GTK_EDITABLE(alias_entry), alias.c_str());
+        gtk_widget_set_size_request(alias_entry, 115, -1);
+        auto* hotkey_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(hotkey_entry), "ctrl+alt+k");
+        gtk_editable_set_text(GTK_EDITABLE(hotkey_entry), hotkey.c_str());
+        gtk_widget_set_size_request(hotkey_entry, 145, -1);
+        auto* save = gtk_button_new_with_label("Save");
+        auto* clear = gtk_button_new_with_label("Clear");
+        auto* state = new LinuxCommandRow{command[0], alias_entry, hotkey_entry};
+        g_object_set_data_full(G_OBJECT(row), "command-binding", state,
+            [](gpointer data) { delete static_cast<LinuxCommandRow*>(data); });
+        g_signal_connect(save, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+          auto* r = static_cast<LinuxCommandRow*>(data);
+          settings_commit_binding(
+              r->id,
+              settings_trimmed(gtk_editable_get_text(GTK_EDITABLE(r->alias))),
+              settings_trimmed(gtk_editable_get_text(GTK_EDITABLE(r->hotkey))),
+              false);
+        }), state);
+        g_signal_connect(clear, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+          auto* r = static_cast<LinuxCommandRow*>(data);
+          settings_commit_binding(r->id, "", "", true);
+        }), state);
+        gtk_box_append(GTK_BOX(row), title);
+        gtk_box_append(GTK_BOX(row), alias_entry);
+        gtk_box_append(GTK_BOX(row), hotkey_entry);
+        gtk_box_append(GTK_BOX(row), save);
+        gtk_box_append(GTK_BOX(row), clear);
+        gtk_box_append(GTK_BOX(list), row);
+      }
+      gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
+          "Aliases and hotkeys are validated by the shared backend. "
+          "Enter a modifier+key, then Save.");
+      return G_SOURCE_REMOVE;
+    }, payload);
+  }).detach();
+}
+
+void show_settings_window() {
+  if (Launcher::instance().api == nullptr) {
+    Launcher::instance().set_status("Settings open once the backend is ready…");
+    return;
+  }
+  if (g_settings_form == nullptr) {
+    settings_build();
+  }
+  settings_load();
+  settings_load_commands();
+  gtk_window_present(g_settings_form->window);
+}
+
+// ---- X11 launcher monitor placement --------------------------------------
+//
+// The pointer-monitor summon fix originated in @linyubin's #61. X11 WMs
+// otherwise tend to map a utility window onto a default monitor.
+
+struct PanelPlacement { int x; int y; };
+
+PanelPlacement upper_quarter_placement(GdkRectangle const& work,
+                                       int width, int height) {
+  // GDK/X11 uses a top-left origin. Same proportion as WinUI/AppKit:
+  // a quarter of the free height below the screen's usable top edge.
+  return {work.x + std::max(0, work.width - width) / 2,
+          work.y + std::max(0, work.height - height) / 4};
+}
+
+bool monitor_contains_point(GdkRectangle const& g, int x, int y) {
+  return x >= g.x && x < g.x + g.width &&
+         y >= g.y && y < g.y + g.height;
+}
+
+// _NET_WORKAREA is a virtual-desktop-wide rectangle on X11. Intersect it
+// with the chosen monitor as a best-effort allowance for docks/top panels;
+// a WM with no usable EWMH property falls back to full monitor geometry.
+GdkRectangle usable_x11_monitor_area(Display* dpy, Window root,
+                                     GdkRectangle const& monitor) {
+  Atom atom = XInternAtom(dpy, "_NET_WORKAREA", True);
+  if (atom == None) return monitor;
+  Atom type = None;
+  int format = 0;
+  unsigned long count = 0, bytes_left = 0;
+  unsigned char* bytes = nullptr;
+  GdkRectangle work = monitor;
+  int status = XGetWindowProperty(dpy, root, atom, 0, 4, False, XA_CARDINAL,
+                                  &type, &format, &count, &bytes_left, &bytes);
+  if (status == Success && type == XA_CARDINAL && format == 32 &&
+      count >= 4 && bytes != nullptr) {
+    auto* values = reinterpret_cast<unsigned long const*>(bytes);
+    // Xlib stores 32-bit property values in native unsigned longs.
+    auto wx = static_cast<std::int32_t>(values[0]);
+    auto wy = static_cast<std::int32_t>(values[1]);
+    auto ww = static_cast<std::uint32_t>(values[2]);
+    auto wh = static_cast<std::uint32_t>(values[3]);
+    if (ww > 0 && wh > 0 && ww <= 100000 && wh <= 100000) {
+      auto left = std::max<std::int64_t>(monitor.x, wx);
+      auto top = std::max<std::int64_t>(monitor.y, wy);
+      auto right = std::min<std::int64_t>(
+          static_cast<std::int64_t>(monitor.x) + monitor.width,
+          static_cast<std::int64_t>(wx) + ww);
+      auto bottom = std::min<std::int64_t>(
+          static_cast<std::int64_t>(monitor.y) + monitor.height,
+          static_cast<std::int64_t>(wy) + wh);
+      if (right > left && bottom > top) {
+        work = {static_cast<int>(left), static_cast<int>(top),
+                static_cast<int>(right - left),
+                static_cast<int>(bottom - top)};
+      }
+    }
+  }
+  if (bytes != nullptr) XFree(bytes);
+  return work;
+}
+
+void place_panel_on_pointer_monitor(GtkWindow* panel) {
+  auto* widget = GTK_WIDGET(panel);
+  auto* display = gtk_widget_get_display(widget);
+  // Wayland forbids client-controlled toplevel coordinates.
+  if (!GDK_IS_X11_DISPLAY(display)) return;
+  auto* xdisplay = gdk_x11_display_get_xdisplay(GDK_X11_DISPLAY(display));
+  Window root = DefaultRootWindow(xdisplay);
+  GListModel* monitors = gdk_display_get_monitors(display);
+  if (monitors == nullptr) return;
+  guint count = g_list_model_get_n_items(monitors);
+  if (count == 0) return;  // monitor hotplug / session shutdown
+
+  Window root_return = None, child = None;
+  int pointer_x = 0, pointer_y = 0, win_x = 0, win_y = 0;
+  unsigned int mask = 0;
+  bool pointer_known =
+      XQueryPointer(xdisplay, root, &root_return, &child,
+                    &pointer_x, &pointer_y, &win_x, &win_y, &mask) != False;
+
+  GdkMonitor* chosen = nullptr;
+  for (guint i = 0; i < count; ++i) {
+    auto* candidate = GDK_MONITOR(g_list_model_get_item(monitors, i));
+    if (candidate == nullptr) continue;
+    GdkRectangle g{};
+    gdk_monitor_get_geometry(candidate, &g);
+    if (pointer_known && monitor_contains_point(g, pointer_x, pointer_y)) {
+      chosen = candidate;
+      break;
+    }
+    g_object_unref(candidate);
+  }
+  if (chosen == nullptr)
+    chosen = GDK_MONITOR(g_list_model_get_item(monitors, 0));
+  if (chosen == nullptr) return;
+
+  GdkRectangle geometry{};
+  gdk_monitor_get_geometry(chosen, &geometry);
+  g_object_unref(chosen);  // get_item() owns a reference for every summon
+  if (geometry.width <= 0 || geometry.height <= 0) return;
+
+  GdkRectangle usable = usable_x11_monitor_area(xdisplay, root, geometry);
+  // Reset the preferred dimensions on each summon. Do not strand a tiny
+  // window after switching from a small monitor to a larger one.
+  int const width = std::min(680, usable.width);
+  int const height = std::min(460, usable.height);
+  gtk_window_set_default_size(panel, width, height);
+  PanelPlacement pos = upper_quarter_placement(usable, width, height);
+
+  auto* surface = gtk_native_get_surface(GTK_NATIVE(panel));
+  if (!GDK_IS_X11_SURFACE(surface)) return;
+  Window xid = gdk_x11_surface_get_xid(GDK_X11_SURFACE(surface));
+  XSizeHints hints{};
+  long supplied = 0;
+  if (!XGetWMNormalHints(xdisplay, xid, &hints, &supplied))
+    hints.flags = 0;
+  hints.flags |= USPosition;
+  hints.x = pos.x;
+  hints.y = pos.y;
+  XSetWMNormalHints(xdisplay, xid, &hints);
+  XMoveWindow(xdisplay, xid, pos.x, pos.y);
+  XFlush(xdisplay);
+}
+
+// ---- X11 global hotkey ----------------------------------------------------
+
+
+std::string install_x11_hotkey(GdkDisplay* display) {
+  if (GDK_IS_X11_DISPLAY(display) == 0) {
+    return "Wayland session: compositors do not allow global key grabs. "
+           "Bind `fulcrum --toggle` to a key in your compositor settings.";
+  }
+  std::string note = g_x11_hotkey.start(
+      gdk_display_get_name(display), [](Time time) {
+        Launcher::instance().toggle(static_cast<guint32>(time));
+      });
+  if (!note.empty()) return note;
+  // Use the root on a dedicated connection so the grab works even when
+  // the launcher is hidden, without changing GDK's event mask or queue.
+  return apply_x11_hotkey("alt+space");
+}
+
+// ---- single instance via the first-party rivet lease ----------------------
+// `fulcrum --toggle` forwards the argument to the running primary, whose
+// activation handler presents the panel on the GTK main loop (the handler
+// itself runs on the lease's watcher thread).
+
+gboolean activate_on_main(gpointer) {
+  // A forwarded --toggle is a real toggle: the compositor keybinding
+  // summons a hidden panel and dismisses a visible one.
+  Launcher::instance().toggle();
+  return G_SOURCE_REMOVE;
+}
+
+gboolean show_on_main(gpointer) {
+  Launcher::instance().show();
+  return G_SOURCE_REMOVE;
+}
+
+void on_activation(std::vector<std::string> arguments) {
+  (void)arguments;  // fulcrum only ever forwards --toggle
+  g_idle_add(activate_on_main, nullptr);
+}
+
+// ---- tray ------------------------------------------------------------------
+// The visible way back after the panel hides. Without it, a launcher that
+// closes to the background has no summon affordance a mouse user can find:
+// the portal hotkey needs a consent prompt that is easy to miss, and
+// `fulcrum --toggle` is a terminal incantation.
+
+void tray_quit() {
+  // A real quit: GApplication's shutdown path stops the backend, and the
+  // shutdown hook keeps SIGTERM equivalent.
+  g_application_quit(G_APPLICATION(Launcher::instance().app));
+}
+
+// GNOME's stock "activate window menu" binding is <Alt>space — the
+// compositor consumes the summon key before the portal shortcut ever
+// sees it, and the consent UI does not resolve that for the user. When
+// the active trigger is Alt+Space and that keybinding still exists, the
+// tray grows a one-click fix (clearing the stock binding) instead of
+// leaving every GNOME user to debug gsettings on their own.
+bool trigger_is_alt_space(std::string const& trigger) {
+  std::string lowered = trigger;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) {
+                   return static_cast<char>(std::tolower(c));
+                 });
+  return lowered.find("alt") != std::string::npos &&
+         lowered.find("space") != std::string::npos;
+}
+
+std::string gnome_window_menu_binding() {
+  std::string out;
+  FILE* gsettings = popen(
+      "gsettings get org.gnome.desktop.wm.keybindings "
+      "activate-window-menu 2>/dev/null",
+      "r");
+  if (gsettings == nullptr) {
+    return out;
+  }
+  char buf[256];
+  while (fgets(buf, sizeof buf, gsettings) != nullptr) {
+    out += buf;
+  }
+  pclose(gsettings);
+  return out;
+}
+
+void rebuild_tray_menu();
+
+void tray_fix_hotkey() {
+  int const rc = std::system(
+      "gsettings set org.gnome.desktop.wm.keybindings "
+      "activate-window-menu \"[]\"");
+  Launcher& launcher = Launcher::instance();
+  if (rc == 0) {
+    launcher.hotkey_shadowed = false;
+    if (launcher.hotkey_fix != nullptr) {
+      gtk_widget_set_visible(GTK_WIDGET(launcher.hotkey_fix), FALSE);
+    }
+    rebuild_tray_menu();
+    Launcher::post_status(tr("hotkeyFreed"));
+  } else {
+    Launcher::post_status(std::string("gsettings failed (rc=") +
+                          std::to_string(rc) + ")");
+  }
+}
+
+// Manual update check from the tray: manual=true bypasses the 4-hour
+// family throttle (the backend stamps the timestamp either way). The
+// result lands in the launcher status line; the `update` query rows drive
+// download and install from there.
+void tray_check_updates() {
+  auto* api_raw = Launcher::instance().api.get();
+  if (api_raw == nullptr) {
+    Launcher::post_status("Update check once the backend is ready…");
+    return;
+  }
+  std::thread([api_raw]() {
+    std::string line;
+    try {
+      auto const check = api_raw->update_check(true).get();
+      if (check.status == "available") {
+        line = tr_format("updateAvailableStatus",
+                         {check.available_version.value_or("?")});
+      } else if (check.status == "up-to-date") {
+        line = tr("updateUpToDate");
+      } else {
+        line = tr_format("updateCheckFailed",
+                         {check.error.value_or("check failed")});
+      }
+    } catch (std::exception const& e) {
+      line = tr_format("updateCheckFailed", {e.what()});
+    } catch (...) {
+      line = tr("updateCheckFailed") + ": unknown error";
+    }
+    Launcher::post_status(std::move(line));
+  }).detach();
+}
+
+std::vector<rivet::system::TrayMenuItem> tray_menu_items() {
+  std::vector<rivet::system::TrayMenuItem> items;
+  items.push_back(rivet::system::TrayMenuItem(
+      tr("trayOpen"), [] { Launcher::instance().show(); }));
+  items.push_back(rivet::system::TrayMenuItem(
+      tr("traySettings"), [] { show_settings_window(); }));
+  // Check for Updates and About always travel together (the family rule).
+  items.push_back(rivet::system::TrayMenuItem(
+      tr("trayCheckUpdates"), [] { tray_check_updates(); }));
+  items.push_back(rivet::system::TrayMenuItem(
+      tr("trayAbout"),
+      [] { show_about_dialog(Launcher::instance().window); }));
+  if (Launcher::instance().hotkey_shadowed) {
+    items.push_back(rivet::system::TrayMenuItem(
+        tr("trayFixHotkey"), [] { tray_fix_hotkey(); }));
+  }
+  items.push_back(rivet::system::TrayMenuItem(
+      rivet::system::TrayMenuItem::Type::separator));
+  items.push_back(
+      rivet::system::TrayMenuItem(tr("trayQuit"), [] { tray_quit(); }));
+  return items;
+}
+
+void rebuild_tray_menu() {
+  Launcher& launcher = Launcher::instance();
+  if (launcher.tray) {
+    launcher.tray->set_menu(tray_menu_items());
+  }
+}
+
+// Runs once the portal bind names the compositor's chosen combo: a
+// GNOME session whose window menu still owns Alt+Space keeps the summon
+// dead no matter how correct the binding is — say so, and put the fix
+// one tray click away.
+void check_hotkey_shadowing(std::string const& trigger) {
+  if (!trigger_is_alt_space(trigger)) {
+    return;
+  }
+  std::string const binding = gnome_window_menu_binding();
+  std::string lowered = binding;
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](unsigned char c) {
+                   return static_cast<char>(std::tolower(c));
+                 });
+  if (lowered.find("alt") == std::string::npos ||
+      lowered.find("space") == std::string::npos) {
+    return;
+  }
+  Launcher& launcher = Launcher::instance();
+  launcher.hotkey_shadowed = true;
+  if (launcher.hotkey_fix != nullptr) {
+    gtk_widget_set_visible(GTK_WIDGET(launcher.hotkey_fix), TRUE);
+  }
+  rebuild_tray_menu();
+  Launcher::post_status(tr_format("hotkeyShadowed", {trigger}));
+}
+
+// The menu is composed at tray construction with the startup language; the
+// backend `language` setting lands shortly after boot and re-composes it
+// (set_menu replaces the whole menu), so the labels never need a restart.
+void apply_tray_language() {
+  Launcher& launcher = Launcher::instance();
+  std::string const active =
+      (g_i18n_active.load(std::memory_order_relaxed) == 0) ? "zh" : "en";
+  if (!launcher.tray || active == launcher.tray_menu_lang) {
+    return;
+  }
+  launcher.tray_menu_lang = active;
+  rebuild_tray_menu();
+}
+
+void build_tray() {
+  try {
+    if (!rivet::system::TrayIcon::available()) {
+      return;
+    }
+    Launcher& launcher = Launcher::instance();
+    launcher.tray = std::make_unique<rivet::system::TrayIcon>(
+        rivet_app::kIdentifier, "Fulcrum", "fulcrum");
+    launcher.tray->set_tooltip(
+        "Fulcrum", tr("aboutContent").c_str());
+    launcher.tray->set_menu(tray_menu_items());
+    launcher.tray->set_activation_handler(
+        [] { Launcher::instance().show(); });
+  } catch (std::exception const& error) {
+    // A session that cannot host the tray is supported: the portal hotkey
+    // and `fulcrum --toggle` stay the summon paths.
+    std::cerr << "fulcrum: tray unavailable: " << error.what() << "\n";
+  }
+}
+
+// ---- shutdown hook ---------------------------------------------------------
+
+void install_shutdown_hook_once() {
+  static bool installed = false;
+  if (installed) {
+    return;
+  }
+  installed = true;
+  try {
+    rivet::system::InstallShutdownHook(
+        [] { Launcher::instance().stop_backend(); });
+  } catch (std::exception const& error) {
+    std::cerr << "fulcrum: shutdown hook unavailable: " << error.what()
+              << "\n";
+  }
+}
+
+// ---- GTK wiring -----------------------------------------------------------
+
+// WM close = hide, exactly like the hosts' close buttons. Returning TRUE
+// keeps GTK's hide-on-close default out of the picture: its path was
+// observed killing the X11 surface behind GDK's back, after which the
+// resident launcher could never be presented again.
+gboolean on_close_request(GtkWindow*, gpointer) {
+  Launcher::instance().hide();
+  return TRUE;
+}
+
+void on_search_changed(GtkEntry*, gpointer) {
+  Launcher& launcher = Launcher::instance();
+  if (launcher.search_source != 0) {
+    g_source_remove(launcher.search_source);
+  }
+  // Debounce fast typing.
+  launcher.search_source =
+      g_timeout_add(120, [](gpointer) -> int {
+        Launcher& l = Launcher::instance();
+        l.search_source = 0;
+        l.run_search(gtk_editable_get_text(GTK_EDITABLE(l.search)));
+        return G_SOURCE_REMOVE;
+      }, nullptr);
+}
+
+void on_row_activated(GtkListBox*, GtkListBoxRow*, gpointer) {
+  Launcher::instance().run_selected();
+}
+
+gboolean on_key_pressed(GtkEventControllerKey*, guint keyval, guint,
+                        GdkModifierType state, gpointer) {
+  // Ctrl+K equivalent: the selected row's secondary actions.
+  if (keyval == GDK_KEY_k && (state & GDK_CONTROL_MASK) != 0) {
+    Launcher::instance().show_actions_for_selection();
+    return TRUE;
+  }
+  switch (keyval) {
+    case GDK_KEY_Tab:
+    case GDK_KEY_ISO_Left_Tab: {
+      // Autocomplete the selected row's title into the query field.
+      Launcher& launcher = Launcher::instance();
+      if (launcher.actions_mode || launcher.rows.empty()) {
+        return TRUE;
+      }
+      GtkListBoxRow* selected =
+          gtk_list_box_get_selected_row(launcher.results);
+      int index = selected != nullptr ? gtk_list_box_row_get_index(selected) : 0;
+      if (index < 0 || index >= static_cast<int>(launcher.rows.size())) {
+        index = 0;
+      }
+      gtk_editable_set_text(GTK_EDITABLE(launcher.search),
+                            launcher.rows[static_cast<std::size_t>(index)]
+                                .title.c_str());
+      gtk_editable_set_position(GTK_EDITABLE(launcher.search), -1);
+      return TRUE;
+    }
+    case GDK_KEY_Escape:
+      // Inside the action panel: back to the search rows first.
+      if (Launcher::instance().actions_mode) {
+        Launcher::instance().close_actions();
+        return TRUE;
+      }
+      // A plugin detail panel or a finished AI answer dismisses first.
+      if (gtk_widget_get_visible(Launcher::instance().detail_panel)) {
+        Launcher::instance().dismiss_detail_panel();
+        return TRUE;
+      }
+      if (gtk_widget_get_visible(Launcher::instance().ai_panel)) {
+        Launcher::instance().dismiss_ai_panel();
+        return TRUE;
+      }
+      // Alfred/Raycast convention: clear the query first, hide only when
+      // it is already empty.
+      if (const gchar* text =
+              gtk_editable_get_text(GTK_EDITABLE(Launcher::instance().search));
+          text != nullptr && *text != '\0') {
+        gtk_editable_set_text(GTK_EDITABLE(Launcher::instance().search), "");
+        Launcher::instance().run_search("");
+      } else {
+        Launcher::instance().hide();
+      }
+      return TRUE;
+    case GDK_KEY_Down:
+    case GDK_KEY_Up: {
+      Launcher& launcher = Launcher::instance();
+      int const delta = keyval == GDK_KEY_Down ? 1 : -1;
+      GtkListBoxRow* current = gtk_list_box_get_selected_row(launcher.results);
+      int index = current != nullptr ? gtk_list_box_row_get_index(current) : 0;
+      index = std::clamp(index + delta, 0,
+                         static_cast<int>(launcher.rows.size()) - 1);
+      if (!launcher.rows.empty()) {
+        gtk_list_box_select_row(launcher.results,
+                                gtk_list_box_get_row_at_index(launcher.results,
+                                                              index));
+        launcher.scroll_to_selection();
+      }
+      return TRUE;
+    }
+    case GDK_KEY_Return:
+    case GDK_KEY_KP_Enter:
+      Launcher::instance().run_selected();
+      return TRUE;
+    default:
+      return FALSE;
+  }
+}
+
+void on_window_active_changed(GObject* obj, GParamSpec*, gpointer) {
+  auto* gtk_window = GTK_WINDOW(obj);
+  auto& launcher = Launcher::instance();
+  launcher.cancel_focus_loss();
+  if (gtk_window_is_active(gtk_window)) {
+    launcher.activated_since_show = true;
+    gtk_widget_grab_focus(GTK_WIDGET(launcher.search));
+    return;
+  }
+  if (!gtk_widget_get_visible(GTK_WIDGET(gtk_window)) ||
+      !launcher.activated_since_show) return;
+  // Allow focus handoffs to settle before dismissing the launcher.
+  launcher.focus_loss_source = g_timeout_add(150, [](gpointer) -> gboolean {
+    auto& launcher = Launcher::instance();
+    if (gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+        !gtk_window_is_active(launcher.window)) {
+      // Window-manager moves can temporarily take focus while a button is held.
+      auto* display = gtk_widget_get_display(GTK_WIDGET(launcher.window));
+      auto* seat = gdk_display_get_default_seat(display);
+      auto* pointer = seat != nullptr ? gdk_seat_get_pointer(seat) : nullptr;
+      GdkModifierType modifiers = GdkModifierType(0);
+      if (pointer != nullptr) {
+        gdk_surface_get_device_position(
+            gtk_native_get_surface(GTK_NATIVE(launcher.window)), pointer,
+            nullptr, nullptr, &modifiers);
+      }
+      if ((modifiers & (GDK_BUTTON1_MASK | GDK_BUTTON2_MASK | GDK_BUTTON3_MASK)) != 0)
+        return G_SOURCE_CONTINUE;
+      auto* windows = gtk_window_get_toplevels();
+      for (guint i = 0; i < g_list_model_get_n_items(windows); ++i) {
+        auto* candidate = GTK_WINDOW(g_list_model_get_item(windows, i));
+        bool owned_active = false;
+        if (gtk_window_is_active(candidate)) {
+          for (auto* parent = gtk_window_get_transient_for(candidate);
+               parent != nullptr; parent = gtk_window_get_transient_for(parent)) {
+            if (parent == launcher.window) owned_active = true;
+          }
+        }
+        g_object_unref(candidate);
+        // Recheck when a launcher-owned dialog loses focus as well.
+        if (owned_active) return G_SOURCE_CONTINUE;
+      }
+      launcher.focus_loss_source = 0;
+      launcher.hide();
+    }
+    launcher.focus_loss_source = 0;
+    return G_SOURCE_REMOVE;
+  }, nullptr);
+}
+
+void on_activate(GtkApplication* app, gpointer) {
+  Launcher& launcher = Launcher::instance();
+  launcher.app = app;  // tray quit routes through GApplication's shutdown
+  // Deliberately no Restart/Quit actions in the search panel. Unlike
+  // persistent tool windows, the launcher is a transient keyboard surface;
+  // native resident menus already provide Quit, Settings and Updates.
+  // GNOME hotkey recovery stays available as a tray item or inline notice.
+
+  // The panel hides on focus loss; without a hold, GTK would treat the
+  // hidden window as "last window closed" and shut the whole app down.
+  g_application_hold(G_APPLICATION(app));
+
+  auto* window = gtk_application_window_new(app);
+  launcher.window = GTK_WINDOW(window);
+  gtk_window_set_title(launcher.window, "Fulcrum");
+  gtk_window_set_default_size(launcher.window, 680, 460);
+  gtk_window_set_resizable(launcher.window, FALSE);
+  // Chromeless like the other hosts: the panel content IS the window, and
+  // the stylesheet rounds it. Close still hides (below) via Esc / the tray.
+  gtk_window_set_decorated(launcher.window, FALSE);
+  apply_panel_css();
+  // The WM's close button HIDES, exactly like the other hosts: the
+  // process stays resident (hotkey / --toggle / tray summon it back).
+  // A close that quits would strand the user with no way to summon.
+  // Handled explicitly: letting GTK's hide-on-close default run lets the
+  // X11 surface die behind GDK's back ("GdkSurface unexpectedly
+  // destroyed"), leaving a resident process with a window that can never
+  // be presented again.
+  gtk_window_set_hide_on_close(launcher.window, TRUE);
+  g_signal_connect(window, "close-request",
+                   G_CALLBACK(on_close_request), nullptr);
+  gtk_widget_add_css_class(window, "fulcrum-window");
+
+  auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  // GtkSearchEntry owns its icon in an internal GTK subnode, where the
+  // entry-level CSS padding shifts it relative to the placeholder baseline.
+  // Build one deliberate row: a 22px symbolic icon centered against a plain
+  // editable entry. GtkEntry retains IME, clipboard and keyboard semantics.
+  auto* search_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  gtk_widget_set_margin_top(search_row, 10);
+  gtk_widget_set_margin_start(search_row, 18);
+  gtk_widget_set_margin_end(search_row, 14);
+  auto const* search_icon_name = pick_icon({"system-search-symbolic",
+                                           "edit-find-symbolic"});
+  auto* search_icon = gtk_image_new_from_icon_name(
+      search_icon_name == nullptr ? "edit-find-symbolic" : search_icon_name);
+  gtk_image_set_pixel_size(GTK_IMAGE(search_icon), 22);
+  gtk_widget_set_size_request(search_icon, 24, 24);
+  gtk_widget_set_valign(search_icon, GTK_ALIGN_CENTER);
+  gtk_widget_add_css_class(search_icon, "fulcrum-search-icon");
+  gtk_box_append(GTK_BOX(search_row), search_icon);
+  launcher.search_icon = search_icon;
+  auto* search = gtk_entry_new();
+  gtk_entry_set_placeholder_text(GTK_ENTRY(search),
+                                 "Search apps, clipboard, snippets, the web…");
+  gtk_accessible_update_property(GTK_ACCESSIBLE(search),
+                                 GTK_ACCESSIBLE_PROPERTY_LABEL,
+                                 "FulcrumQuery", -1);
+  gtk_widget_set_valign(search, GTK_ALIGN_CENTER);
+  gtk_widget_set_hexpand(search, TRUE);
+  launcher.search = GTK_ENTRY(search);
+  gtk_box_append(GTK_BOX(search_row), search);
+
+  auto* status = gtk_label_new("Starting embedded Racket CS…");
+  gtk_label_set_xalign(GTK_LABEL(status), 0.0);
+  gtk_label_set_selectable(GTK_LABEL(status), TRUE);
+  gtk_widget_set_margin_start(status, 12);
+  gtk_widget_set_margin_top(status, 6);
+  launcher.status = GTK_LABEL(status);
+
+  auto* hotkey_fix = gtk_button_new_with_label(tr("trayFixHotkey").c_str());
+  gtk_widget_set_visible(hotkey_fix, FALSE);
+  gtk_widget_set_halign(hotkey_fix, GTK_ALIGN_START);
+  gtk_widget_set_margin_start(hotkey_fix, 12);
+  gtk_widget_set_margin_top(hotkey_fix, 4);
+  g_signal_connect(hotkey_fix, "clicked",
+                   G_CALLBACK(+[](GtkButton*, gpointer) { tray_fix_hotkey(); }),
+                   nullptr);
+  launcher.hotkey_fix = GTK_BUTTON(hotkey_fix);
+
+  // Live AI answer panel: hidden until the backend pushes the ai-stream
+  // state, then shows the growing answer (GTK propagates the natural
+  // height so short answers never reserve dead space).
+  auto* ai_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  gtk_widget_set_visible(ai_panel, FALSE);
+  gtk_widget_set_margin_start(ai_panel, 12);
+  gtk_widget_set_margin_end(ai_panel, 12);
+  gtk_widget_set_margin_top(ai_panel, 4);
+  auto* ai_phase = gtk_label_new("AI is answering…");
+  gtk_label_set_xalign(GTK_LABEL(ai_phase), 0.0);
+  gtk_widget_add_css_class(ai_phase, "caption");
+  gtk_widget_add_css_class(ai_phase, "dim-label");
+  auto* ai_scroll = gtk_scrolled_window_new();
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(ai_scroll),
+                                 GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_scrolled_window_set_max_content_height(
+      GTK_SCROLLED_WINDOW(ai_scroll), 170);
+  gtk_scrolled_window_set_propagate_natural_height(
+      GTK_SCROLLED_WINDOW(ai_scroll), TRUE);
+  auto* ai_text = gtk_label_new("");
+  gtk_label_set_wrap(GTK_LABEL(ai_text), TRUE);
+  gtk_label_set_xalign(GTK_LABEL(ai_text), 0.0);
+  gtk_label_set_selectable(GTK_LABEL(ai_text), TRUE);
+  gtk_widget_add_css_class(ai_text, "monospace");
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(ai_scroll), ai_text);
+  gtk_box_append(GTK_BOX(ai_panel), ai_phase);
+  gtk_box_append(GTK_BOX(ai_panel), ai_scroll);
+  launcher.ai_panel = ai_panel;
+  launcher.ai_phase = GTK_LABEL(ai_phase);
+  launcher.ai_text = GTK_LABEL(ai_text);
+
+  // FPP2 plugin detail panel: same slot, static payload (text + a
+  // metadata block).
+  auto* detail_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 4);
+  gtk_widget_set_visible(detail_panel, FALSE);
+  gtk_widget_set_margin_start(detail_panel, 12);
+  gtk_widget_set_margin_end(detail_panel, 12);
+  gtk_widget_set_margin_top(detail_panel, 4);
+  auto* detail_header = gtk_label_new("Details");
+  gtk_label_set_xalign(GTK_LABEL(detail_header), 0.0);
+  gtk_widget_add_css_class(detail_header, "caption");
+  gtk_widget_add_css_class(detail_header, "dim-label");
+  auto* detail_scroll = gtk_scrolled_window_new();
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(detail_scroll),
+                                 GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  gtk_scrolled_window_set_max_content_height(
+      GTK_SCROLLED_WINDOW(detail_scroll), 180);
+  gtk_scrolled_window_set_propagate_natural_height(
+      GTK_SCROLLED_WINDOW(detail_scroll), TRUE);
+  auto* detail_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+  auto* detail_text = gtk_label_new("");
+  gtk_label_set_wrap(GTK_LABEL(detail_text), TRUE);
+  gtk_label_set_xalign(GTK_LABEL(detail_text), 0.0);
+  gtk_label_set_selectable(GTK_LABEL(detail_text), TRUE);
+  auto* detail_meta = gtk_label_new("");
+  gtk_label_set_wrap(GTK_LABEL(detail_meta), TRUE);
+  gtk_label_set_xalign(GTK_LABEL(detail_meta), 0.0);
+  gtk_label_set_selectable(GTK_LABEL(detail_meta), TRUE);
+  gtk_widget_add_css_class(detail_meta, "dim-label");
+  gtk_box_append(GTK_BOX(detail_box), detail_text);
+  gtk_box_append(GTK_BOX(detail_box), detail_meta);
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(detail_scroll),
+                                detail_box);
+  gtk_box_append(GTK_BOX(detail_panel), detail_header);
+  gtk_box_append(GTK_BOX(detail_panel), detail_scroll);
+  launcher.detail_panel = detail_panel;
+  launcher.detail_text = GTK_LABEL(detail_text);
+  launcher.detail_meta = GTK_LABEL(detail_meta);
+
+  auto* scrolled = gtk_scrolled_window_new();
+  gtk_widget_set_vexpand(scrolled, TRUE);
+  gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+                                 GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+  auto* results = gtk_list_box_new();
+  gtk_list_box_set_selection_mode(GTK_LIST_BOX(results), GTK_SELECTION_SINGLE);
+  gtk_list_box_set_activate_on_single_click(GTK_LIST_BOX(results), FALSE);
+  launcher.results = GTK_LIST_BOX(results);
+  gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), results);
+
+  auto* hint = gtk_label_new("↑↓ navigate · ↵ run · esc hide — Fulcrum");
+  launcher.navigation_hint = GTK_LABEL(hint);
+  gtk_label_set_xalign(GTK_LABEL(hint), 0.0);
+  gtk_widget_add_css_class(hint, "caption");
+  gtk_widget_add_css_class(hint, "dim-label");
+  gtk_widget_set_margin_start(hint, 12);
+  gtk_widget_set_margin_top(hint, 4);
+  gtk_widget_set_margin_bottom(hint, 8);
+
+  gtk_box_append(GTK_BOX(root), search_row);
+  gtk_box_append(GTK_BOX(root), status);
+  gtk_box_append(GTK_BOX(root), hotkey_fix);
+  gtk_box_append(GTK_BOX(root), ai_panel);
+  gtk_box_append(GTK_BOX(root), detail_panel);
+  gtk_box_append(GTK_BOX(root), scrolled);
+  gtk_box_append(GTK_BOX(root), hint);
+  gtk_window_set_child(launcher.window, root);
+  set_i18n_language(g_i18n_active.load() == 0 ? "zh" : "en");
+
+  g_signal_connect(search, "changed",
+                   G_CALLBACK(on_search_changed), nullptr);
+  g_signal_connect(results, "row-activated",
+                   G_CALLBACK(on_row_activated), nullptr);
+
+  auto* controller = gtk_event_controller_key_new();
+  gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+  g_signal_connect(controller, "key-pressed", G_CALLBACK(on_key_pressed),
+                   nullptr);
+  gtk_widget_add_controller(window, controller);
+
+  g_signal_connect(window, "notify::is-active",
+                   G_CALLBACK(on_window_active_changed), nullptr);
+
+  // Realize once so the XID exists, then install the overlay chrome (X11
+  // only, through EWMH) and the platform hotkey. Wayland compositors own
+  // those decisions; the status message covers that honestly.
+  gtk_widget_realize(window);
+  if (GDK_IS_X11_DISPLAY(gtk_widget_get_display(window))) {
+    Display* dpy =
+        gdk_x11_display_get_xdisplay(gtk_widget_get_display(window));
+    Window xid = gdk_x11_surface_get_xid(
+        gtk_native_get_surface(GTK_NATIVE(window)));
+    Atom wm_state = XInternAtom(dpy, "_NET_WM_STATE", False);
+    Atom above = XInternAtom(dpy, "_NET_WM_STATE_ABOVE", False);
+    Atom skip_taskbar = XInternAtom(dpy, "_NET_WM_STATE_SKIP_TASKBAR", False);
+    Atom wm_window_type = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
+    Atom utility = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_UTILITY", False);
+    XChangeProperty(dpy, xid, wm_window_type, XA_ATOM, 32, PropModeReplace,
+                    reinterpret_cast<unsigned char*>(&utility), 1);
+    XChangeProperty(dpy, xid, wm_state, XA_ATOM, 32, PropModeAppend,
+                    reinterpret_cast<unsigned char*>(&above), 1);
+    XChangeProperty(dpy, xid, wm_state, XA_ATOM, 32, PropModeAppend,
+                    reinterpret_cast<unsigned char*>(&skip_taskbar), 1);
+  }
+  // Wayland must use the portal. On X11 the native grab is authoritative:
+  // stock Ubuntu exposes the portal even when its GlobalShortcuts backend
+  // cannot bind, which previously made the tested X11 fallback unreachable.
+  if (!GDK_IS_X11_DISPLAY(gtk_widget_get_display(window)) &&
+      rivet::system::GlobalShortcuts::available()) {
+    // The object must outlive the async bind; it owns the portal session.
+    g_portal_shortcuts = std::make_unique<rivet::system::GlobalShortcuts>();
+    g_portal_shortcuts->set_activation_handler(
+        [](std::string const&, std::uint64_t, std::string const&) {
+          Launcher::instance().toggle();
+        });
+    g_portal_shortcuts->bind(
+        {rivet::system::GlobalShortcutSpec{
+            "summon", "Summon Fulcrum", "ALT+space"}},
+        std::string(),
+        [](rivet::system::GlobalShortcutBindResult const& result) {
+          switch (result.status) {
+            case rivet::system::GlobalShortcutBindStatus::cancelled:
+              Launcher::post_status(
+                  "Hotkey permission was dismissed. Reopen Fulcrum and allow "
+                  "the shortcut, or bind `fulcrum --toggle` in Settings.");
+              check_hotkey_shadowing("Alt+Space");
+              g_idle_add(show_on_main, nullptr);
+              break;
+            case rivet::system::GlobalShortcutBindStatus::failed:
+              Launcher::post_status(
+                  "Portal hotkey failed: " + result.message +
+                  ". Bind `fulcrum --toggle` in desktop Settings.");
+              check_hotkey_shadowing("Alt+Space");
+              g_idle_add(show_on_main, nullptr);
+              break;
+            case rivet::system::GlobalShortcutBindStatus::bound:
+              // The compositor owns the final combo; say what it chose —
+              // and on GNOME check that the stock window menu is not
+              // shadowing the very same combo.
+              if (!result.bindings.empty() &&
+                  !result.bindings[0].trigger_description.empty()) {
+                std::string const trigger =
+                    result.bindings[0].trigger_description;
+                Launcher::post_status("Summon hotkey: " + trigger);
+                check_hotkey_shadowing(trigger);
+              }
+              break;
+            default:
+              break;
+          }
+        });
+    launcher.start_backend();
+  } else {
+    std::string hotkey_note = install_x11_hotkey(gtk_widget_get_display(window));
+    if (!hotkey_note.empty()) {
+      launcher.set_status(hotkey_note);
+    }
+    launcher.start_backend();
+  }
+  // Open on a normal interactive launch, but *only after* the backend has
+  // populated native rows. The old unconditional show() mapped an empty GTK
+  // window with the English placeholder before Racket finished booting.
+  // Errors still reveal their diagnostic; acceptance uses the same gate.
+  char const* acceptance_hotkey = std::getenv("FULCRUM_ACCEPTANCE_HOTKEY");
+  if (acceptance_hotkey != nullptr && std::string(acceptance_hotkey) == "1") {
+    // Product acceptance drives the same main-loop activation handoff used by
+    // portal/X11 callbacks. Starting hidden makes this a real summon test;
+    // the delay lets AT-SPI attach before the panel is presented.
+    launcher.hide();
+    g_timeout_add(400, [](gpointer) -> gboolean {
+      activate_on_main(nullptr);
+      return G_SOURCE_REMOVE;
+    }, nullptr);
+  } else {
+    launcher.show();
+  }
+
+  // The tray rides last: menus render with the i18n table loaded in main,
+  // and the language arrival re-composes them (apply_tray_language).
+  build_tray();
+  // Report a failed or interrupted process-external AppImage transaction
+  // on the next working launch, rather than silently hiding the error.
+  if (auto const* image = std::getenv("APPIMAGE"); image && *image) {
+    try {
+      rivet::update::AppImageHandoff::CleanupStaleAttempts(
+          "site.jrtx.fulcrum");
+      if (auto previous = rivet::update::AppImageHandoff::ConsumeFailure(
+              "site.jrtx.fulcrum")) {
+        launcher.set_status(
+            "Previous AppImage update failed: " + previous->message);
+      }
+    } catch (std::exception const& e) {
+      launcher.set_status(std::string("Update recovery warning: ") + e.what());
+    }
+  }
+}
+
+void on_shutdown(GApplication*, gpointer) {
+  Launcher::instance().cancel_focus_loss();
+  g_x11_hotkey.stop();
+  Launcher::instance().stop_backend();
+}
+
+}  // namespace
+
+int run_application() {
+  // The first-party rivet lease replaces the old pid-file + SIGUSR1 scheme:
+  // second launches forward --toggle to the primary and exit.
+  char const* isolated_id = std::getenv("FULCRUM_INSTANCE_ID");
+  std::string const application_id =
+      isolated_id != nullptr && *isolated_id != '\0'
+          ? isolated_id
+          : "site.jrtx.fulcrum";
+  rivet::system::SingleInstanceLease lease(application_id);
+  if (!lease.is_primary()) {
+    if (!lease.forward_arguments({"--toggle"})) {
+      std::cerr << "fulcrum: running instance not reachable\n";
+      return 1;
+    }
+    return 0;
+  }
+  // A --toggle that arrives when no primary is running is a summon, not an
+  // error: the fresh instance becomes the primary and activate() opens the
+  // panel. GApplication never sees the flag — the app runs without argv so
+  // the option parser cannot reject it.
+  lease.set_activation_handler(on_activation);
+
+  // Load the i18n tables before any UI string is composed: the staged
+  // shared/i18n JSON when packaged, the embedded fallback otherwise.
+  load_i18n(executable_path().parent_path());
+
+  XInitThreads();
+  auto* app =
+      gtk_application_new("site.jrtx.fulcrum", G_APPLICATION_DEFAULT_FLAGS);
+  g_signal_connect(app, "activate", G_CALLBACK(on_activate), nullptr);
+  g_signal_connect(app, "shutdown", G_CALLBACK(on_shutdown), nullptr);
+  int const status =
+      g_application_run(G_APPLICATION(app), 0, nullptr);
+  g_object_unref(app);
+  return status;
+}
+
+int main(int, char**) {
+  return run_application();
+}
+ || c == 0x60 || c == '\\' || c == '"') result += '\\';
+      result += c;
+    }
+  }
+  return result + "\"";
+}
+
+bool linux_set_autostart(bool enabled, std::string& error) {
+  try {
+    auto const file = linux_autostart_file();
+    if (!enabled) {
+      std::error_code ec;
+      std::filesystem::remove(file, ec);
+      if (ec) { error = ec.message(); return false; }
+      return true;
+    }
+    std::filesystem::create_directories(file.parent_path());
+    char const* appimage = std::getenv("APPIMAGE");
+    std::string const path = appimage && *appimage
+        ? std::string(appimage) : executable_path().string();
+    if (!std::filesystem::exists(path)) {
+      error = "Fulcrum executable is missing"; return false;
+    }
+    std::string const entry =
+        "[Desktop Entry]\nType=Application\nName=Fulcrum\n"
+        "Comment=Start Fulcrum in the background at login\n"
+        "Terminal=false\nX-GNOME-Autostart-enabled=true\nExec=" +
+        linux_autostart_exec_quote(path) + " --background\n";
+    GError* failure = nullptr;
+    if (!g_file_set_contents(file.string().c_str(), entry.c_str(), -1,
+                             &failure)) {
+      error = failure ? failure->message : "Could not save autostart entry";
+      if (failure) g_error_free(failure);
+      return false;
+    }
+    return true;
+  } catch (std::exception const& e) { error = e.what(); return false; }
+}
+
+void on_linux_autostart_changed(GObject* widget, GParamSpec*, gpointer) {
+  if (!g_settings_form || g_settings_form->loading) return;
+  bool const desired = gtk_switch_get_active(GTK_SWITCH(widget));
+  std::string error;
+  if (!linux_set_autostart(desired, error)) {
+    g_settings_form->loading = true;
+    gtk_switch_set_active(GTK_SWITCH(widget), !desired);
+    g_settings_form->loading = false;
+    settings_show_error("Start at login: " + error);
+  } else {
+    settings_show_error("");
+  }
+}
+
 void settings_build() {
   g_settings_form = new SettingsForm();
   auto* window = gtk_window_new();
