@@ -1,4 +1,5 @@
 // Exercise the real launcher widgets without starting its embedded backend.
+#include <cmath>
 #define main fulcrum_host_main
 #include "../linux/src/main.cpp"
 #undef main
