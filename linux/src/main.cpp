@@ -2525,6 +2525,126 @@ void settings_load() {
   }).detach();
 }
 
+// Native Commands editor mirrors the existing bindings-commands,
+// bindings-list, binding-set and binding-clear RVT1 API of macOS/Windows.
+// It never invents a Linux-only config file or bypasses backend validation.
+struct LinuxCommandRow {
+  std::string id;
+  GtkWidget* alias{nullptr};
+  GtkWidget* hotkey{nullptr};
+};
+
+void settings_load_commands();
+
+void settings_commit_binding(std::string id, std::string alias,
+                             std::string hotkey, bool clear) {
+  auto* api = Launcher::instance().api.get();
+  if (!api || !g_settings_form) return;
+  gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message), "Saving…");
+  std::thread([api, id = std::move(id), alias = std::move(alias),
+               hotkey = std::move(hotkey), clear] {
+    std::string message;
+    try {
+      bool const ok = clear
+          ? api->binding_clear(id).get()
+          : api->binding_set(id, alias, hotkey).get();
+      if (!ok) message = "Binding rejected (shortcut conflict or invalid alias/key)";
+    } catch (std::exception const& e) { message = e.what(); }
+    g_idle_add([](gpointer data) -> gboolean {
+      std::unique_ptr<std::string> error(static_cast<std::string*>(data));
+      if (g_settings_form) {
+        if (error->empty()) {
+          settings_load_commands();
+        } else {
+          gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
+                             error->c_str());
+        }
+      }
+      return G_SOURCE_REMOVE;
+    }, new std::string(std::move(message)));
+  }).detach();
+}
+
+void settings_load_commands() {
+  auto* api = Launcher::instance().api.get();
+  if (!api || !g_settings_form || !g_settings_form->commands_list) return;
+  using Commands = std::vector<std::vector<std::string>>;
+  struct Payload { Commands commands; Commands bindings; std::string error; };
+  std::thread([api] {
+    auto* payload = new Payload;
+    try {
+      payload->commands = api->bindings_commands().get();
+      payload->bindings = api->bindings_list().get();
+    } catch (std::exception const& e) { payload->error = e.what(); }
+    g_idle_add([](gpointer data) -> gboolean {
+      std::unique_ptr<Payload> payload(static_cast<Payload*>(data));
+      if (!g_settings_form) return G_SOURCE_REMOVE;
+      auto* list = g_settings_form->commands_list;
+      for (auto* child = gtk_widget_get_first_child(list); child;) {
+        auto* next = gtk_widget_get_next_sibling(child);
+        gtk_box_remove(GTK_BOX(list), child);
+        child = next;
+      }
+      if (!payload->error.empty()) {
+        gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
+                           payload->error.c_str());
+        return G_SOURCE_REMOVE;
+      }
+      for (auto const& command : payload->commands) {
+        if (command.size() < 2) continue;
+        std::string alias, hotkey;
+        for (auto const& saved : payload->bindings) {
+          if (saved.size() >= 3 && saved[0] == command[0]) {
+            alias = saved[1]; hotkey = saved[2]; break;
+          }
+        }
+        auto* row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 8);
+        gtk_widget_set_margin_top(row, 6);
+        gtk_widget_set_margin_bottom(row, 6);
+        auto* title = gtk_label_new(command[1].c_str());
+        gtk_label_set_xalign(GTK_LABEL(title), 0);
+        gtk_widget_set_hexpand(title, TRUE);
+        gtk_widget_set_size_request(title, 110, -1);
+        auto* alias_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(alias_entry), "Alias");
+        gtk_editable_set_text(GTK_EDITABLE(alias_entry), alias.c_str());
+        gtk_widget_set_size_request(alias_entry, 115, -1);
+        auto* hotkey_entry = gtk_entry_new();
+        gtk_entry_set_placeholder_text(GTK_ENTRY(hotkey_entry), "ctrl+alt+k");
+        gtk_editable_set_text(GTK_EDITABLE(hotkey_entry), hotkey.c_str());
+        gtk_widget_set_size_request(hotkey_entry, 145, -1);
+        auto* save = gtk_button_new_with_label("Save");
+        auto* clear = gtk_button_new_with_label("Clear");
+        auto* state = new LinuxCommandRow{command[0], alias_entry, hotkey_entry};
+        g_object_set_data_full(G_OBJECT(row), "command-binding", state,
+            [](gpointer data) { delete static_cast<LinuxCommandRow*>(data); });
+        g_signal_connect(save, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+          auto* r = static_cast<LinuxCommandRow*>(data);
+          settings_commit_binding(
+              r->id,
+              settings_trimmed(gtk_editable_get_text(GTK_EDITABLE(r->alias))),
+              settings_trimmed(gtk_editable_get_text(GTK_EDITABLE(r->hotkey))),
+              false);
+        }), state);
+        g_signal_connect(clear, "clicked", G_CALLBACK(+[](GtkButton*, gpointer data) {
+          auto* r = static_cast<LinuxCommandRow*>(data);
+          settings_commit_binding(r->id, "", "", true);
+        }), state);
+        gtk_box_append(GTK_BOX(row), title);
+        gtk_box_append(GTK_BOX(row), alias_entry);
+        gtk_box_append(GTK_BOX(row), hotkey_entry);
+        gtk_box_append(GTK_BOX(row), save);
+        gtk_box_append(GTK_BOX(row), clear);
+        gtk_box_append(GTK_BOX(list), row);
+      }
+      gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
+          "Aliases and hotkeys are validated by the shared backend. "
+          "Enter a modifier+key, then Save.");
+      return G_SOURCE_REMOVE;
+    }, payload);
+  }).detach();
+}
+
 void show_settings_window() {
   if (Launcher::instance().api == nullptr) {
     Launcher::instance().set_status("Settings open once the backend is ready…");
@@ -2534,6 +2654,7 @@ void show_settings_window() {
     settings_build();
   }
   settings_load();
+  settings_load_commands();
   gtk_window_present(g_settings_form->window);
 }
 
