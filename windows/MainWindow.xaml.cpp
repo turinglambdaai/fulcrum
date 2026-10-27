@@ -921,6 +921,10 @@ winrt::fire_and_forget MainWindow::InitializeBackendAsync() {
     dispatcher.TryEnqueue([weak, message = std::move(message)] {
       if (auto window = weak.get()) {
         window->SetStatusError(to_wide(message));
+        // Surface boot failures rather than staying permanently invisible.
+        window->FinishNativeSetup();
+        window->startup_presented_ = true;
+        window->ShowLauncher(false);
       }
     });
   }
@@ -993,6 +997,7 @@ void MainWindow::FinishNativeSetup() {
     // button. Quitting lives in the tray menu, whose Destroy() bypasses
     // this handler.
     appWindow.Closing([this](auto&&, auto&& args) {
+      if (quitting_) return;  // An explicit Application.Exit is not a hide.
       args.Cancel(true);
       this->HideLauncher();
     });
@@ -1023,6 +1028,17 @@ void MainWindow::FinishNativeSetup() {
                       }
                       if (msg == kExpansionRepairMessage && self != nullptr) {
                         self->RepairExpansion(static_cast<std::size_t>(wParam));
+                      }
+                      // Second launch asks the existing process to reopen.
+                      if (msg == WM_APP + 5 && self != nullptr) {
+                        self->ShowLauncher();
+                        return 0;
+                      }
+                      // Acceptance-only path through the same tray Quit logic.
+                      if (msg == WM_APP + 6 && self != nullptr &&
+                          is_acceptance_run()) {
+                        self->QuitApplication();
+                        return 0;
                       }
                       if (msg == WM_NCHITTEST && self != nullptr) {
                         // The borderless panel has no titlebar to drag by,
@@ -1125,7 +1141,7 @@ void MainWindow::HandleTrayMessage(std::uint32_t message, std::int64_t lParam,
         } else if (choice == kTrayMenuAbout) {
           ShowAbout();
         } else if (choice == kTrayMenuQuit) {
-          this->AppWindow().Destroy();
+          this->QuitApplication();
         }
       }
       break;
@@ -1174,13 +1190,17 @@ void MainWindow::OnClipboardUpdate() {
   api_->clipboard_record(to_utf8(text));
 }
 
-void MainWindow::ShowLauncher() {
-  actions_mode_ = false;
-  HintBar().Text(t("navigationHint"));
-  DismissAiPanel();
-  DismissDetailPanel();
-  QueryBox().Text(L"");
-  SearchAsync(std::wstring(L""));
+void MainWindow::ShowLauncher(bool reset_query) {
+  // Never flash the blank XAML scaffold or show the UI mid-shutdown.
+  if (!startup_presented_ || quitting_) return;
+  if (reset_query) {
+    actions_mode_ = false;
+    HintBar().Text(t("navigationHint"));
+    DismissAiPanel();
+    DismissDetailPanel();
+    QueryBox().Text(L"");
+    SearchAsync(std::wstring(L""));
+  }
   // Re-evaluate pointer monitor and DPI for every summon; users may have
   // moved between displays or changed scaling since app startup.
   position_launcher(::FindWindowW(nullptr, L"Fulcrum"));
@@ -1202,6 +1222,41 @@ void MainWindow::ShowLauncher() {
 }
 
 void MainWindow::HideLauncher() { this->AppWindow().Hide(); }
+
+void MainWindow::QuitApplication() {
+  if (quitting_) return;
+  quitting_ = true;
+
+  // Release native resources before closing their owner HWND.
+  if (expansion_hook_) {
+    ::UnhookWindowsHookEx(expansion_hook_);
+    expansion_hook_ = nullptr;
+  }
+  g_expansion_window = nullptr;
+  if (HWND hwnd = ::FindWindowW(nullptr, L"Fulcrum")) {
+    ::UnregisterHotKey(hwnd, kHotkeyIdPrimary);
+    ::UnregisterHotKey(hwnd, kHotkeyIdFallback);
+    if (clipboard_listener_installed_.exchange(false)) {
+      ::RemoveClipboardFormatListener(hwnd);
+    }
+  }
+  tray_icon_.reset();
+
+  // RVT1 Shutdown can join Racket worker threads: never block WinUI's
+  // event pump while stopping them. Exit the *application*, not one window.
+  if (backend_) {
+    auto backend = backend_;
+    auto dispatcher = DispatcherQueue();
+    std::thread([backend = std::move(backend), dispatcher]() mutable {
+      try { backend->stop(); } catch (...) { /* still exit the host */ }
+      dispatcher.TryEnqueue([] {
+        Microsoft::UI::Xaml::Application::Current().Exit();
+      });
+    }).detach();
+  } else {
+    Microsoft::UI::Xaml::Application::Current().Exit();
+  }
+}
 
 void MainWindow::ApplyLanguage() {
   QueryBox().PlaceholderText(t("searchPlaceholder"));
@@ -1516,6 +1571,10 @@ winrt::fire_and_forget MainWindow::SearchAsync(std::wstring const& query) {
     dispatcher.TryEnqueue([weak, message = std::move(message)] {
       if (auto window = weak.get()) {
         window->SetStatusError(to_wide(message));
+        if (!window->startup_presented_) {
+          window->startup_presented_ = true;
+          window->ShowLauncher(false);
+        }
       }
     });
   }
@@ -1546,6 +1605,10 @@ void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
     ResultsList().SelectedIndex(-1);
   }
   UpdateEnterChips();
+  if (!startup_presented_) {
+    startup_presented_ = true;
+    ShowLauncher(false);  // show only after the first native rows are built
+  }
 }
 
 void MainWindow::UpdateEnterChips() {
@@ -1698,10 +1761,9 @@ void MainWindow::RunSelected() {
               auto const msi = std::filesystem::path(to_wide(*update_path));
               rivet::update::MsiHandoff::LaunchVerifiedInstaller(
                   L"site.jrtx.fulcrum", msi, executable_path());
-              // Existing tray Quit uses Destroy() as the supported process
-              // exit path; the detached handoff waits for this PID to leave,
-              // upgrades with msiexec /passive /norestart, then relaunches.
-              window->AppWindow().Destroy();
+              // The MSI handoff waits for this PID; share the tray's orderly
+              // backend shutdown and WinUI application exit.
+              window->QuitApplication();
             } catch (std::exception const& e) {
               window->SetStatusError(
                   L"Update install failed: " + to_wide(e.what()));

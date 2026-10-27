@@ -34,11 +34,16 @@ void App::OnLaunched(Microsoft::UI::Xaml::LaunchActivatedEventArgs const&) {
   instance_lease_ = std::make_unique<rivet::system::SingleInstanceLease>(
       application_id);
   if (!instance_lease_->is_primary()) {
+    // Reopen the resident launcher; never leave a second headless process.
+    if (HWND existing = ::FindWindowW(nullptr, L"Fulcrum")) {
+      ::PostMessageW(existing, WM_APP + 5, 0, 0);
+    }
+    Microsoft::UI::Xaml::Application::Current().Exit();
     return;
   }
 
+  // Keep the initial HWND hidden until the backend's first results are ready.
   window_ = winrt::make<MainWindow>();
-  window_.Activate();
 }
 
 }  // namespace winrt::RivetHost::implementation
