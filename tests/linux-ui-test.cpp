@@ -175,6 +175,14 @@ int main() {
   delete g_settings_form;
   g_settings_form = nullptr;
 
+  // XDG Exec values are parsed as desktop-entry command syntax. AppImages
+  // can legitimately live in folders containing spaces and '%' characters;
+  // those bytes need quoting / field-code escaping, not a shell invocation.
+  std::string const special_exec =
+      fulcrum_desktop_exec_quote("/tmp/My Files/Fulcrum 50%.AppImage");
+  check(special_exec == "\"/tmp/My Files/Fulcrum 50%%.AppImage\"",
+        "autostart Exec quotes paths and escapes percent field codes");
+
   char const* saved_xdg = g_getenv("XDG_CONFIG_HOME");
   std::string const original_xdg = saved_xdg ? saved_xdg : "";
   bool const had_xdg = saved_xdg != nullptr;
