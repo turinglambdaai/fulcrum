@@ -1716,6 +1716,12 @@
                  #:file-index-path (file-index-path)
                  #:file-catalog-roots (default-file-catalog-roots)))
   (engine-rebuild-index! engine)
+  ;; Start the local Desktop/Documents/Downloads catalog asynchronously. This
+  ;; warms plain filename searches in the launcher without spawning a native
+  ;; PowerShell/Spotlight process per keystroke. The first search may use a
+  ;; partially populated index; batches become searchable as they arrive.
+  ;; No catalog is started in fixture engines without configured roots.
+  (engine-start-file-catalog! engine)
   ;; The startup rebuild IS the fresh state; stamping the cache here keeps
   ;; the first search from re-scanning the roots redundantly.
   (app-roots-fingerprint-cache (application-roots-fingerprint))
