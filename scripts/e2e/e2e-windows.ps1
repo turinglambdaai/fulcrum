@@ -186,7 +186,17 @@ try {
     $commandTab = Find-ById $settings 'settings-sidebar-commands'
     $selection = $commandTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
     ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
-    [void](Wait-Until 'Commands settings content' { Find-ById $settings 'settings-commands-content' })
+    # StackPanel is a layout-only element: UIA does not expose it. Assert
+    # the actual titled content and functional Save control instead.
+    $commandsTitle = Wait-Until 'Commands settings content' {
+        Find-ById $settings 'settings-commands-title'
+    }
+    if ($commandsTitle.Current.IsOffscreen) {
+        throw 'Commands tab selected but the editor is not visible'
+    }
+    [void](Wait-Until 'functional command binding Save action' {
+        Find-ByName $settings 'Save'
+    })
     $generalTab = Find-ById $settings 'settings-sidebar-general'
     $selection = $generalTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
     ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
@@ -206,6 +216,39 @@ try {
         throw 'settings title bar has no Win32 icon after SetIcon'
     }
     Save-AccessibilitySnapshot $settings (Join-Path $output 'settings-accessibility.json')
+
+    # Exercise the same tray handler against a *hidden* launcher. Prior to
+    # this change, CheckForUpdates wrote exclusively to an invisible footer
+    # and never populated the user's update workflow.
+    $windowPattern = $settings.GetCurrentPattern(
+        [System.Windows.Automation.WindowPattern]::Pattern)
+    ([System.Windows.Automation.WindowPattern]$windowPattern).Close()
+    if (-not [FulcrumNative]::PostMessage(
+        $hwnd, [uint32]0x8009, [IntPtr]::Zero, [IntPtr]::Zero)) {
+        throw 'could not hide primary before tray update check'
+    }
+    Start-Sleep -Milliseconds 300
+    if (-not [FulcrumNative]::PostMessage(
+        $hwnd, [uint32]0x8008, [IntPtr]::Zero, [IntPtr]::Zero)) {
+        throw 'could not request tray CheckForUpdates'
+    }
+    $updates = Wait-Until 'tray CheckForUpdates shows a visible launcher' {
+        $condition = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+        $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    }
+    $updatesQuery = Wait-Until 'visible update query' { Find-ById $updates 'QueryBox' }
+    [void](Wait-Until 'update workflow query' {
+        $value = $updatesQuery.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        if (([System.Windows.Automation.ValuePattern]$value).Current.Value -eq 'update') {
+            return $true
+        }
+        return $false
+    })
+    [void](Wait-Until 'actionable update check row' {
+        Find-ByNameFragment $updates 'Check for updates'
+    })
+    Save-AccessibilitySnapshot $updates (Join-Path $output 'update-accessibility.json')
 
     if (-not [FulcrumNative]::PostMessage(
         $hwnd, [uint32]0x8006, [IntPtr]::Zero, [IntPtr]::Zero)) {
@@ -236,8 +279,8 @@ try {
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','quit:acceptance-tray-path','launch:again')
-        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
+        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
     $env:FULCRUM_DATA_DIR = $savedData
