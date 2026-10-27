@@ -32,6 +32,12 @@ the panel has been active once, otherwise the summon operation can erase itself.
   update already-open surfaces without restarting.
 - Platform-specific diagnostic entries are allowed only when the mechanism is
   platform-specific. The GNOME Alt+Space repair action is one such exception.
+- Search glyph and placeholder must share a single horizontal centerline on
+  all hosts. Linux uses a native, centered GtkImage beside GtkEntry rather
+  than GtkSearchEntry's independently padded built-in search icon.
+- A resident-ready status is **not** a visible launcher row when the launcher
+  is already open. Host startup failures, update progress/errors, and
+  platform-specific hotkey recovery remain visible and actionable when needed.
 
 ## Entry and settings parity
 
