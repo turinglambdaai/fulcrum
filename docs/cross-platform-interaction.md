@@ -48,6 +48,26 @@ feature would incorrectly suggest a different product model.
 Settings and snippets remain backend-owned. Hosts may render different native
 form layouts, but keys, values, descriptions and availability must agree.
 
+### Settings information architecture (Windows / macOS)
+
+Windows and macOS must expose the same five settings areas: General, Features,
+AI, Commands, and Sync & Updates. Both use a fixed category sidebar and a
+single current section (native NavigationView + Mica/cards on WinUI, native
+sidebar + grouped Form on SwiftUI). The shared Racket backend owns validation,
+command alias/global bindings, AI key storage and updates; hosts must not
+silently omit the Commands editor on Windows. The summon hotkey and command
+bindings use native in-window key recording, without exposing canonical
+`mod+key` grammar in the default flow. Windows regular titled windows must
+show the product icon from the packaged numeric icon resource; borderless
+launcher windows do not need a fake titlebar or caption icon. macOS follows
+AppKit window decoration, not Win32 caption-icon conventions.
+
+Linux currently has a GTK grouped scrollable settings form rather than the
+five-tab sidebar, and lacks the Commands editor. This is an explicit existing
+Linux UI-parity gap, not a claim that all three surfaces have shipped the
+same navigation. The launcher shortcuts/CLI and backend binding APIs remain
+available, and Linux parity requires its own native-UI acceptance coverage.
+
 ## Acceptance contract
 
 Each packaged-host acceptance suite exercises the same observable sequence:
