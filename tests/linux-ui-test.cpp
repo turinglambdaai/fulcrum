@@ -109,6 +109,66 @@ int main() {
   launcher.set_status(tr("ready"));
   check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
         "clearing an actionable status removes its layout space");
+  // Regression: a normal interactive summon must not map the bare search
+  // placeholder before the first asynchronous backend result arrives.
+  launcher.hide();
+  launcher.initial_results_ready = false;
+  launcher.show();
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+            launcher.summon_when_ready,
+        "startup query shell remains hidden before first native result rows");
+  Launcher::SearchOutcome initial;
+  initial.ok = true;
+  initial.rows.push_back(parse_row(
+      {"settings.open", "Settings…", "Preferences", "Setting", "", "", "", ""}));
+  launcher.apply_search(std::move(initial));
+  check(launcher.initial_results_ready &&
+            gtk_widget_get_visible(GTK_WIDGET(launcher.window)),
+        "first native backend rows reveal the requested launcher exactly once");
+
+  // The GTK Settings window uses the same five-section information
+  // architecture as Windows/macOS, with a functional Commands content slot.
+  settings_build();
+  check(GTK_IS_STACK(g_settings_form->stack), "GTK Settings has a real native page stack");
+  for (auto const* page : {"general", "features", "ai", "commands", "sync"}) {
+    check(gtk_stack_get_child_by_name(GTK_STACK(g_settings_form->stack), page) != nullptr,
+          "settings stack contains platform-aligned category");
+  }
+  check(g_settings_form->commands_list != nullptr &&
+            has_label(GTK_WIDGET(g_settings_form->window), "Start at login"),
+        "Linux Commands and local startup controls are discoverable");
+  gtk_window_destroy(g_settings_form->window);
+  delete g_settings_form;
+  g_settings_form = nullptr;
+
+  char const* saved_xdg = g_getenv("XDG_CONFIG_HOME");
+  std::string const original_xdg = saved_xdg ? saved_xdg : "";
+  bool const had_xdg = saved_xdg != nullptr;
+  gchar* temp_config = g_dir_make_tmp("fulcrum-autostart-ui-XXXXXX", nullptr);
+  check(temp_config != nullptr, "isolated XDG autostart fixture created");
+  if (temp_config != nullptr) {
+    g_setenv("XDG_CONFIG_HOME", temp_config, TRUE);
+    std::string error;
+    check(fulcrum_set_autostart(true, executable_path().string(), error) &&
+              fulcrum_autostart_enabled(), "XDG login item writes only after opt-in");
+    gchar* saved_content = nullptr;
+    if (g_file_get_contents(fulcrum_autostart_path().string().c_str(),
+                            &saved_content, nullptr, nullptr)) {
+      std::string const content(saved_content);
+      check(content.find("--background") != std::string::npos &&
+                content.find("Exec=") != std::string::npos,
+            "Linux login item starts silently with a valid desktop Exec entry");
+      g_free(saved_content);
+    } else {
+      check(false, "XDG login item content can be read back");
+    }
+    check(fulcrum_set_autostart(false, executable_path().string(), error) &&
+              !fulcrum_autostart_enabled(), "disabling login startup removes own entry");
+    std::filesystem::remove_all(temp_config);
+    g_free(temp_config);
+  }
+  if (had_xdg) g_setenv("XDG_CONFIG_HOME", original_xdg.c_str(), TRUE);
+  else g_unsetenv("XDG_CONFIG_HOME");
   // Check that the live X11 window actually advertises its program-chosen
   // position to the WM. The helper runs on every summon, not just startup.
   launcher.show();
