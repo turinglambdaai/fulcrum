@@ -263,6 +263,16 @@ Write your own plugin: one manifest + one script. See
 
 ## Settings
 
+On **Windows**, the tray menu's **Check for Updates** opens a visible
+`update` view rather than reporting into a hidden footer. The list refreshes
+after checking: choose **Download** to fetch and verify the signed MSI, wait
+for the progress to finish, then choose **Quit and install** to upgrade and
+relaunch. Keep the installer window open if Windows requests elevation. If the
+check or installation fails, the original app remains available with an
+explicit error; you can also open the downloaded MSI folder from the same
+update results. The installation handoff requires an MSI-installed copy; a
+portable ZIP isn't upgraded in place by an MSI.
+
 On **Windows and macOS**, open **Settings** from the tray/menu bar or launcher,
 then choose **General**, **Features**, **AI**, **Commands**, or **Sync & Updates**
 from the left sidebar. Select the hotkey field in General and press your desired
