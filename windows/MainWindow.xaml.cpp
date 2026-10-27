@@ -114,6 +114,22 @@ std::filesystem::path executable_path() {
   return std::filesystem::path(buffer);
 }
 
+// MSI updates must replace the executable we are about to relaunch. If
+// Fulcrum was unpacked from the portable ZIP, handing an MSI to Windows
+// Installer would upgrade a different Program Files copy while reopening
+// this old ZIP exe, so it would look like the update never took effect.
+// The official x64 MSI installs at %ProgramFiles%\\Fulcrum\\RivetHost.exe.
+bool running_official_msi_installation() {
+  wchar_t program_files[32768]{};
+  auto const length = ::GetEnvironmentVariableW(
+      L"ProgramFiles", program_files, static_cast<DWORD>(std::size(program_files)));
+  if (length == 0 || length >= std::size(program_files)) return false;
+  auto const installed = std::filesystem::path(program_files) /
+                         L"Fulcrum" / L"RivetHost.exe";
+  std::error_code ec;
+  return std::filesystem::equivalent(executable_path(), installed, ec) && !ec;
+}
+
 std::string utf8(std::filesystem::path const& path) {
   auto const wide = path.wstring();
   if (wide.empty()) {
@@ -1780,6 +1796,12 @@ void MainWindow::RunSelected() {
             try {
               if (!update_path) {
                 throw std::runtime_error("downloaded update path is missing");
+              }
+              if (!running_official_msi_installation()) {
+                throw std::runtime_error(
+                    "This copy was not launched from the official MSI installation. "
+                    "Open the verified MSI from the updates folder to install "
+                    "Fulcrum; the portable ZIP cannot be upgraded in place by MSI.");
               }
               auto const msi = std::filesystem::path(to_wide(*update_path));
               rivet::update::MsiHandoff::LaunchVerifiedInstaller(
