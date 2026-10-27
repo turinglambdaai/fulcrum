@@ -291,6 +291,7 @@
   (define sql-q (string-replace raw-q "'" "''"))
   (string-append
    "$ErrorActionPreference='SilentlyContinue';"
+   "[Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);"
    "$out=@();"
    "$q='" (ps-literal raw-q) "';"
    "$qs='" (ps-literal sql-q) "';"
