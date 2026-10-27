@@ -1724,8 +1724,12 @@ void MainWindow::RunSelected() {
             // ai-stream State drives the streaming panel.
             window->SetStatusOk(t("aiRunning"));
           } else if (status == "stay") {
-            // The result is meant to be read (update check, ...): the
-            // event already wrote the status line; keep the panel open.
+            // The backend has a new signed-feed candidate; refresh the
+            // visible update rows so Download appears without retyping.
+            // Do not replace an unrelated user query while the RPC ran.
+            if (row.id == "update.check" && window->QueryBox().Text() == L"update") {
+              window->SearchAsync(L"update");
+            }
           } else if (status == "detail") {
             // FPP2 plugin detail: fetch the payload and show it in the
             // panel slot. The RPC runs off the UI thread; the result
@@ -1753,9 +1757,13 @@ void MainWindow::RunSelected() {
               }
             }).detach();
           } else if (status == "downloading") {
-            // The backend download thread owns the transfer; the host
-            // mirrors its progress into the status bar.
-            window->HideLauncher();
+            // Keep the update workflow visible. The earlier implementation
+            // hid the launcher and wrote progress into its *hidden* footer,
+            // leaving users with no visible way to install the MSI.
+            window->SetStatusOk(L"Downloading verified update…");
+            if (window->QueryBox().Text() == L"update") {
+              window->SearchAsync(L"update");
+            }
             window->StartUpdateProgressPoll();
           } else if (status == "quit-and-install" &&
                      row.id == "update.install") {
@@ -2039,11 +2047,19 @@ void MainWindow::AttachStatusBarCopyAffordance() {
   StatusText().ContextFlyout(footer_flyout);
 }
 
-// Manual check from the tray: manual=true bypasses the 4-hour family
-// throttle (the backend stamps the timestamp either way, per the update
-// trigger contract). Results surface in the footer; the `update` launcher
-// rows drive download and install from here.
+// Open the real update search workflow from the tray, even when Fulcrum
+// is resident and hidden. The footer alone is invisible in that state.
+void MainWindow::OpenUpdatesPanel() {
+  ShowLauncher();
+  if (!startup_presented_ || quitting_) return;
+  QueryBox().Text(L"update");
+  SearchAsync(L"update");
+}
+
+// Manual check bypasses the shared four-hour silent-check throttle, but
+// always returns the user to a visible, actionable update surface.
 void MainWindow::CheckForUpdates() {
+  OpenUpdatesPanel();
   if (api_ == nullptr) {
     SetStatusError(L"Update check once the backend is ready.");
     return;
@@ -2081,6 +2097,11 @@ void MainWindow::CheckForUpdates() {
           window->SetStatusError(line);
         } else {
           window->SetStatusOk(line);
+        }
+        // The check updates the candidate in the Racket backend. A stale
+        // WinUI result list otherwise continues to show only Check again.
+        if (window->QueryBox().Text() == L"update") {
+          window->SearchAsync(L"update");
         }
       }
     });
@@ -2131,6 +2152,11 @@ void MainWindow::StartUpdateProgressPoll() {
           dispatcher.TryEnqueue([weak]() mutable {
             if (auto window = weak.get()) {
               window->SetStatusOk(t("updateDownloadedStatusWin"));
+              // Download finished: replace the progress row with the real
+              // verified MSI Install row without requiring another query.
+              if (window->QueryBox().Text() == L"update") {
+                window->SearchAsync(L"update");
+              }
             }
           });
           break;
@@ -2142,6 +2168,9 @@ void MainWindow::StartUpdateProgressPoll() {
               std::wstring const detail =
                   message ? to_wide(*message) : t("updateUnknownError");
               window->SetStatusError(t_format("updateDownloadFailed", {detail}));
+              if (window->QueryBox().Text() == L"update") {
+                window->SearchAsync(L"update");
+              }
             }
           });
           break;
