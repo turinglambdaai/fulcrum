@@ -935,6 +935,12 @@ struct Launcher {
   // as visible-but-inactive while it resolves activation; hiding during that
   // handoff made the v0.13.1 summon hotkey look completely dead on Ubuntu.
   bool activated_since_show{false};
+  // Startup frame gate: keep the GTK shell unmapped until the backend has
+  // produced its first native result rows (or an actionable boot error).
+  // Only an actual summon may request display; never leak the placeholder
+  // scaffold before Rivet's first search completes.
+  bool initial_results_ready{false};
+  bool summon_when_ready{false};
   int host_settings_generation{0};
   int theme_revision{0};
   int hotkey_revision{0};
@@ -1418,6 +1424,13 @@ struct Launcher {
     }
     rows = std::move(result.rows);
     refresh_results(result.selected_arg);
+    if (!initial_results_ready) {
+      initial_results_ready = true;
+      if (summon_when_ready) {
+        summon_when_ready = false;
+        show();
+      }
+    }
   }
 
   void scroll_to_selection() {
@@ -1755,6 +1768,10 @@ struct Launcher {
   }
 
   void show(guint32 user_time = GDK_CURRENT_TIME) {
+    if (!initial_results_ready) {
+      summon_when_ready = true;
+      return;
+    }
     cancel_focus_loss();
     activated_since_show = false;
     actions_mode = false;
@@ -1797,6 +1814,7 @@ struct Launcher {
   }
 
   void hide() {
+    summon_when_ready = false;
     cancel_focus_loss();
     gtk_widget_set_visible(GTK_WIDGET(window), FALSE);
   }
@@ -1825,6 +1843,8 @@ struct Launcher {
         !std::filesystem::exists(core)) {
       set_status("Missing Rivet runtime layout (runtime/*.boot, res/core.zo) "
                  "next to the executable. Build with raco rivet build/dev.");
+      initial_results_ready = true;
+      if (summon_when_ready) { summon_when_ready = false; show(); }
       return;
     }
 
@@ -1888,10 +1908,14 @@ struct Launcher {
     }
     if (!error.empty()) {
       set_status("Fulcrum backend failed to start: " + error);
+      initial_results_ready = true;
+      if (summon_when_ready) { summon_when_ready = false; show(); }
       return;
     }
     if (backend == nullptr) {
       set_status("Fulcrum backend error: startup completed without a backend");
+      initial_results_ready = true;
+      if (summon_when_ready) { summon_when_ready = false; show(); }
       return;
     }
 
@@ -3266,10 +3290,10 @@ void on_activate(GtkApplication* app, gpointer) {
     }
     launcher.start_backend();
   }
-  // Open on launch. A launcher that starts hidden is an invisible app on
-  // every session where the summon path is not yet alive — Wayland before
-  // the portal consent is granted, after a reboot, a rejected grab. The
-  // panel is one Esc (or focus loss) away from hidden again.
+  // Open on a normal interactive launch, but *only after* the backend has
+  // populated native rows. The old unconditional show() mapped an empty GTK
+  // window with the English placeholder before Racket finished booting.
+  // Errors still reveal their diagnostic; acceptance uses the same gate.
   char const* acceptance_hotkey = std::getenv("FULCRUM_ACCEPTANCE_HOTKEY");
   if (acceptance_hotkey != nullptr && std::string(acceptance_hotkey) == "1") {
     // Product acceptance drives the same main-loop activation handoff used by
