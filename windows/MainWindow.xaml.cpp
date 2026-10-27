@@ -994,8 +994,7 @@ void MainWindow::FinishNativeSetup() {
     }
     // Alt+F4 and system close requests hide the panel instead of ending
     // the process — the Linux host made the same call for its WM close
-    // button. Quitting lives in the tray menu, whose Destroy() bypasses
-    // this handler.
+    // button. Explicit Quit bypasses hide-on-close via the quitting_ guard.
     appWindow.Closing([this](auto&&, auto&& args) {
       if (quitting_) return;  // An explicit Application.Exit is not a hide.
       args.Cancel(true);
@@ -1004,9 +1003,8 @@ void MainWindow::FinishNativeSetup() {
   }
   position_launcher(hwnd);
 
-  // Bootstrap hotkey (Alt+Space, honest fallback) so the launcher works
-  // before the backend answers; PullHostSettings re-binds from the stored
-  // spec once the hotkey state arrives.
+  // Bootstrap hotkey (Alt+Space, honest fallback) after runtime startup;
+  // PullHostSettings re-binds from the persisted setting.
   ApplyHotkey("alt+space");
 
   // Window subclass for WM_HOTKEY and clipboard updates. Runs for the
