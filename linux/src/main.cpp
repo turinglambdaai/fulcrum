@@ -1422,6 +1422,17 @@ struct Launcher {
   void apply_search(SearchOutcome result) {
     if (!result.ok) {
       set_status("Search failed: " + result.error);
+      // The first search is part of the presentation gate. A failed query
+      // must reveal its error instead of stranding an invisible resident app.
+      // On login-background starts summon_when_ready is false, so this still
+      // never forces the panel open at sign-in.
+      if (!initial_results_ready) {
+        initial_results_ready = true;
+        if (summon_when_ready) {
+          summon_when_ready = false;
+          show();
+        }
+      }
       return;
     }
     rows = std::move(result.rows);
