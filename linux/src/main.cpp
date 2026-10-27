@@ -2501,7 +2501,7 @@ void settings_build() {
   // Commands is a real backend-owned editor, not just a placeholder label.
   auto* commands_page = make_page("commands", "Commands");
   auto* commands = settings_section(commands_page, "Commands");
-  settings_hint(commands, "Set a short alias and optional global shortcut for each command.");
+  settings_hint(commands, "Configure command aliases. Desktop-wide command hotkeys are not yet registered on Linux.");
   auto* commands_list = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
   gtk_box_append(GTK_BOX(commands), commands_list);
   g_settings_form->commands_list = commands_list;
@@ -2691,7 +2691,7 @@ void settings_load_commands() {
         gtk_entry_set_placeholder_text(GTK_ENTRY(hotkey_entry), "ctrl+alt+k");
         gtk_editable_set_text(GTK_EDITABLE(hotkey_entry), hotkey.c_str());
         gtk_widget_set_size_request(hotkey_entry, 145, -1);
-        linux_attach_key_recorder(hotkey_entry);
+        gtk_widget_set_sensitive(hotkey_entry, FALSE);
         auto* save = gtk_button_new_with_label("Save");
         auto* clear = gtk_button_new_with_label("Clear");
         auto* state = new LinuxCommandRow{command[0], alias_entry, hotkey_entry};
@@ -2717,8 +2717,7 @@ void settings_load_commands() {
         gtk_box_append(GTK_BOX(list), row);
       }
       gtk_label_set_text(GTK_LABEL(g_settings_form->commands_message),
-          "Aliases and hotkeys are validated by the shared backend. "
-          "Enter a modifier+key, then Save.");
+          "Save aliases through the shared backend. Global command hotkeys are unavailable on Linux.");
       return G_SOURCE_REMOVE;
     }, payload);
   }).detach();
