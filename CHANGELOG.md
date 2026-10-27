@@ -49,8 +49,24 @@ independently per platform packaging run.
   results when the launcher is visible. Actual startup failures, hotkey
   conflicts, download errors, and progress notices remain discoverable.
 
+- **Linux no longer flashes an empty startup search window.** Initial
+  launcher presentation waits for native search results from the embedded
+  backend. Failed boot still shows a visible diagnostic instead of hiding it.
+- **Linux Settings uses native five-section navigation.** General, Features,
+  AI, Commands and Sync & Updates now share one GTK sidebar/stack, matching
+  the information architecture of macOS and Windows; Commands uses the same
+  bindings-commands/list/set/clear backend API.
+- **Start at login is available as an opt-in per-device control on all hosts.**
+  Linux uses XDG Autostart, Windows uses the current-user Run key, and macOS
+  uses SMAppService's main-app Login Item with system approval. No automatic
+  sync or default enablement; Windows/Linux login launches stay resident
+  without popping open the launcher.
+
 ### Regression coverage
 
+- Linux widget tests cover the deferred first frame, five Settings sections,
+  and enable/disable round-trip of a temporary XDG login entry. Windows and
+  macOS host checks and packaged acceptance remain release gates.
 - Windows backend tests and packaged WinUI acceptance seed a real user file
   and require `find <name>` to return its actual path, not simply invoke a
   search subprocess. This check is a release gate on the final commit.
