@@ -44,6 +44,7 @@
 #include "GeneratedBackend.hpp"
 #include "system_services.hpp"
 #include "update_handoff.hpp"
+#include "autostart.hpp"
 #include "x11_hotkey.hpp"
 
 namespace {
@@ -2312,6 +2313,23 @@ void refresh_settings_language() {
   }
 }
 
+void on_linux_startup_toggle(GObject* object, GParamSpec*, gpointer) {
+  if (!g_settings_form || g_settings_form->loading) return;
+  bool const enabled = gtk_switch_get_active(GTK_SWITCH(object));
+  char const* appimage = std::getenv("APPIMAGE");
+  std::string const executable = appimage && *appimage
+      ? std::string(appimage) : executable_path().string();
+  std::string error;
+  if (!fulcrum_set_autostart(enabled, executable, error)) {
+    g_settings_form->loading = true;
+    gtk_switch_set_active(GTK_SWITCH(object), !enabled);
+    g_settings_form->loading = false;
+    settings_show_error("Start at login: " + error);
+  } else {
+    settings_show_error("");
+  }
+}
+
 void settings_build() {
   g_settings_form = new SettingsForm();
   auto* window = gtk_window_new();
@@ -2366,6 +2384,12 @@ void settings_build() {
                 "f1–f12, comma, period, minus, equal, tab. Applies immediately; "
                 "a taken combo falls back to Ctrl+Alt+Space.");
   settings_add_number(general, "Maximum results", "max-results", 5, 25);
+  auto* startup_toggle = gtk_switch_new();
+  gtk_switch_set_active(GTK_SWITCH(startup_toggle), fulcrum_autostart_enabled());
+  settings_row(general, "Start at login", startup_toggle);
+  g_signal_connect(startup_toggle, "notify::active",
+                   G_CALLBACK(on_linux_startup_toggle), nullptr);
+  settings_hint(general, "Runs quietly after sign-in. This setting belongs to this device.");
 
   auto* features = settings_section(make_page("features", "Features"), "Features");
   settings_add_toggle(features, "Record clipboard history", "clipboard-enabled");
