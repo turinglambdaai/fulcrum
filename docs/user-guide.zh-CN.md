@@ -162,7 +162,7 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 **开机启动（登录后启动）：** 三平台均可在 **General（常规）→ Start at login** 自行开启或关闭，默认关闭，仅对当前设备生效，不随同步复制。登录系统后会在后台常驻，不自动弹出搜索界面。macOS 可能需要在系统设置的登录项中批准；Windows 使用当前用户的启动项；Ubuntu/Linux 使用 XDG 自动启动。AppImage 用户开启后请勿随意移动安装文件。
 
-Linux 设置界面改为与 macOS、Windows 一致的五类侧边导航：General、Features、AI、Commands、Sync & Updates。Commands 可通过共同的后端配置命令别名和快捷键；Linux 同样支持聚焦快捷键输入框后直接按下组合键录制。Ubuntu 启动器会在首批搜索结果准备好后显示，避免只看到空白搜索框。
+Linux 设置界面改为与 macOS、Windows 一致的五类侧边导航：General、Features、AI、Commands、Sync & Updates。Commands 可通过共同的后端编辑命令别名，但 Linux 的**单个命令全局快捷键**目前尚不支持执行，界面明确禁用以避免保存无效绑定。常规 General 中的全局唤出快捷键支持直接按键录制。Ubuntu 启动器会在首批搜索结果准备好后显示，避免只看到空白搜索框。
 
 **Ubuntu / Linux 启动器外观：** 搜索图标与「搜索应用、剪贴板、片段、网页…」提示在同一水平线上。面板已显示时，不再常驻展示「就绪 — 使用热键或 `fulcrum --toggle` 唤出」；需要从隐藏状态重新唤出时，仍可使用全局快捷键或 `fulcrum --toggle`。启动失败、快捷键冲突和更新失败等真正需要注意的状态信息仍会显示。
 
