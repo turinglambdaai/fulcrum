@@ -33,6 +33,7 @@
         </Grid.Resources>
 
         <NavigationView x:Name="SettingsNavigation" PaneDisplayMode="Left"
+                        OpenPaneLength="190"
                         IsPaneToggleButtonVisible="False" IsBackButtonVisible="Collapsed"
                         IsSettingsVisible="False" IsPaneOpen="True"
                         SelectionChanged="Navigation_SelectionChanged">
@@ -46,7 +47,7 @@
             <ScrollViewer>
                 <StackPanel Margin="24,4,24,24" HorizontalAlignment="Stretch">
 
-                <StackPanel x:Name="GeneralSection" Visibility="Visible">
+                <StackPanel x:Name="GeneralSection" Visibility="Visible" AutomationProperties.AutomationId="settings-general-content">
                 <TextBlock Text="General" Style="{StaticResource SectionTitle}" />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -259,7 +260,7 @@
 
                 </StackPanel>
 
-                <StackPanel x:Name="CommandsSection" Visibility="Collapsed">
+                <StackPanel x:Name="CommandsSection" Visibility="Collapsed" AutomationProperties.AutomationId="settings-commands-content">
                     <TextBlock Text="Commands" Style="{StaticResource SectionTitle}" />
                     <TextBlock Text="Give a command a search alias or a global shortcut. Focus a shortcut box and press modifiers plus a key; Esc cancels." Style="{StaticResource Hint}" />
                     <TextBlock x:Name="BindingErrorText" Foreground="#D13438" TextWrapping="Wrap" Visibility="Collapsed" />
