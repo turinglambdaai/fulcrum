@@ -126,6 +126,21 @@ int main() {
             gtk_widget_get_visible(GTK_WIDGET(launcher.window)),
         "first native backend rows reveal the requested launcher exactly once");
 
+  // Error is also a completed first result: a failed backend search must
+  // display the actionable failure, not leave the resident process invisible.
+  launcher.hide();
+  launcher.initial_results_ready = false;
+  launcher.show();
+  Launcher::SearchOutcome failed;
+  failed.ok = false;
+  failed.error = "test query failure";
+  launcher.apply_search(std::move(failed));
+  check(launcher.initial_results_ready &&
+            gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+            has_label(GTK_WIDGET(launcher.status), "Search failed: test query failure"),
+        "initial search RPC errors reveal the launcher and visible diagnostic");
+  launcher.set_status(tr("ready"));
+
   // The GTK Settings window uses the same five-section information
   // architecture as Windows/macOS, with a functional Commands content slot.
   settings_build();
