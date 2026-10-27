@@ -160,6 +160,8 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 ## 设置
 
+**Windows 更新操作：** 从系统托盘选择「Check for Updates（检查更新）」会直接打开可见的 `update` 页面。检查后会自动刷新下载操作；点击 Download（下载）获取并校验签名 MSI，等下载结束后点击 Quit and install（退出并安装），程序退出后由系统安装器升级并重新启动。如果 Windows 要求管理员确认，按系统提示操作；失败时可以查看错误或从更新页面打开下载目录。**便携 ZIP 版本不会被 MSI 原地替换**，建议从正式 MSI 安装版使用此自动升级路径。
+
 **Windows 和 macOS** 的设置窗口使用左侧分类导航：**General（常规）**、**Features（功能）**、**AI**、**Commands（命令）**、**Sync & Updates（同步与更新）**。可从托盘或菜单栏的「设置」打开。Windows 和 macOS 均可在常规设置中选中快捷键区域后直接按组合键录制，Esc 取消，不需要输入 `alt+space` 等内部格式。在 Commands 中可编辑命令别名和快捷键。Windows 设置窗口保留 WinUI 原生标题栏并显示 Fulcrum 图标；macOS 保留原生 AppKit/SwiftUI 标题栏。Linux 当前仍使用可滚动的 GTK 设置表单，尚无独立 Commands 设置页。
 
 输入 `settings`，运行对应的行即可修改：
