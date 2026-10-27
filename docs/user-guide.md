@@ -263,6 +263,12 @@ Write your own plugin: one manifest + one script. See
 
 ## Settings
 
+On **Ubuntu/Linux**, the search symbol is aligned with the search placeholder.
+The idle `Ready — hotkey or fulcrum --toggle` message does not stay above the
+results while the launcher is open. Use your configured summon shortcut or
+`fulcrum --toggle` to bring the hidden launcher back; actual startup,
+shortcut, and update errors are still shown in its status area.
+
 On **Windows**, the tray menu's **Check for Updates** opens a visible
 `update` view rather than reporting into a hidden footer. The list refreshes
 after checking: choose **Download** to fetch and verify the signed MSI, wait
