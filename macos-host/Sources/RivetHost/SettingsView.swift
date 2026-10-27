@@ -445,6 +445,7 @@ struct SettingsView: View {
                 Toggle("Start at login", isOn: Binding(
                     get: { model.startAtLogin },
                     set: { model.setStartAtLogin($0) }))
+                    .accessibilityIdentifier("settings-start-at-login")
                 Text("Starts quietly after you sign in. Only this Mac is affected.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
