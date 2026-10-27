@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Carbon.HIToolbox
+import ServiceManagement
 
 /// Settings window state: one string per backend key, written through the
 /// settings-set RPC as the user edits. The backend owns validation (hotkey
@@ -13,6 +14,8 @@ final class SettingsModel: ObservableObject {
     @Published var values: [String: String] = [:]
     @Published var error: String?
     @Published var aiStatus = ""
+    @Published var startAtLogin = SMAppService.mainApp.status == .enabled
+    @Published var loginItemError: String?
     @Published var aiKeyDraft = ""
     @Published var aiKeyNotice = ""
     // Per-command bindings (#48): what is bindable, what is bound, and the
@@ -42,6 +45,29 @@ final class SettingsModel: ObservableObject {
             values = loaded
         }
         await refreshAiStatus()
+        refreshLoginItem()
+    }
+
+    // The operating system owns login items per machine. They are not part
+    // of backend settings or sync, and registration may require OS approval.
+    func refreshLoginItem() {
+        startAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    func setStartAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            refreshLoginItem()
+            loginItemError = enabled && !startAtLogin
+                ? "macOS needs approval in System Settings → Login Items." : nil
+        } catch {
+            refreshLoginItem()
+            loginItemError = "Could not change Login Items: \(error.localizedDescription)"
+        }
     }
 
     func refreshAiStatus() async {
@@ -413,6 +439,23 @@ struct SettingsView: View {
                     Text("System").tag("system")
                     Text("Light").tag("light")
                     Text("Dark").tag("dark")
+                }
+            }
+            Section("Startup") {
+                Toggle("Start at login", isOn: Binding(
+                    get: { model.startAtLogin },
+                    set: { model.setStartAtLogin($0) }))
+                Text("Starts quietly after you sign in. Only this Mac is affected.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                if let error = model.loginItemError {
+                    Text(error)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
+                    Button("Open Login Items settings") {
+                        SMAppService.openSystemSettingsLoginItems()
+                    }
                 }
             }
             Section {
