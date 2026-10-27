@@ -32,6 +32,15 @@ jobs:
             let deleted = 0, retained = 0;
             for (const branch of branches) {
               if (branch.name === defaultBranch || branch.protected) { retained++; continue; }
+              // Release, deployment and upstream/history refs can remain useful
+              // even after their original PR merged. Never auto-delete them.
+              const keepNames = new Set(["gh-pages", "develop", "development", "dev", "stable", "staging", "production"]);
+              const keepPrefixes = ["release/", "hotfix/", "support/", "maintenance/", "deploy/", "pages/", "upstream/", "vendor/", "archive/"];
+              if (keepNames.has(branch.name) || keepPrefixes.some(prefix => branch.name.startsWith(prefix))) {
+                retained++;
+                core.info(`Keep release/deployment/history branch: ${branch.name}`);
+                continue;
+              }
               const refs = pulls.filter(pr =>
                 pr.head.repo?.full_name === fullName && pr.head.ref === branch.name);
               if (refs.some(pr => pr.state === "open")) { retained++; continue; }
@@ -43,7 +52,18 @@ jobs:
                 continue;
               }
               try {
-                // The GitHub endpoint rejects deleting the default or protected ref.
+                // Re-read immediately before deletion: a moved head, newly
+                // protected branch or newly opened PR invalidates the snapshot.
+                const fresh = (await github.rest.repos.getBranch({owner, repo, branch: branch.name})).data;
+                const active = await github.paginate(github.rest.pulls.list,
+                  {owner, repo, state: "open", head: `${owner}:${branch.name}`, per_page: 100});
+                if (fresh.protected || fresh.commit.sha !== branch.commit.sha || active.length) {
+                  retained++;
+                  core.info(`Keep changed/protected/open-PR branch: ${branch.name}`);
+                  continue;
+                }
+                // GitHub has no compare-and-delete ref endpoint; the race
+                // between this check and deleteRef cannot be fully eliminated.
                 await github.rest.git.deleteRef({owner, repo, ref: `heads/${branch.name}`});
                 deleted++;
                 core.info(`Deleted confirmed-merged branch: ${branch.name}`);
