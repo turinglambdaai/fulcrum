@@ -10,6 +10,7 @@
          racket/string
          rackunit
          "../app/core/engine.rkt"
+         "../app/core/file-index.rkt"
          "../app/core/files.rkt")
 
 (define (row-id row) (list-ref row 0))
@@ -204,6 +205,43 @@
       (check-equal? (file-search-result-status offline) 'ok)
       (check-equal? (file-search-result-hits offline)
                     '(("report.md" . "/home/me/report.md"))))
+    (lambda () (delete-directory/files dir))))
+
+(test-case "launcher plain filenames include indexed Windows documents beside apps"
+  (define dir (make-temporary-file "fulcrum-win-plain-search-~a" 'directory))
+  (dynamic-wind
+    void
+    (lambda ()
+      (define index (build-path dir "index.sqlite3"))
+      (check-true
+       (file-index-upsert-hits!
+        index
+        '(("fulcrum-invoice-2026.pdf" . "C:\\\\Users\\\\me\\\\Documents\\\\fulcrum-invoice-2026.pdf")
+          ("微信计划.md" . "C:\\\\Users\\\\me\\\\Desktop\\\\微信计划.md"))))
+      (define engine
+        (make-engine #:clipboard-store #f #:snippet-store #f
+                     #:plugin-manager #f #:file-index-path index))
+      ;; This is not a `find` query, and it must never invoke PowerShell.
+      ;; The two-character prefix can discover the cached file immediately.
+      (define rows (engine-search engine "fulcrum-invoice"))
+      (define file-row
+        (findf (lambda (row) (equal? (row-id row) "file.open")) rows))
+      (check-not-false file-row)
+      (check-equal? (list-ref file-row 1) "fulcrum-invoice-2026.pdf")
+      (check-equal? (list-ref file-row 3) "File")
+      (check-equal? (list-ref file-row 4)
+                    "C:\\\\Users\\\\me\\\\Documents\\\\fulcrum-invoice-2026.pdf")
+      (check-true (= 8 (length file-row)))
+      (define pinyin (engine-search engine "weixin"))
+      (check-true
+       (for/or ([row (in-list pinyin)])
+         (and (equal? (row-id row) "file.open")
+              (equal? (list-ref row 1) "微信计划.md"))))
+      (check-false (for/or ([row (in-list (engine-search engine ""))])
+                     (equal? (row-id row) "file.open")))
+      (check-false (for/or ([row (in-list (engine-search engine "fi"))])
+                     (equal? (row-id row) "file.open")))
+      (engine-stop! engine))
     (lambda () (delete-directory/files dir))))
 
 (test-case "engine provider: honest row without Spotlight, real rows with it"
