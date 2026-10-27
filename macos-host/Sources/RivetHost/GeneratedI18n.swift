@@ -26,7 +26,7 @@ enum GeneratedI18n {
         "ready": ["zh": "就绪 — 使用热键或 fulcrum --toggle 唤出", "en": "Ready — hotkey or `fulcrum --toggle`"],
         "readyStatus": ["zh": "已就绪 — 可随时按 Alt+Space 唤出", "en": "Ready — press Alt+Space anywhere"],
         "readyStatusMac": ["zh": "已就绪 — 可随时按 Option+Space 唤出", "en": "Ready — press Option+Space anywhere"],
-        "searchPlaceholder": ["zh": "搜索应用、剪贴板、片段、网页…", "en": "Search apps, clipboard, snippets, the web…"],
+        "searchPlaceholder": ["zh": "搜索应用、文件、剪贴板、片段、网页…", "en": "Search apps, files, clipboard, snippets, the web…"],
         "setting.ai-provider": ["zh": "AI 服务商", "en": "AI provider"],
         "setting.ai-provider.description": ["zh": "回车切换未设置、OpenAI、Anthropic、Ollama", "en": "Select to cycle not set, OpenAI, Anthropic and Ollama"],
         "setting.clipboard-enabled": ["zh": "剪贴板历史", "en": "Clipboard history"],
