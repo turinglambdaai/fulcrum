@@ -92,3 +92,27 @@
      (define rows (engine-search eng "left half"))
      (check-true (pair? rows))
      (check-equal? (list-ref (car rows) 0) "win.left"))))
+
+(test-case "failed atomic writes do not expose transient bindings"
+  (define dir (make-temporary-file "fulcrum-binding-io-~a" 'directory))
+  (dynamic-wind
+   void
+   (lambda ()
+     (define path (build-path dir "bindings.json"))
+     (define store (make-bindings-store path))
+     (binding-set! store "win.left" "left" "ctrl+alt+l")
+     ;; A directory at the store path forces the atomic rename to fail,
+     ;; independently of permission differences on CI runners.
+     (rename-file-or-directory path (build-path dir "saved.json"))
+     (make-directory path)
+     (check-exn exn:fail?
+                (lambda ()
+                  (binding-set! store "win.left" "changed" "ctrl+alt+m")))
+     (check-equal? (binding-alias (binding-lookup store "win.left")) "left")
+     (check-exn exn:fail?
+                (lambda () (binding-clear! store "win.left")))
+     (check-true (binding? (binding-lookup store "win.left")))
+     ;; A fresh store can still recover the last committed snapshot.
+     (define reloaded (make-bindings-store (build-path dir "saved.json")))
+     (check-equal? (binding-alias (binding-lookup reloaded "win.left")) "left"))
+   (lambda () (delete-directory/files dir))))
