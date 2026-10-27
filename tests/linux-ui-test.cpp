@@ -94,6 +94,20 @@ int main() {
   auto& launcher = Launcher::instance();
   // The test executable has no adjacent runtime: startup stops before boot.
   check(launcher.api == nullptr, "UI fixture does not start the backend");
+  check(GTK_IS_ENTRY(launcher.search) && launcher.search_icon != nullptr &&
+            GTK_IS_IMAGE(launcher.search_icon),
+        "search uses an editable GTK entry plus a separate native symbolic icon");
+  launcher.set_status(tr("ready"));
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
+        "normal ready/hotkey hint is hidden instead of taking up a search row");
+  launcher.set_status("Failed to register hotkey: change desktop bindings");
+  check(gtk_widget_get_visible(GTK_WIDGET(launcher.status)) &&
+            has_label(GTK_WIDGET(launcher.status),
+                      "Failed to register hotkey: change desktop bindings"),
+        "actionable hotkey failures remain visible in the native status area");
+  launcher.set_status(tr("ready"));
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
+        "clearing an actionable status removes its layout space");
   // Check that the live X11 window actually advertises its program-chosen
   // position to the WM. The helper runs on every summon, not just startup.
   launcher.show();
@@ -115,6 +129,19 @@ int main() {
   launcher.refresh_results();
   focus(launcher.window);
   pump(80);
+  graphene_rect_t glyph_bounds{}, entry_bounds{};
+  bool const glyph_measured = gtk_widget_compute_bounds(
+      launcher.search_icon, GTK_WIDGET(launcher.window), &glyph_bounds);
+  bool const entry_measured = gtk_widget_compute_bounds(
+      GTK_WIDGET(launcher.search), GTK_WIDGET(launcher.window), &entry_bounds);
+  if (glyph_measured && entry_measured) {
+    auto const glyph_center = glyph_bounds.origin.y + glyph_bounds.size.height / 2.0;
+    auto const entry_center = entry_bounds.origin.y + entry_bounds.size.height / 2.0;
+    check(std::abs(glyph_center - entry_center) <= 3.0,
+          "search glyph and entry share one horizontal visual centerline");
+  } else {
+    check(false, "native search glyph and editable entry must both lay out");
+  }
   auto* scrolled = gtk_widget_get_ancestor(GTK_WIDGET(launcher.results),
                                           GTK_TYPE_SCROLLED_WINDOW);
   auto* first = gtk_list_box_get_row_at_index(launcher.results, 0);
@@ -195,7 +222,7 @@ int main() {
   gtk_list_box_select_row(launcher.results,
                          gtk_list_box_get_row_at_index(launcher.results, 11));
   set_i18n_language("zh");
-  check(std::string(gtk_search_entry_get_placeholder_text(launcher.search)).find(
+  check(std::string(gtk_entry_get_placeholder_text(launcher.search)).find(
             "搜索") != std::string::npos,
         "language changes update the existing search field immediately");
   check(gtk_list_box_row_get_index(gtk_list_box_get_selected_row(launcher.results)) == 11,
