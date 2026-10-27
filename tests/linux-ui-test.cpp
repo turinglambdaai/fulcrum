@@ -141,6 +141,25 @@ int main() {
         "initial search RPC errors reveal the launcher and visible diagnostic");
   launcher.set_status(tr("ready"));
 
+  // A user-authorized login item creates the same backend but never opens
+  // a launcher on its own. Only the later interactive summon reveals it.
+  launcher.hide();
+  g_login_background_start = true;
+  launcher.initial_results_ready = false;
+  Launcher::SearchOutcome login_background;
+  login_background.ok = true;
+  login_background.rows.push_back(parse_row(
+      {"settings.open", "Settings…", "", "Setting", "", "", "", ""}));
+  launcher.apply_search(std::move(login_background));
+  check(launcher.initial_results_ready &&
+            !gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+            !launcher.summon_when_ready,
+        "login background receives native results without revealing the panel");
+  g_login_background_start = false;
+  launcher.show();
+  check(gtk_widget_get_visible(GTK_WIDGET(launcher.window)),
+        "the same resident launcher can still be summoned interactively");
+
   // The GTK Settings window uses the same five-section information
   // architecture as Windows/macOS, with a functional Commands content slot.
   settings_build();
