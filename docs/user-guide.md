@@ -261,16 +261,6 @@ Write your own plugin: one manifest + one script. See
 
 ---
 
-## File search
-
-Type at least two characters of a filename in the regular launcher search box;
-Fulcrum shows matching local files alongside applications. Desktop, Documents,
-Downloads, and available OneDrive/iCloud/XDG equivalents are cataloged in the
-background after startup; large folders may need a moment before every file
-is found. To search locations outside the local catalog, type `find report`
-(or `find <filename>`) to use the platform's broader file search. The plain
-search path is fast and does not start PowerShell/Spotlight/locate per keystroke.
-
 ## Settings
 
 On **Ubuntu/Linux**, the search symbol is aligned with the search placeholder.
