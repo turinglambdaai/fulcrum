@@ -2293,11 +2293,65 @@ void settings_add_number(GtkWidget* section, char const* label, char const* key,
   settings_row(section, label, spin, key);
 }
 
+// GTK-native shortcut capture. The backend still validates duplicates,
+// unsupported combinations and collisions with the global summon shortcut.
+std::string linux_key_spec(guint keyval, GdkModifierType modifiers) {
+  std::string result;
+  if ((modifiers & GDK_CONTROL_MASK) != 0) result += "ctrl+";
+  if ((modifiers & GDK_ALT_MASK) != 0) result += "alt+";
+  if ((modifiers & GDK_SHIFT_MASK) != 0) result += "shift+";
+  if ((modifiers & GDK_SUPER_MASK) != 0) result += "super+";
+  if (result.empty()) return {};
+  guint const key = gdk_keyval_to_lower(keyval);
+  if (key >= GDK_KEY_a && key <= GDK_KEY_z) {
+    return result + static_cast<char>('a' + (key - GDK_KEY_a));
+  }
+  if (key >= GDK_KEY_0 && key <= GDK_KEY_9) {
+    return result + static_cast<char>('0' + (key - GDK_KEY_0));
+  }
+  if (key >= GDK_KEY_F1 && key <= GDK_KEY_F12) {
+    return result + "f" + std::to_string(key - GDK_KEY_F1 + 1);
+  }
+  switch (key) {
+    case GDK_KEY_space: return result + "space";
+    case GDK_KEY_comma: return result + "comma";
+    case GDK_KEY_period: return result + "period";
+    case GDK_KEY_minus: return result + "minus";
+    case GDK_KEY_equal: return result + "equal";
+    case GDK_KEY_Tab: return result + "tab";
+    default: return {};
+  }
+}
+
+gboolean linux_record_key(GtkEventControllerKey*, guint keyval, guint,
+                          GdkModifierType modifiers, gpointer data) {
+  // Esc cancels the active recorder; a bare key is ignored rather than
+  // producing an invalid intermediate backend setting.
+  if (keyval == GDK_KEY_Escape) return TRUE;
+  auto* entry = GTK_EDITABLE(data);
+  if (auto const spec = linux_key_spec(keyval, modifiers); !spec.empty()) {
+    gtk_editable_set_text(entry, spec.c_str());
+  }
+  return TRUE;
+}
+
+void linux_attach_key_recorder(GtkWidget* widget) {
+  auto* controller = gtk_event_controller_key_new();
+  gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+  g_signal_connect(controller, "key-pressed", G_CALLBACK(linux_record_key),
+                   widget);
+  gtk_widget_add_controller(widget, controller);
+}
+
 void settings_add_text(GtkWidget* section, char const* label, char const* key,
                        char const* placeholder) {
   auto* entry = gtk_entry_new();
   gtk_entry_set_placeholder_text(GTK_ENTRY(entry), placeholder);
   gtk_widget_set_size_request(entry, 260, -1);
+  if (std::string(key) == "hotkey") {
+    gtk_entry_set_placeholder_text(GTK_ENTRY(entry), "Focus and press a shortcut");
+    linux_attach_key_recorder(entry);
+  }
   auto* binding = settings_bind(key, SettingKind::text, entry);
   g_signal_connect(entry, "activate", G_CALLBACK(on_setting_entry_activate), binding);
   auto* focus = gtk_event_controller_focus_new();
@@ -2381,9 +2435,8 @@ void settings_build() {
                       {{"System", "system"}, {"Light", "light"}, {"Dark", "dark"}});
   settings_add_text(general, "Hotkey", "hotkey", "alt+space");
   settings_hint(general,
-                "Modifiers alt / ctrl / shift / super plus a key: space, a–z, 0–9, "
-                "f1–f12, comma, period, minus, equal, tab. Applies immediately; "
-                "a taken combo falls back to Ctrl+Alt+Space.");
+                "Focus the hotkey field and press modifiers plus a key. "
+                "Esc cancels; the shared backend rejects unsupported combos.");
   settings_add_number(general, "Maximum results", "max-results", 5, 25);
   auto* startup_toggle = gtk_switch_new();
   gtk_switch_set_active(GTK_SWITCH(startup_toggle), fulcrum_autostart_enabled());
@@ -2638,6 +2691,7 @@ void settings_load_commands() {
         gtk_entry_set_placeholder_text(GTK_ENTRY(hotkey_entry), "ctrl+alt+k");
         gtk_editable_set_text(GTK_EDITABLE(hotkey_entry), hotkey.c_str());
         gtk_widget_set_size_request(hotkey_entry, 145, -1);
+        linux_attach_key_recorder(hotkey_entry);
         auto* save = gtk_button_new_with_label("Save");
         auto* clear = gtk_button_new_with_label("Clear");
         auto* state = new LinuxCommandRow{command[0], alias_entry, hotkey_entry};
