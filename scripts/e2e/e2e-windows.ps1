@@ -300,6 +300,30 @@ try {
         throw 'could not hide primary before tray update check'
     }
     Start-Sleep -Milliseconds 300
+    # OS login while Fulcrum already owns the instance lease must exit
+    # without summoning the panel that the user deliberately hid.
+    $loginDuplicate = Start-Process -FilePath $executable.FullName -ArgumentList '--background' -WorkingDirectory $repo -PassThru
+    try {
+        if (-not $loginDuplicate.WaitForExit(15000)) {
+            throw 'login-item duplicate stayed running instead of exiting'
+        }
+        if ($loginDuplicate.ExitCode -ne 0 -or $process.HasExited) {
+            throw 'login-item duplicate disturbed the resident process'
+        }
+        Start-Sleep -Milliseconds 200
+        $allResident = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+        $unexpected = $desktop.FindFirst(
+            [System.Windows.Automation.TreeScope]::Children, $allResident)
+        if ($unexpected -and -not $unexpected.Current.IsOffscreen) {
+            throw 'background login duplicate re-opened the hidden launcher'
+        }
+    } finally {
+        if (-not $loginDuplicate.HasExited) {
+            Stop-Process -Id $loginDuplicate.Id -Force -ErrorAction SilentlyContinue
+        }
+        $loginDuplicate.Dispose()
+    }
     if (-not [FulcrumNative]::PostMessage(
         $hwnd, [uint32]0x8008, [IntPtr]::Zero, [IntPtr]::Zero)) {
         throw 'could not request tray CheckForUpdates'
@@ -351,8 +375,8 @@ try {
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','search:find-explicit-windows-document','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:startup-registry-roundtrip','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
-        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','find prefix locates a real Windows Documents file using packaged RVT1/WinUI','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','Windows Start at login toggle changes HKCU Run then restores previous value','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
+        actions = @('set:QueryBox=12*12','search:find-explicit-windows-document','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:startup-registry-roundtrip','login:background-does-not-summon','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','find prefix locates a real Windows Documents file using packaged RVT1/WinUI','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','Windows Start at login toggle changes HKCU Run then restores previous value','background duplicate exits without re-opening hidden launcher','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
     Remove-Item -LiteralPath $fixturePath -Force -ErrorAction SilentlyContinue
