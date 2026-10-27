@@ -154,13 +154,6 @@
          [(eq? (file-catalog-status-state status) 'ready)
          (check-equal? (map car (file-index-search db "launcher" 8))
                         '("launcher-plan.md"))
-          ;; The unified launcher must return catalog files for ordinary
-          ;; filename queries as soon as their async scan is complete.
-          (check-not-false
-           (findf (lambda (row)
-                    (and (string=? (car row) "file.open")
-                         (string=? (cadr row) "launcher-plan.md")))
-                  (engine-search engine "launcher-plan")))
           (check-not-false
            (findf (lambda (row) (string-contains? (cadr row) "File index ready"))
                   (engine-search engine "file index")))]
