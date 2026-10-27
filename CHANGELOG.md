@@ -21,6 +21,14 @@ independently per platform packaging run.
   Racket/RVT1 backend, and terminate WinUI. Esc and Alt+F4 still hide the
   launcher without quitting the resident service.
 
+- **Windows Settings now matches the macOS navigation model.** A native WinUI
+  NavigationView exposes General, Features, AI, Commands, and Sync & Updates
+  as individual pages; users can edit command aliases and shortcuts, and
+  record the global summon shortcut without typing the backend key grammar.
+- **Windows Settings shows Fulcrum's brand icon in the title bar.** The window
+  now installs the embedded resource ID 1 through `SetIcon(IconId)` instead of
+  passing `RivetHost.exe` to the `.ico`-path overload.
+
 ### Regression coverage
 
 - Windows packaged native-UI acceptance exercises ready-on-first-frame,
