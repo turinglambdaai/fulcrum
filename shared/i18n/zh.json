@@ -19,7 +19,7 @@
   "ready": "就绪 — 使用热键或 fulcrum --toggle 唤出",
   "readyStatus": "已就绪 — 可随时按 Alt+Space 唤出",
   "readyStatusMac": "已就绪 — 可随时按 Option+Space 唤出",
-  "searchPlaceholder": "搜索应用、文件、剪贴板、片段、网页…",
+  "searchPlaceholder": "搜索应用、剪贴板、片段、网页…",
   "setting.ai-provider": "AI 服务商",
   "setting.ai-provider.description": "回车切换未设置、OpenAI、Anthropic、Ollama",
   "setting.clipboard-enabled": "剪贴板历史",
