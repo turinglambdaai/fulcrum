@@ -71,11 +71,12 @@ AppKit window decoration, not Win32 caption-icon conventions.
 Linux now uses a GTK StackSidebar + five scrollable native content pages
 (General, Features, AI, Commands, Sync & Updates). Its Commands editor uses
 the same backend validation API for aliases/shortcuts as WinUI and SwiftUI;
-Linux now captures shortcut combinations in GTK's key-pressed controller,
-translates them to the same canonical backend grammar, and validates them
-through the common bindings RPC; GTK's native control styling still differs
-from AppKit/WinUI. The GTK widget and packaged Wayland acceptance suites
-must pass.
+Linux records its global summon shortcut directly with GTK key capture.
+Its Commands page edits aliases through the shared backend, but desktop-wide
+*per-command* hotkeys are currently unsupported on Linux; that input is
+visibly disabled rather than accepting inert bindings. Supporting per-command
+X11 grabs and Wayland portal bindings is a remaining explicit parity gap.
+The GTK widget and packaged Wayland acceptance suites must pass.
 
 Start at login is a **per-device opt-in** in General on all three hosts, not
 a synced Racket setting: macOS uses SMAppService and system approval, Windows
