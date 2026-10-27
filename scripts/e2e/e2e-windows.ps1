@@ -13,6 +13,10 @@ using System.Runtime.InteropServices;
 public static class FulcrumNative {
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", EntryPoint="SendMessageW", SetLastError = true)]
+    public static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", EntryPoint="GetClassLongPtrW", SetLastError = true)]
+    public static extern IntPtr GetClassLongPtr(IntPtr hwnd, int index);
 }
 '@
 
@@ -160,7 +164,50 @@ try {
     # natural process exit (not a test force-kill). The next primary must be
     # free to acquire the same instance ID and expose a usable window again.
     $hwnd = [IntPtr]::new([int64]$reopened.Current.NativeWindowHandle)
+    # The packaged product must expose the same five navigable settings
+    # sections as macOS, including the actual bindings editor. Open the
+    # real settings window via an acceptance-gated route to ShowSettings.
     if ($hwnd -eq [IntPtr]::Zero -or -not [FulcrumNative]::PostMessage(
+        $hwnd, [uint32]0x8007, [IntPtr]::Zero, [IntPtr]::Zero)) {
+        throw 'could not open settings via the packaged WinUI host'
+    }
+    $settings = Wait-Until 'Fulcrum Settings top-level window' {
+        $pidCondition = [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
+        $windows = $desktop.FindAll([System.Windows.Automation.TreeScope]::Children, $pidCondition)
+        for ($i = 0; $i -lt $windows.Count; $i++) {
+            if ($windows[$i].Current.Name -eq 'Fulcrum Settings') { return $windows[$i] }
+        }
+        return $null
+    }
+    foreach ($section in @('general','features','ai','commands','sync')) {
+        [void](Wait-Until "settings sidebar $section" { Find-ById $settings "settings-sidebar-$section" })
+    }
+    $commandTab = Find-ById $settings 'settings-sidebar-commands'
+    $selection = $commandTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+    ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
+    [void](Wait-Until 'Commands settings content' { Find-ById $settings 'settings-commands-content' })
+    $generalTab = Find-ById $settings 'settings-sidebar-general'
+    $selection = $generalTab.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
+    ([System.Windows.Automation.SelectionItemPattern]$selection).Select()
+    [void](Wait-Until 'recordable global hotkey in General settings' { Find-ById $settings 'settings-record-hotkey' })
+
+    # WinUI titles don't automatically inherit the EXE icon. The settings
+    # window must explicitly set it from Rivet's branded numeric resource.
+    $settingsHwnd = [IntPtr]::new([int64]$settings.Current.NativeWindowHandle)
+    if ($settingsHwnd -eq [IntPtr]::Zero) { throw 'settings HWND is null' }
+    $small = [FulcrumNative]::SendMessage($settingsHwnd, [uint32]0x007F,
+        [IntPtr]::new(2), [IntPtr]::Zero) # WM_GETICON / ICON_SMALL2
+    $large = [FulcrumNative]::SendMessage($settingsHwnd, [uint32]0x007F,
+        [IntPtr]::new(1), [IntPtr]::Zero) # WM_GETICON / ICON_BIG
+    $classIcon = [FulcrumNative]::GetClassLongPtr($settingsHwnd, -14) # GCLP_HICON
+    if ($small -eq [IntPtr]::Zero -and $large -eq [IntPtr]::Zero -and
+        $classIcon -eq [IntPtr]::Zero) {
+        throw 'settings title bar has no Win32 icon after SetIcon'
+    }
+    Save-AccessibilitySnapshot $settings (Join-Path $output 'settings-accessibility.json')
+
+    if (-not [FulcrumNative]::PostMessage(
         $hwnd, [uint32]0x8006, [IntPtr]::Zero, [IntPtr]::Zero)) {
         throw 'could not request acceptance-only QuitApplication'
     }
@@ -189,8 +236,8 @@ try {
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','quit:acceptance-tray-path','launch:again')
-        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
+        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
     $env:FULCRUM_DATA_DIR = $savedData
