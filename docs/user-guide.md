@@ -263,6 +263,20 @@ Write your own plugin: one manifest + one script. See
 
 ## Settings
 
+**Start at login** is available in **General** on macOS, Windows and
+Ubuntu/Linux. It defaults to off, affects only the current computer, and
+starts Fulcrum quietly after you sign in. macOS may ask you to approve the
+Login Item in System Settings; Windows uses your current user's startup
+setting; Linux uses `~/.config/autostart` (or `XDG_CONFIG_HOME`).
+For Linux AppImage copies, keep the AppImage at a stable path.
+
+On Linux, Settings has the same five sidebar areas as macOS/Windows:
+General, Features, AI, Commands and Sync & Updates. Commands can edit
+aliases and shortcut specifications through the shared backend, although
+Linux currently uses text entry for the shortcut instead of a key recorder.
+The initial launcher panel appears only when its first search results or an
+actionable startup failure is available.
+
 On **Ubuntu/Linux**, the search symbol is aligned with the search placeholder.
 The idle `Ready — hotkey or fulcrum --toggle` message does not stay above the
 results while the launcher is open. Use your configured summon shortcut or
