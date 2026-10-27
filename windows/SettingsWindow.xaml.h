@@ -6,6 +6,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 namespace winrt::RivetHost::implementation {
 
@@ -22,6 +23,15 @@ struct SettingsWindow : SettingsWindowT<SettingsWindow> {
   // Hooked up by MainWindow once the backend is ready (and again on every
   // show, which reloads). The API outlives this window: MainWindow owns it.
   void Attach(rivet_app::API* api);
+
+  // Native five-section settings IA. The same backend keys are used by
+  // macOS, Windows and Linux; only the host controls differ.
+  void Navigation_SelectionChanged(
+      Microsoft::UI::Xaml::Controls::NavigationView const&,
+      Microsoft::UI::Xaml::Controls::NavigationViewSelectionChangedEventArgs const&);
+  void Hotkey_KeyDown(
+      winrt::Windows::Foundation::IInspectable const&,
+      Microsoft::UI::Xaml::Input::KeyRoutedEventArgs const&);
 
   // XAML handlers (SettingsWindow.xaml).
   void Toggle_Toggled(winrt::Windows::Foundation::IInspectable const&,
@@ -44,6 +54,12 @@ struct SettingsWindow : SettingsWindowT<SettingsWindow> {
   void Apply(std::map<std::string, std::string> values, std::string ai_status);
   void Write(std::string key, std::string value);
   void RefreshAiStatus();
+  void LoadBindings();
+  void ShowBindings(std::vector<std::vector<std::string>> commands,
+                    std::vector<std::vector<std::string>> bindings);
+  void SaveBinding(std::string id, std::string alias, std::string hotkey);
+  void ClearBinding(std::string id);
+  void NavigateTo(std::string const& section);
   void ApplyLocalization(std::string const& language);
   void SaveKey();
   void CommitText(Microsoft::UI::Xaml::Controls::TextBox const& box);
