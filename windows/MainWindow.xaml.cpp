@@ -1043,6 +1043,11 @@ void MainWindow::FinishNativeSetup() {
                         self->ShowSettings();
                         return 0;
                       }
+                      if (msg == fulcrum::windows::kAcceptanceUpdateCheckMessage &&
+                          self != nullptr && is_acceptance_run()) {
+                        self->CheckForUpdates();
+                        return 0;
+                      }
                       if (msg == WM_NCHITTEST && self != nullptr) {
                         // The borderless panel has no titlebar to drag by,
                         // and the macOS panel stays movable through its
