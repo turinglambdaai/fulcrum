@@ -160,6 +160,8 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 ## 设置
 
+**Windows 和 macOS** 的设置窗口使用左侧分类导航：**General（常规）**、**Features（功能）**、**AI**、**Commands（命令）**、**Sync & Updates（同步与更新）**。可从托盘或菜单栏的「设置」打开。Windows 和 macOS 均可在常规设置中选中快捷键区域后直接按组合键录制，Esc 取消，不需要输入 `alt+space` 等内部格式。在 Commands 中可编辑命令别名和快捷键。Windows 设置窗口保留 WinUI 原生标题栏并显示 Fulcrum 图标；macOS 保留原生 AppKit/SwiftUI 标题栏。Linux 当前仍使用可滚动的 GTK 设置表单，尚无独立 Commands 设置页。
+
 输入 `settings`，运行对应的行即可修改：
 
 | 设置 | 说明 |
