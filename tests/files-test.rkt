@@ -78,7 +78,7 @@
      2))
   (check-equal? (car (car ranked)) "微信计划.md"))
 
-(test-case "windows backend runs the index-first script inside one command"
+(test-case "windows find script prioritizes known folders and preserves index fallback"
   (define captured #f)
   (define captured-timeout-ms #f)
   (define result
@@ -121,31 +121,31 @@
 (test-case "Windows explicit find resolves a real fixture with the production PowerShell runner"
   (when (eq? (system-type 'os) 'windows)
     ;; Native backend smoke, not a string-mock: proves the Windows scanner
-    ;; returns usable filesystem paths when SYSTEMINDEX is unavailable.
-    (define profile (getenv "USERPROFILE"))
-    (when profile
-      (define downloads (build-path profile "Downloads"))
-      (define already-exists? (directory-exists? downloads))
-      (make-directory* downloads)
-      (define fixture-name
-        (format "fulcrum-find-smoke-~a.txt" (current-process-milliseconds)))
-      (define fixture (build-path downloads fixture-name))
-      (dynamic-wind
-        (lambda () (display-to-file "test" fixture #:exists 'truncate))
-        (lambda ()
-          (define result
-            (file-search/status
-             (path->string (path-replace-extension (file-name-from-path fixture) #""))
-             8 #:os 'windows))
-          (check-equal? (file-search-result-status result) 'ok)
-          (check-true
-           (for/or ([hit (in-list (file-search-result-hits result))])
-             (string-ci=? (car hit) fixture-name))))
-        (lambda ()
-          (when (file-exists? fixture) (delete-file fixture))
-          (when (not already-exists?)
-            (with-handlers ([exn:fail? (lambda (_) (void))])
-              (delete-directory downloads))))))))
+    ;; returns usable filesystem paths even when SYSTEMINDEX is disabled.
+    (let ([profile (getenv "USERPROFILE")])
+      (when profile
+        (let* ([downloads (build-path profile "Downloads")]
+               [already-exists? (directory-exists? downloads)]
+               [fixture-name (format "fulcrum-find-smoke-~a.txt"
+                                     (current-process-milliseconds))]
+               [fixture (build-path downloads fixture-name)]
+               [query (substring fixture-name 0
+                                 (- (string-length fixture-name) 4))])
+          (make-directory* downloads)
+          (dynamic-wind
+            (lambda ()
+              (display-to-file "test" fixture #:exists 'truncate))
+            (lambda ()
+              (define result (file-search/status query 8 #:os 'windows))
+              (check-equal? (file-search-result-status result) 'ok)
+              (check-true
+               (for/or ([hit (in-list (file-search-result-hits result))])
+                 (string-ci=? (car hit) fixture-name))))
+            (lambda ()
+              (when (file-exists? fixture) (delete-file fixture))
+              (when (not already-exists?)
+                (with-handlers ([exn:fail? (lambda (_) (void))])
+                  (delete-directory downloads))))))))))
 
 (test-case "Linux find fallback reports timeout instead of an empty success"
   (define (find-only program)
