@@ -111,6 +111,9 @@ window.fulcrum-window {
 }
 )CSS";
   static char const* const shared_css = R"CSS(
+/* A single centered row owns the glyph and the editable placeholder.
+   GTK SearchEntry's built-in icon uses a different internal box/padding;
+   ordinary GtkEntry plus an explicit GtkImage avoids the baseline drift. */
 window.fulcrum-window entry {
   background: none;
   border: none;
@@ -118,6 +121,9 @@ window.fulcrum-window entry {
   outline: none;
   font-size: 19px;
   padding: 10px 4px;
+}
+window.fulcrum-window .fulcrum-search-icon {
+  color: #D97706;
 }
 window.fulcrum-window list {
   padding: 2px 8px 8px;
@@ -894,7 +900,8 @@ void show_about_dialog(GtkWindow* parent) {
 
 struct Launcher {
   GtkWindow* window{nullptr};
-  GtkSearchEntry* search{nullptr};
+  GtkEntry* search{nullptr};
+  GtkWidget* search_icon{nullptr};
   GtkListBox* results{nullptr};
   GtkLabel* status{nullptr};
   GtkButton* hotkey_fix{nullptr};
@@ -966,6 +973,12 @@ struct Launcher {
 
   void set_status(std::string const& message) {
     gtk_label_set_text(status, message.c_str());
+    // The resident ready/hotkey hint duplicates the search chrome and is
+    // especially misleading while the panel is already open. Only show
+    // actionable status or errors; hidden widgets allocate no layout space.
+    // Keep status messages themselves selectable/copyable when visible.
+    gtk_widget_set_visible(GTK_WIDGET(status),
+                           !message.empty() && message != tr("ready"));
   }
 
   // Marshal a status string from any worker thread onto the main loop.
@@ -1939,7 +1952,7 @@ void set_i18n_language(std::string const& lang) {
   bool const changed = g_i18n_active.exchange(active) != active;
   auto& launcher = Launcher::instance();
   if (launcher.search != nullptr) {
-    gtk_search_entry_set_placeholder_text(launcher.search,
+    gtk_entry_set_placeholder_text(launcher.search,
                                           tr("searchPlaceholder").c_str());
   }
   if (launcher.navigation_hint != nullptr) {
@@ -2838,7 +2851,7 @@ gboolean on_close_request(GtkWindow*, gpointer) {
   return TRUE;
 }
 
-void on_search_changed(GtkSearchEntry*, gpointer) {
+void on_search_changed(GtkEntry*, gpointer) {
   Launcher& launcher = Launcher::instance();
   if (launcher.search_source != 0) {
     g_source_remove(launcher.search_source);
@@ -3019,18 +3032,33 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_widget_add_css_class(window, "fulcrum-window");
 
   auto* root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-  auto* search = gtk_search_entry_new();
-  gtk_search_entry_set_placeholder_text(GTK_SEARCH_ENTRY(search),
-                                        "Search apps, clipboard, snippets, the web…");
+  // GtkSearchEntry owns its icon in an internal GTK subnode, where the
+  // entry-level CSS padding shifts it relative to the placeholder baseline.
+  // Build one deliberate row: a 22px symbolic icon centered against a plain
+  // editable entry. GtkEntry retains IME, clipboard and keyboard semantics.
+  auto* search_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+  gtk_widget_set_margin_top(search_row, 10);
+  gtk_widget_set_margin_start(search_row, 18);
+  gtk_widget_set_margin_end(search_row, 14);
+  auto const* search_icon_name = pick_icon({"system-search-symbolic",
+                                           "edit-find-symbolic"});
+  auto* search_icon = gtk_image_new_from_icon_name(
+      search_icon_name == nullptr ? "edit-find-symbolic" : search_icon_name);
+  gtk_image_set_pixel_size(GTK_IMAGE(search_icon), 22);
+  gtk_widget_set_size_request(search_icon, 24, 24);
+  gtk_widget_set_valign(search_icon, GTK_ALIGN_CENTER);
+  gtk_widget_add_css_class(search_icon, "fulcrum-search-icon");
+  gtk_box_append(GTK_BOX(search_row), search_icon);
+  launcher.search_icon = search_icon;
+  auto* search = gtk_entry_new();
+  gtk_entry_set_placeholder_text(GTK_ENTRY(search),
+                                 "Search apps, clipboard, snippets, the web…");
   gtk_accessible_update_property(GTK_ACCESSIBLE(search),
                                  GTK_ACCESSIBLE_PROPERTY_LABEL,
                                  "FulcrumQuery", -1);
-  gtk_widget_set_margin_top(search, 10);
-  gtk_widget_set_margin_start(search, 10);
-  gtk_widget_set_margin_end(search, 10);
-  launcher.search = GTK_SEARCH_ENTRY(search);
+  gtk_widget_set_valign(search, GTK_ALIGN_CENTER);
   gtk_widget_set_hexpand(search, TRUE);
-  auto* search_row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+  launcher.search = GTK_ENTRY(search);
   gtk_box_append(GTK_BOX(search_row), search);
 
   auto* status = gtk_label_new("Starting embedded Racket CS…");
@@ -3148,7 +3176,7 @@ void on_activate(GtkApplication* app, gpointer) {
   gtk_window_set_child(launcher.window, root);
   set_i18n_language(g_i18n_active.load() == 0 ? "zh" : "en");
 
-  g_signal_connect(search, "search-changed",
+  g_signal_connect(search, "changed",
                    G_CALLBACK(on_search_changed), nullptr);
   g_signal_connect(results, "row-activated",
                    G_CALLBACK(on_row_activated), nullptr);
