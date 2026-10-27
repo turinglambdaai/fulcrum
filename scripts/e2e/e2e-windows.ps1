@@ -146,7 +146,7 @@ try {
             throw "secondary instance exited with code $($secondary.ExitCode)"
         }
         if ($process.HasExited) { throw 'secondary launch killed the primary instance' }
-        [void](Wait-Until 'primary launcher re-summoned by secondary launch' {
+        $reopened = Wait-Until 'primary launcher re-summoned by secondary launch' {
             $condition = [System.Windows.Automation.PropertyCondition]::new(
                 [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
             $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
@@ -159,7 +159,7 @@ try {
     # Close through the exact production QuitApplication function and demand
     # natural process exit (not a test force-kill). The next primary must be
     # free to acquire the same instance ID and expose a usable window again.
-    $hwnd = [IntPtr]::new([int64]$window.Current.NativeWindowHandle)
+    $hwnd = [IntPtr]::new([int64]$reopened.Current.NativeWindowHandle)
     if ($hwnd -eq [IntPtr]::Zero -or -not [FulcrumNative]::PostMessage(
         $hwnd, [uint32]0x8006, [IntPtr]::Zero, [IntPtr]::Zero)) {
         throw 'could not request acceptance-only QuitApplication'
