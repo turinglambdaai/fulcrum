@@ -19,7 +19,7 @@
   "ready": "Ready — hotkey or `fulcrum --toggle`",
   "readyStatus": "Ready — press Alt+Space anywhere",
   "readyStatusMac": "Ready — press Option+Space anywhere",
-  "searchPlaceholder": "Search apps, files, clipboard, snippets, the web…",
+  "searchPlaceholder": "Search apps, clipboard, snippets, the web…",
   "setting.ai-provider": "AI provider",
   "setting.ai-provider.description": "Select to cycle not set, OpenAI, Anthropic and Ollama",
   "setting.clipboard-enabled": "Clipboard history",
