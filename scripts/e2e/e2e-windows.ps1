@@ -150,7 +150,7 @@ try {
             $condition = [System.Windows.Automation.PropertyCondition]::new(
                 [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
             $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
-        })
+        }
     } finally {
         if (-not $secondary.HasExited) { Stop-Process -Id $secondary.Id -Force -ErrorAction SilentlyContinue }
         $secondary.Dispose()
