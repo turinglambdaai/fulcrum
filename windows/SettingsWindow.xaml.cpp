@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "SettingsWindow.xaml.h"
+#include "Autostart.h"
 #include "GeneratedI18n.hpp"
 #if __has_include("SettingsWindow.g.cpp")
 #include "SettingsWindow.g.cpp"
@@ -232,6 +233,7 @@ void SettingsWindow::Apply(std::map<std::string, std::string> values,
   select_choice(ThemeBox(), get("theme"));
   HotkeyBox().Text(to_wide(get("hotkey")));
   MaxResultsBox().Value(number_or(get("max-results"), 12));
+  LoginStartupSwitch().IsOn(fulcrum::windows::AutostartEnabled());
   ClipboardSwitch().IsOn(get("clipboard-enabled") == "on");
   ClipboardLimitBox().Value(number_or(get("clipboard-limit"), 1000));
   WebSearchSwitch().IsOn(get("web-search-enabled") == "on");
@@ -523,6 +525,17 @@ void SettingsWindow::Toggle_Toggled(
   }
   auto toggle = sender.try_as<mxc::ToggleSwitch>();
   if (toggle == nullptr) {
+    return;
+  }
+  if (tag_key(sender) == "local-login-startup") {
+    if (!fulcrum::windows::SetAutostart(toggle.IsOn())) {
+      ShowError(L"Could not change this PC's login startup setting.");
+      loading_ = true;
+      LoginStartupSwitch().IsOn(fulcrum::windows::AutostartEnabled());
+      loading_ = false;
+    } else {
+      ClearError();
+    }
     return;
   }
   Write(tag_key(sender), toggle.IsOn() ? "on" : "off");
