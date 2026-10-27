@@ -70,10 +70,12 @@
                      (and (string? alias) (valid-alias? alias) alias)
                      (and (string? hotkey) (valid-hotkey-spec? hotkey) hotkey)))))
 
-(define (persist! store)
+;; Serialize a proposed snapshot before publishing it in memory. A failed
+;; atomic rename must not leave a hotkey active only until the next restart.
+(define (persist-items! store items)
   (write-json-atomic!
    (bindings-store-path store)
-   (for/list ([b (in-list (bindings-list-all store))])
+   (for/list ([b (in-list (sort (hash-values items) string<? #:key binding-id))])
      (hasheq 'id (binding-id b)
              'alias (binding-alias b)
              'hotkey (binding-hotkey b)))))
@@ -120,8 +122,8 @@
      (define next (hash-set (bindings-store-items store) (binding-key id) record))
      (unless (<= (hash-count next) max-bindings)
        (raise-argument-error 'binding-set! "binding limit reached" id))
+     (persist-items! store next)
      (set-bindings-store-items! store next)
-     (persist! store)
      record)))
 
 (define/contract (binding-clear! store id)
@@ -131,6 +133,6 @@
    (lambda ()
      (define next (hash-remove (bindings-store-items store) (binding-key id)))
      (define removed? (< (hash-count next) (hash-count (bindings-store-items store))))
+     (persist-items! store next)
      (set-bindings-store-items! store next)
-     (persist! store)
      removed?)))
