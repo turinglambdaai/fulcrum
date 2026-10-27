@@ -160,6 +160,10 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 ## 设置
 
+**开机启动（登录后启动）：** 三平台均可在 **General（常规）→ Start at login** 自行开启或关闭，默认关闭，仅对当前设备生效，不随同步复制。登录系统后会在后台常驻，不自动弹出搜索界面。macOS 可能需要在系统设置的登录项中批准；Windows 使用当前用户的启动项；Ubuntu/Linux 使用 XDG 自动启动。AppImage 用户开启后请勿随意移动安装文件。
+
+Linux 设置界面改为与 macOS、Windows 一致的五类侧边导航：General、Features、AI、Commands、Sync & Updates。Commands 可通过共同的后端配置命令别名和快捷键；Linux 目前仍使用快捷键文本输入，而非 macOS/Windows 的按键录制。Ubuntu 启动器会在首批搜索结果准备好后显示，避免只看到空白搜索框。
+
 **Ubuntu / Linux 启动器外观：** 搜索图标与「搜索应用、剪贴板、片段、网页…」提示在同一水平线上。面板已显示时，不再常驻展示「就绪 — 使用热键或 `fulcrum --toggle` 唤出」；需要从隐藏状态重新唤出时，仍可使用全局快捷键或 `fulcrum --toggle`。启动失败、快捷键冲突和更新失败等真正需要注意的状态信息仍会显示。
 
 **Windows 更新操作：** 从系统托盘选择「Check for Updates（检查更新）」会直接打开可见的 `update` 页面。检查后会自动刷新下载操作；点击 Download（下载）获取并校验签名 MSI，等下载结束后点击 Quit and install（退出并安装），程序退出后由系统安装器升级并重新启动。如果 Windows 要求管理员确认，按系统提示操作；失败时可以查看错误或从更新页面打开下载目录。**便携 ZIP 版本不会被 MSI 原地替换**，建议从正式 MSI 安装版使用此自动升级路径。
