@@ -87,6 +87,7 @@ ResultRow parse_row(std::vector<std::string> const& cells) {
 // Re-applied when the backend pushes the theme state.
 
 static GtkCssProvider* g_panel_css = nullptr;
+bool g_login_background_start = false;
 
 static void apply_panel_css() {
   gboolean dark = FALSE;
@@ -3492,6 +3493,8 @@ void on_activate(GtkApplication* app, gpointer) {
       activate_on_main(nullptr);
       return G_SOURCE_REMOVE;
     }, nullptr);
+  } else if (g_login_background_start) {
+    launcher.hide();
   } else {
     launcher.show();
   }
@@ -3524,7 +3527,10 @@ void on_shutdown(GApplication*, gpointer) {
 
 }  // namespace
 
-int run_application() {
+int run_application(int argc = 0, char** argv = nullptr) {
+  bool const background = argc > 1 && argv != nullptr &&
+      std::string(argv[1]) == "--background";
+  g_login_background_start = background;
   // The first-party rivet lease replaces the old pid-file + SIGUSR1 scheme:
   // second launches forward --toggle to the primary and exit.
   char const* isolated_id = std::getenv("FULCRUM_INSTANCE_ID");
@@ -3534,6 +3540,7 @@ int run_application() {
           : "site.jrtx.fulcrum";
   rivet::system::SingleInstanceLease lease(application_id);
   if (!lease.is_primary()) {
+    if (background) return 0;  // login item must never toggle resident UI
     if (!lease.forward_arguments({"--toggle"})) {
       std::cerr << "fulcrum: running instance not reachable\n";
       return 1;
@@ -3561,6 +3568,6 @@ int run_application() {
   return status;
 }
 
-int main(int, char**) {
-  return run_application();
+int main(int argc, char** argv) {
+  return run_application(argc, argv);
 }
