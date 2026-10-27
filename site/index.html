@@ -63,7 +63,8 @@ var _hmt = _hmt || [];
   html:lang(en) #product-support .support-zh, html:lang(zh) #product-support .support-en { display:none; }
 </style>
 <style id="product-start-style">
-.product-availability{font-size:.95rem;line-height:1.65;max-width:72ch;margin:18px 0;opacity:.85} .hero .product-availability{margin-left:auto;margin-right:auto}
+.product-availability{font-size:.95rem;line-height:1.65;max-width:72ch;margin:18px 0;opacity:.85}
+.hero-demo-caption{margin:12px auto 0;text-align:center;font-size:.82rem;line-height:1.5;color:var(--muted,var(--text-muted,#777));opacity:.9} .hero .product-availability{margin-left:auto;margin-right:auto}
 .product-start{max-width:1120px;margin:64px auto;padding:32px 24px;border-top:1px solid var(--border,#aaa);font:inherit;line-height:1.65}
 .product-start h2{font-size:clamp(1.7rem,3vw,2.4rem);letter-spacing:-.025em;margin:0 0 16px}.product-start h3{font-size:1.05rem;margin:0 0 10px}.product-start p{margin:0 0 16px;max-width:74ch}.product-start-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin:28px 0}.product-start a{text-decoration:underline;text-underline-offset:4px;overflow-wrap:anywhere}.product-start a:focus-visible{outline:2px solid currentColor;outline-offset:5px}.product-start .start-links{display:flex;gap:16px 24px;flex-wrap:wrap}.product-start .start-status{font-weight:600}.product-start .start-limits{font-size:.95em}
 html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(max-width:700px){.product-start{margin:40px auto;padding:24px 20px}.product-start-grid{grid-template-columns:1fr;gap:18px}}
@@ -125,12 +126,12 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
 
             <div class="hero-buttons animate-on-scroll">
                 <a href="https://github.com/turinglambdaai/fulcrum/releases/latest/download/fulcrum-macos-arm64.dmg" class="btn btn-primary" data-i18n="hero.cta-primary">下载 macOS 版</a>
-                <a href="https://github.com/turinglambdaai/fulcrum/tree/main/docs" class="btn btn-secondary" data-i18n="hero.cta-docs">阅读文档</a>
+                <a href="guide.html" class="btn btn-secondary" data-i18n="hero.cta-docs">阅读文档</a>
                 <a href="https://github.com/turinglambdaai/fulcrum/releases" class="btn btn-secondary" data-i18n="hero.all-releases">全部版本</a>
             </div>
 
             <div class="hero-visual animate-on-scroll">
-                <div class="launcher">
+                <div class="launcher" role="img" aria-labelledby="hero-demo-caption">
                     <div class="launcher-search">
                         <span class="launcher-chevron" aria-hidden="true">›</span>
                         <span class="launcher-query">ful</span>
@@ -173,6 +174,7 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
                         <span class="launcher-hint launcher-hint-right"><span class="launcher-kbd">esc</span><span data-i18n="launcher.hint-dismiss">关闭</span></span>
                     </div>
                 </div>
+                <p class="hero-demo-caption" id="hero-demo-caption" data-i18n="hero.demo-caption">界面示意（HTML 模型，并非实际软件截图）</p>
             </div>
         </div>
     </section>
@@ -457,7 +459,7 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
                 "hero.lead": "Fulcrum（支点）是 macOS、Windows 与 Linux 上的键盘优先启动器。按下全局热键，浮出命令面板：模糊搜索应用与文件、回溯剪贴板历史、展开片段、随手计算、发起网络搜索、运行插件——一切都在本机完成。",
                 "hero.cta-primary": "下载 macOS 版", "hero.cta-docs": "阅读文档",
                 "hero.cta-mac": "下载 macOS 版", "hero.cta-win": "下载 Windows 版", "hero.cta-linux": "下载 Linux 版",
-                "hero.all-releases": "全部版本",
+                "hero.all-releases": "全部版本", "hero.demo-caption": "界面示意（HTML 模型，并非实际软件截图）",
                 "launcher.row1-kind": "应用",
                 "launcher.row2-title": "fulcrum 更新日志", "launcher.row2-kind": "片段",
                 "launcher.row3-kind": "计算器",
@@ -517,7 +519,7 @@ html:lang(en) .reader-zh,html:lang(zh) .reader-en{display:none!important}@media(
                 "hero.lead": "Fulcrum is a keyboard-first launcher for macOS, Windows and Linux. Press one global hotkey and a floating command palette appears: fuzzy-search apps and files, revisit your clipboard history, expand snippets, calculate, fire web-search bangs and run plugins — all on-device.",
                 "hero.cta-primary": "Download for macOS", "hero.cta-docs": "Read the Docs",
                 "hero.cta-mac": "Download for macOS", "hero.cta-win": "Download for Windows", "hero.cta-linux": "Download for Linux",
-                "hero.all-releases": "All releases",
+                "hero.all-releases": "All releases", "hero.demo-caption": "UI illustration (HTML mockup, not an application screenshot)",
                 "launcher.row1-kind": "Application",
                 "launcher.row2-title": "fulcrum changelog", "launcher.row2-kind": "Snippet",
                 "launcher.row3-kind": "Calculator",
