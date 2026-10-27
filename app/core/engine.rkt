@@ -25,6 +25,7 @@
          "convert.rkt"
          "emoji.rkt"
          "file-catalog.rkt"
+         "file-index.rkt"
          "files.rkt"
          "fuzzy.rkt"
          "gallery.rkt"
@@ -556,7 +557,7 @@
      [(cancelled) "File indexing stopped"]
      [else "File index needs attention"])
    (case state
-     [(idle) "run find <query> to build Desktop, Documents and Downloads in the background"]
+     [(idle) "the Desktop, Documents and Downloads catalog will start in the background"]
      [(starting scanning) (format "~a of ~a search roots complete" completed total)]
      [(ready) (format "~a search roots complete · platform search still covers broader locations" completed)]
      [(partial) "some folders could not be read; existing entries were preserved and platform search fills the gaps"]
@@ -566,9 +567,40 @@
    "file index search status catalog"
    120))
 
-;; `find <query>` claims file search. All three platforms have a real
-;; provider (files.rkt); the honest row below appears only when the
-;; platform's search tool is missing entirely, naming what would restore it.
+;; A normal launcher query searches local file names alongside apps and
+;; other providers. This deliberately reads *only* the bounded SQLite B-tree:
+;; running PowerShell/mdfind/find on each keystroke blocks live suggestions
+;; for up to three seconds and can leave many superseded processes. The
+;; catalog starts on product boot in its own background worker; `find ...`
+;; remains the explicit broader platform-index / filesystem search command.
+(define (indexed-files-provider engine)
+  (lambda (query)
+    (define text (string-trim query))
+    (define lower (string-downcase text))
+    (if (or (not (engine-file-index-path engine))
+            (< (string-length text) 2)
+            (string-prefix? lower find-file-prefix)
+            (member lower file-index-status-queries))
+        '()
+        (for/list ([hit (in-list
+                          (rank-file-hits
+                           text
+                           (file-index-search (engine-file-index-path engine)
+                                              text 32)
+                           8))])
+          ;; Use the same fuzzy name score as application rows, so a file
+          ;; with an exact filename prefix remains visible next to apps;
+          ;; paths stay the action payload and are never searched as URLs.
+          (define name (car hit))
+          (result "file.open" name (cdr hit) "File"
+                  (cdr hit) "doc" "" "" name
+                  (+ 100 (or (fuzzy-score-fields text
+                                                  (search-fields-with-pinyin
+                                                   (list (cons 1.0 name))))
+                             0))))))
+
+;; `find <query>` additionally searches the platform's broader filesystem
+;; index. The Racket backend owns the final ranking on all three hosts.
 (define (files-provider engine)
   (lambda (query)
     (define lowered (string-downcase query))
@@ -851,6 +883,7 @@
    ((plugins-provider engine) query)
    ((gallery-provider engine) query)
    ((window-provider engine) query)
+   ((indexed-files-provider engine) query)
    ((files-provider engine) query)
    ((emoji-provider engine) query)))
 
