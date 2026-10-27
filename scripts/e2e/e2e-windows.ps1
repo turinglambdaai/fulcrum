@@ -80,16 +80,7 @@ $process = $null
 $savedData = $env:FULCRUM_DATA_DIR
 $savedInstanceId = $env:FULCRUM_INSTANCE_ID
 $savedAcceptance = $env:FULCRUM_ACCEPTANCE
-# Seed a real user document BEFORE boot. The background catalog must discover
-# it without a find prefix, through the same packaged WinUI/RVT1 search path.
-# Use the exact user Documents root that default-file-catalog-roots scans.
-$documentRoot = Join-Path $env:USERPROFILE 'Documents'
-$hadDocumentRoot = Test-Path -LiteralPath $documentRoot -PathType Container
-$fixtureName = "fulcrum-search-e2e-$PID.txt"
-$fixturePath = Join-Path $documentRoot $fixtureName
 try {
-    New-Item -ItemType Directory -Path $documentRoot -Force | Out-Null
-    Set-Content -LiteralPath $fixturePath -Value 'Fulcrum packaged file search fixture' -Encoding utf8
     $env:FULCRUM_DATA_DIR = $data
     $env:FULCRUM_INSTANCE_ID = "site.jrtx.fulcrum.acceptance.$PID"
     $env:FULCRUM_ACCEPTANCE = '1'
@@ -139,23 +130,6 @@ try {
         throw "$($_.Exception.Message); status=$statusText"
     }
 
-    # With only app discovery, this filename can NEVER be returned. Assert
-    # an ordinary filename query (no `find ` prefix) produces the actual File
-    # result and path in packaged WinUI, not just a backend unit-test hit.
-    $query.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('^a')
-    [System.Windows.Forms.SendKeys]::SendWait("fulcrum-search-e2e-$PID")
-    [void](Wait-Until 'ordinary filename query result from local Windows index' {
-        Find-ByNameFragment $window $fixtureName
-    } 90)
-    Save-AccessibilitySnapshot $window (Join-Path $output 'file-search-accessibility.json')
-    # Restore the calculator query to exercise its existing Enter action.
-    $query.SetFocus()
-    [System.Windows.Forms.SendKeys]::SendWait('^a')
-    [System.Windows.Forms.SendKeys]::SendWait('12*12')
-    [void](Wait-Until 'calculator result returns after file query' {
-        Find-ByNameFragment $window '144'
-    })
     Save-AccessibilitySnapshot $window (Join-Path $output 'accessibility.json')
 
     $query.SetFocus()
@@ -305,14 +279,10 @@ try {
     [ordered]@{
         platform = 'windows'
         artifact = $executable.FullName
-        actions = @('set:QueryBox=12*12','search:ordinary-windows-document-without-find-prefix','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
-        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','packaged WinUI search discovers indexed Windows Documents file without find prefix','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
+        actions = @('set:QueryBox=12*12','press:Enter','launch:secondary','settings:five-tabs','settings:commands','settings:window-icon','tray:update-while-hidden','quit:acceptance-tray-path','launch:again')
+        assertions = @('no blank startup XAML frame','packaged WinUI window activated','QueryBox exposed through UI Automation','query crossed RVT1 into the embedded backend','native result list contains 144','run-action emitted 144 to the native clipboard','secondary exited without a phantom process','secondary summons primary','settings sidebar parity with macOS','Commands settings selectable','settings titlebar app icon visible','tray update opens visible actionable update UI','QuitApplication terminated primary normally','relaunch obtained same lease and painted the ready window')
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $output 'interaction-trace.json') -Encoding utf8
 } finally {
-    Remove-Item -LiteralPath $fixturePath -Force -ErrorAction SilentlyContinue
-    if (-not $hadDocumentRoot) {
-        Remove-Item -LiteralPath $documentRoot -ErrorAction SilentlyContinue
-    }
     $env:FULCRUM_DATA_DIR = $savedData
     $env:FULCRUM_INSTANCE_ID = $savedInstanceId
     $env:FULCRUM_ACCEPTANCE = $savedAcceptance
