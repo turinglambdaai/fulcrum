@@ -603,8 +603,8 @@ I18nEntry const kI18nFallback[] = {
     {"trayAbout", "关于 Fulcrum", "About Fulcrum"},
     {"trayQuit", "退出 Fulcrum", "Quit Fulcrum"},
     {"appMenu", "应用菜单", "Application menu"},
-    {"searchPlaceholder", "搜索应用、文件、剪贴板、片段、网页…",
-     "Search apps, files, clipboard, snippets, the web…"},
+    {"searchPlaceholder", "搜索应用、剪贴板、片段、网页…",
+     "Search apps, clipboard, snippets, the web…"},
     {"navigationHint", "↑↓ 选择 · 回车执行 · Ctrl+K 操作 · Esc 清空/隐藏",
      "↑↓ navigate · ↵ run · ctrl+k actions · esc clear/hide"},
     {"navigationHintActions", "↑↓ 选择 · 回车执行 · Esc 返回",
@@ -3052,7 +3052,7 @@ void on_activate(GtkApplication* app, gpointer) {
   launcher.search_icon = search_icon;
   auto* search = gtk_entry_new();
   gtk_entry_set_placeholder_text(GTK_ENTRY(search),
-                                 "Search apps, files, clipboard, snippets, the web…");
+                                 "Search apps, clipboard, snippets, the web…");
   gtk_accessible_update_property(GTK_ACCESSIBLE(search),
                                  GTK_ACCESSIBLE_PROPERTY_LABEL,
                                  "FulcrumQuery", -1);
