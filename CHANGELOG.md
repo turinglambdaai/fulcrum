@@ -25,6 +25,12 @@ independently per platform packaging run.
   NavigationView exposes General, Features, AI, Commands, and Sync & Updates
   as individual pages; users can edit command aliases and shortcuts, and
   record the global summon shortcut without typing the backend key grammar.
+- **Windows updater remains visible from the tray.** Check for Updates now opens
+  the launcher directly in its update workflow, refreshes authenticated
+  download actions after checks, keeps native download progress visible,
+  and presents the verified MSI Install action immediately after download.
+  The existing signed Ed25519 manifest, bounded download/SHA-256 checks, and
+  external MSI quit/install/relaunch handoff remain the trust boundary.
 - **Windows Settings shows Fulcrum's brand icon in the title bar.** The window
   now installs the embedded resource ID 1 through `SetIcon(IconId)` instead of
   passing `RivetHost.exe` to the `.ico`-path overload.
