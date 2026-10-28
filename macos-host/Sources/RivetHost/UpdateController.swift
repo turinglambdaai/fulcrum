@@ -39,7 +39,7 @@ final class UpdateController: ObservableObject {
     // to move to latest, but the signature key identity is pinned here.
     #if FULCRUM_UPDATE_E2E_TESTING
     private static let feedURL = URL(string:
-        "https://github.com/turinglambdaai/fulcrum/releases/download/v0.13.2/update-manifest.json")!
+        "https://github.com/turinglambdaai/fulcrum/releases/download/v0.14.0/update-manifest.json")!
     #else
     private static let feedURL = URL(string:
         "https://github.com/turinglambdaai/fulcrum/releases/latest/download/update-manifest.json")!
