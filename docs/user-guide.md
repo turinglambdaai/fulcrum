@@ -284,9 +284,9 @@ results while the launcher is open. Use your configured summon shortcut or
 shortcut, and update errors are still shown in its status area.
 
 **Ubuntu 26.04 Wayland global shortcut:** Fulcrum now attempts the host-app
-`Registry.Register` handshake on its own shared D-Bus connection **before**
-requesting global shortcuts, identifying the installed `fulcrum.desktop`
-entry. This addresses the portal's `An app id is required` rejection on
+`Registry.Register` handshake on its retained shared D-Bus connection
+**before** requesting global shortcuts, identifying the installed
+`site.jrtx.fulcrum.desktop` entry. This addresses the portal's `An app id is required` rejection on
 standard native installs. Portal availability and compositor consent are
 still required, and stock GNOME 50 real-machine verification remains tracked
 in [issue #111](https://github.com/turinglambdaai/fulcrum/issues/111).

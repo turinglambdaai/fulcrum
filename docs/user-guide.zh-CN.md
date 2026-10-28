@@ -166,7 +166,7 @@ Linux 设置界面改为与 macOS、Windows 一致的五类侧边导航：Genera
 
 **Ubuntu / Linux 启动器外观：** 搜索图标与「搜索应用、剪贴板、片段、网页…」提示在同一水平线上。面板已显示时，不再常驻展示「就绪 — 使用热键或 `fulcrum --toggle` 唤出」；需要从隐藏状态重新唤出时，仍可使用全局快捷键或 `fulcrum --toggle`。启动失败、快捷键冲突和更新失败等真正需要注意的状态信息仍会显示。
 
-**Ubuntu 26.04 Wayland 全局热键：** Fulcrum 在调用全局快捷键接口前，现会通过与 Rivet 共用的 D-Bus 连接注册已安装 `fulcrum.desktop` 的应用身份（`Registry.Register`），以修复新版 portal 对 `An app id is required` 的拒绝。仍需桌面 portal 支持及用户授权；GNOME 50 原生实机验收见 [Issue #111](https://github.com/turinglambdaai/fulcrum/issues/111)，**尚不能宣称实机通过**。若仍失败（例如未集成桌面文件的 AppImage），请在桌面自定义快捷键中设置 `fulcrum --toggle`；失败状态仍会显示，不会被「就绪」掩盖。
+**Ubuntu 26.04 Wayland 全局热键：** Fulcrum 在调用全局快捷键接口前，现会通过与 Rivet 共用、持续存活的 D-Bus 连接注册已安装 `site.jrtx.fulcrum.desktop` 的应用身份（`Registry.Register`），以修复新版 portal 对 `An app id is required` 的拒绝。仍需桌面 portal 支持及用户授权；GNOME 50 原生实机验收见 [Issue #111](https://github.com/turinglambdaai/fulcrum/issues/111)，**尚不能宣称实机通过**。若仍失败（例如未集成桌面文件的 AppImage），请在桌面自定义快捷键中设置 `fulcrum --toggle`；失败状态仍会显示，不会被「就绪」掩盖。
 
 **Windows 更新操作：** 从系统托盘选择「Check for Updates（检查更新）」会直接打开可见的 `update` 页面。检查后会自动刷新下载操作；点击 Download（下载）获取并校验签名 MSI，等下载结束后点击 Quit and install（退出并安装），程序退出后由系统安装器升级并重新启动。如果 Windows 要求管理员确认，按系统提示操作；失败时可以查看错误或从更新页面打开下载目录。**便携 ZIP 版本不会被 MSI 原地替换**，建议从正式 MSI 安装版使用此自动升级路径。
 

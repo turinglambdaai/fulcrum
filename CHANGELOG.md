@@ -67,7 +67,8 @@ independently per platform packaging run.
 ### Regression coverage
 
 - Ubuntu 26.04 GNOME 50 Wayland portal identity: native installs now
-  register their `fulcrum.desktop` app id on Rivet's shared GDBus connection
+  register their reverse-DNS `site.jrtx.fulcrum.desktop` app id on
+  a retained shared GDBus connection
   before requesting shortcuts; the fallback remains visible if registration
   or permission fails. Full stock-desktop verification remains open in #111.
 - Linux widget tests cover the deferred first frame, five Settings sections,

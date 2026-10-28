@@ -3626,10 +3626,9 @@ void on_shutdown(GApplication*, gpointer) {
 // This call must precede GTK initialization and every portal request:
 // registering after a portal call can be rejected as "too late".
 //
-// Rivet's deb/rpm/AppImage generator names the desktop file "fulcrum.desktop",
-// so the registry id is "fulcrum", NOT the GTK application identifier
-// "site.jrtx.fulcrum". A mismatch causes GNOME to reject shortcut consent.
-constexpr char const* kFulcrumInstalledDesktopId = "fulcrum";
+// Must match Rivet's (linux-desktop-id) and the installed .desktop name.
+// GNOME 50 rejects non-reverse-DNS app identities even after registration.
+constexpr char const* kFulcrumInstalledDesktopId = "site.jrtx.fulcrum";
 
 bool should_register_wayland_host_identity(char const* wayland_display,
                                            char const* flatpak_id,
@@ -3661,8 +3660,8 @@ bool register_wayland_host_identity(std::string* reason = nullptr) {
       "org.freedesktop.host.portal.Registry", "Register",
       g_variant_new("(sa{sv})", kFulcrumInstalledDesktopId, &options),
       G_VARIANT_TYPE_UNIT, G_DBUS_CALL_FLAGS_NONE, 1500, nullptr, &error);
-  g_object_unref(bus);
   if (!response) {
+    g_object_unref(bus);
     // Older portals and unintegrated AppImage/tar installs may not expose
     // Registry or a matching .desktop. Do not break startup: the normal
     // portal bind path still reports a visible actionable failure.
@@ -3671,6 +3670,11 @@ bool register_wayland_host_identity(std::string* reason = nullptr) {
     return false;
   }
   g_variant_unref(response);
+  // g_bus_get_sync() is weakly cached. Retain our successful registration
+  // connection for the process lifetime so Rivet GlobalShortcuts' subsequent
+  // CreateSession uses the same D-Bus sender identity.
+  static GDBusConnection* registered_session_bus = nullptr;
+  registered_session_bus = bus;
   return true;
 }
 

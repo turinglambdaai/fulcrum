@@ -16,7 +16,7 @@ concurrency:
 env:
   # Unified immutable upstream revision containing AppImage handoff,
   # branded-DMG signature preservation, and macOS update rollback safety.
-  RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
+  RIVET_PIN: 746a1c043b9e6fc13e986aee9942afb5500d1f25
 jobs:
   backend:
     name: Backend tests (${{ matrix.os }})
@@ -127,7 +127,7 @@ jobs:
         shell: bash
         run: echo "FULL_RACKET_BIN=$(dirname "$(command -v raco)")" >> "$GITHUB_ENV"
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@746a1c043b9e6fc13e986aee9942afb5500d1f25
       - name: Install Linux toolchain
         run: |
           sudo apt-get update
