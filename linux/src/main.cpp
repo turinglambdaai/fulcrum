@@ -11,6 +11,7 @@
 // Wayland compositors own those decisions, and the status bar says so.
 #include <gdk/x11/gdkx.h>
 #include <gtk/gtk.h>
+#include <gio/gio.h>
 
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
@@ -3619,6 +3620,60 @@ void on_shutdown(GApplication*, gpointer) {
 
 }  // namespace
 
+// XDG desktop portal >= 1.20 allows unsandboxed applications to register
+// their identity on the SAME session-bus peer used by GlobalShortcuts.
+// Rivet's session_bus() uses g_bus_get_sync(), which GIO caches per bus type.
+// This call must precede GTK initialization and every portal request:
+// registering after a portal call can be rejected as "too late".
+//
+// Rivet's deb/rpm/AppImage generator names the desktop file "fulcrum.desktop",
+// so the registry id is "fulcrum", NOT the GTK application identifier
+// "site.jrtx.fulcrum". A mismatch causes GNOME to reject shortcut consent.
+constexpr char const* kFulcrumInstalledDesktopId = "fulcrum";
+
+bool should_register_wayland_host_identity(char const* wayland_display,
+                                           char const* flatpak_id,
+                                           char const* snap_name) {
+  return wayland_display && *wayland_display &&
+         !(flatpak_id && *flatpak_id) &&
+         !(snap_name && *snap_name);
+}
+
+bool register_wayland_host_identity(std::string* reason = nullptr) {
+  if (!should_register_wayland_host_identity(
+          std::getenv("WAYLAND_DISPLAY"), std::getenv("FLATPAK_ID"),
+          std::getenv("SNAP"))) return true;
+
+  GError* error = nullptr;
+  // g_bus_get_sync() is the Rivet system adapter's connection, rather than
+  // a short-lived gdbus subprocess (whose registration would be useless).
+  GDBusConnection* bus = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, &error);
+  if (!bus) {
+    if (reason) *reason = error ? error->message : "no session bus";
+    if (error) g_error_free(error);
+    return false;
+  }
+  GVariantBuilder options;
+  g_variant_builder_init(&options, G_VARIANT_TYPE_VARDICT);
+  GVariant* response = g_dbus_connection_call_sync(
+      bus, "org.freedesktop.portal.Desktop",
+      "/org/freedesktop/portal/desktop",
+      "org.freedesktop.host.portal.Registry", "Register",
+      g_variant_new("(sa{sv})", kFulcrumInstalledDesktopId, &options),
+      G_VARIANT_TYPE_UNIT, G_DBUS_CALL_FLAGS_NONE, 1500, nullptr, &error);
+  g_object_unref(bus);
+  if (!response) {
+    // Older portals and unintegrated AppImage/tar installs may not expose
+    // Registry or a matching .desktop. Do not break startup: the normal
+    // portal bind path still reports a visible actionable failure.
+    if (reason) *reason = error ? error->message : "no registry reply";
+    if (error) g_error_free(error);
+    return false;
+  }
+  g_variant_unref(response);
+  return true;
+}
+
 int run_application(int argc = 0, char** argv = nullptr) {
   bool const background = argc > 1 && argv != nullptr &&
       std::string(argv[1]) == "--background";
@@ -3644,6 +3699,15 @@ int run_application(int argc = 0, char** argv = nullptr) {
   // panel. GApplication never sees the flag — the app runs without argv so
   // the option parser cannot reject it.
   lease.set_activation_handler(on_activation);
+
+  // Register the unsandboxed Wayland app id before GTK or Rivet first
+  // contacts xdg-desktop-portal (Issue #111 / Ubuntu 26.04 GNOME 50).
+  // Non-fatal on older desktops or missing portable-app integration.
+  std::string portal_identity_warning;
+  if (!register_wayland_host_identity(&portal_identity_warning)) {
+    std::cerr << "fulcrum: Wayland portal app identity not registered: "
+              << portal_identity_warning << '\n';
+  }
 
   // Load the i18n tables before any UI string is composed: the staged
   // shared/i18n JSON when packaged, the embedded fallback otherwise.

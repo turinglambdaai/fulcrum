@@ -88,6 +88,17 @@ int main() {
   check(small_pos.x == 100 && small_pos.y == 50,
         "small work areas do not produce a negative placement offset");
 
+  // Real Linux DEB/RPM installs "fulcrum.desktop", not the GTK bus id.
+  // Portal registration must use the desktop-file basename and must never
+  // attempt to register a Flatpak/Snap identity a second time.
+  check(std::string(kFulcrumInstalledDesktopId) == "fulcrum",
+        "host portal app-id agrees with Rivet-installed fulcrum.desktop");
+  check(should_register_wayland_host_identity("wayland-0", nullptr, nullptr) &&
+            !should_register_wayland_host_identity("", nullptr, nullptr) &&
+            !should_register_wayland_host_identity(nullptr, nullptr, nullptr) &&
+            !should_register_wayland_host_identity("wayland-0", "org.example.App", nullptr) &&
+            !should_register_wayland_host_identity("wayland-0", nullptr, "fulcrum"),
+        "portal host identity registers only for unsandboxed Wayland sessions");
   auto* app = gtk_application_new("site.jrtx.fulcrum.ui-test",
                                    G_APPLICATION_NON_UNIQUE);
   g_application_register(G_APPLICATION(app), nullptr, nullptr);

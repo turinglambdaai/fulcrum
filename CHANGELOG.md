@@ -66,6 +66,10 @@ independently per platform packaging run.
 
 ### Regression coverage
 
+- Ubuntu 26.04 GNOME 50 Wayland portal identity: native installs now
+  register their `fulcrum.desktop` app id on Rivet's shared GDBus connection
+  before requesting shortcuts; the fallback remains visible if registration
+  or permission fails. Full stock-desktop verification remains open in #111.
 - Linux widget tests cover the deferred first frame, five Settings sections,
   and enable/disable round-trip of a temporary XDG login entry. Windows and
   macOS host checks and packaged acceptance remain release gates.
