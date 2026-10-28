@@ -12,7 +12,8 @@
          "../app/core/clipboard.rkt"
          "../app/core/engine.rkt"
          "../app/core/paths.rkt"
-         "../app/core/snippets.rkt")
+         "../app/core/snippets.rkt"
+         "../app/core/store.rkt")
 
 (define (row-title row) (list-ref row 1))
 (define (row-kind row) (list-ref row 3))
@@ -267,6 +268,42 @@
      (define reloaded (fixture-engine #:apps fixture-apps))
      (check-true (> (hash-count (engine-recents reloaded)) 0)
                  "recents persist to disk"))))
+
+(test-case "recents never write raw clipboard, URL or plugin arguments"
+  (with-fresh-data-dir
+   (lambda ()
+     (define eng (fixture-engine #:apps fixture-apps))
+     (check-equal? (car (engine-run eng "copy" "highly-sensitive-clipboard")) "copied")
+     (check-equal? (car (engine-run eng "web.open"
+                                    "https://example.com/?token=private-api-token"))
+                   "opened")
+     ;; FPP plugins can receive secrets; don't persist untrusted arguments
+     ;; until plugins can declare sensitivity in a future history schema.
+     (engine-record-use! eng "plugin:password" "private-password")
+     (engine-record-use! eng "app.launch" "a1")
+     (define serialized (file->string (recents-path)))
+     (for ([secret (in-list '("highly-sensitive-clipboard"
+                              "private-api-token" "private-password"))])
+       (check-false (string-contains? serialized secret)))
+     (check-equal? (hash-count (engine-recents eng)) 1)
+     (check-true (hash-has-key? (engine-recents eng)
+                                (string-append "app.launch" "\u0000" "a1"))))))
+
+(test-case "legacy raw-argument recents are scrubbed on startup"
+  (with-fresh-data-dir
+   (lambda ()
+     (write-json-atomic!
+      (recents-path)
+      (list (hasheq 'key (string-append "copy" "\u0000" "old-private-text")
+                    'count 4 'ts 1.0)
+            (hasheq 'key (string-append "app.launch" "\u0000" "a1")
+                    'count 2 'ts 2.0)))
+     (define eng (fixture-engine #:apps fixture-apps))
+     (check-equal? (hash-count (engine-recents eng)) 1)
+     (check-false (string-contains? (file->string (recents-path))
+                                    "old-private-text"))
+     (check-true (hash-has-key? (engine-recents eng)
+                                (string-append "app.launch" "\u0000" "a1"))))))
 
 (test-case "rows are 8-column string lists"
   (with-fresh-data-dir

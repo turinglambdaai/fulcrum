@@ -104,21 +104,47 @@
 
 (define recents-max-entries 500)
 
+;; Historical recents stored action arguments verbatim. URLs, clipboard text,
+;; snippet bodies and plugin arguments can contain tokens or passwords, and
+;; per-command sensitivity metadata is not yet available (#96). Only record
+;; stable launcher identities until a privacy-aware history schema ships.
+(define (recordable-recent-action? id)
+  (or (member id '("app.launch" "sys.run"))
+      (string-prefix? id "win.")))
+
+(define (safe-recents-key? key)
+  (and (string? key)
+       (let ([parts (string-split key "\u0000" #:trim? #f)])
+         (and (= (length parts) 2)
+              (recordable-recent-action? (car parts))))))
+
+(define (valid-recent-entry? entry)
+  (and (hash? entry)
+       (safe-recents-key? (hash-ref entry 'key #f))
+       (exact-nonnegative-integer? (hash-ref entry 'count #f))
+       (real? (hash-ref entry 'ts #f))))
+
 (define (load-recents path)
   (define raw (read-json-file path '()))
   (if (list? raw)
-      (for/hash ([entry (in-list raw)]
-                 #:when (and (hash? entry)
-                             (string? (hash-ref entry 'key #f))
-                             (hash-ref entry 'count #f)))
-        (values (hash-ref entry 'key)
-                (cons (hash-ref entry 'count) (hash-ref entry 'ts 0))))
+      (let ([clean (filter valid-recent-entry? raw)])
+        ;; Clean up legacy raw payloads on startup. In read-only environments
+        ;; keep the sanitized in-memory view even when cleanup cannot persist.
+        (when (< (length clean) (length raw))
+          (with-handlers ([exn:fail? (lambda (_) (void))])
+            (write-json-atomic! path clean)))
+        (for/hash ([entry (in-list clean)])
+          (values (hash-ref entry 'key)
+                  (cons (hash-ref entry 'count) (hash-ref entry 'ts)))))
       (hash)))
 
-(define (recents-key id arg) (string-append id "\u0000" arg))
+(define (recents-key id arg)
+  (and (recordable-recent-action? id)
+       (string-append id "\u0000" arg)))
 
 (define (recents-boost engine id arg)
-  (define entry (hash-ref (engine-recents engine) (recents-key id arg) #f))
+  (define key (recents-key id arg))
+  (define entry (and key (hash-ref (engine-recents engine) key #f)))
   (if entry
       (let* ([count (car entry)]
              [age-ms (- (current-inexact-milliseconds) (cdr entry))]
@@ -129,11 +155,12 @@
       0))
 
 (define (engine-record-use! engine id arg)
-  (call-with-semaphore
-   (engine-recents-lock engine)
-   (lambda ()
-     (define key (recents-key id arg))
-     (define table (engine-recents engine))
+  (define key (recents-key id arg))
+  (when key
+    (call-with-semaphore
+     (engine-recents-lock engine)
+     (lambda ()
+       (define table (engine-recents engine))
      (define previous (hash-ref table key (cons 0 0)))
      (define next (cons (add1 (car previous)) (current-inexact-milliseconds)))
      (define updated (hash-set table key next))
@@ -152,7 +179,7 @@
       (for/list ([entry (in-list (hash->list (engine-recents engine)))])
         (hasheq 'key (car entry)
                 'count (car (cdr entry))
-                'ts (cdr (cdr entry))))))))
+                'ts (cdr (cdr entry)))))))))
 
 ;; ---- providers ----------------------------------------------------------
 

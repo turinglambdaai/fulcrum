@@ -20,10 +20,11 @@ env:
 
 jobs:
   signed-old-to-new:
-    # The upgrade target is pinned to the immutable v0.13.2 official feed;
-    # the starting version is whatever the branch carries, stamped back to
-    # 0.13.1 below, so version bumps never break this harness again.
-    name: Signed manifest install to the pinned v0.13.2 feed (${{ matrix.arch }})
+    # The upgrade target is pinned to the immutable v0.14.0 official feed;
+    # the starting version is rebuilt from the current source and stamped
+    # back to v0.13.3 for a real official v0.14.0 feed upgrade. A clean
+    # runner installs into ~/Applications, never the user's installation.
+    name: Signed manifest install to the pinned v0.14.0 feed (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     strategy:
@@ -46,26 +47,26 @@ jobs:
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
           raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
-      - name: Build a test-only 0.13.1 app with the native update hook
+      - name: Build a test-only 0.13.3 app with the native update hook
         shell: bash
         run: |
           set -euo pipefail
           # Keep the package metadata and backend version aligned for the old
-          # app: stamp whatever version the branch carries back to 0.13.1.
+          # app: stamp whatever version the branch carries back to 0.13.3.
           current_version="$(tr -d '\r\n' < VERSION)"
-          sed -i '' "s/$current_version/0.13.1/g" VERSION rivet.rktd
-          grep -q "0.13.1" VERSION
+          sed -i '' "s/$current_version/0.13.3/g" VERSION rivet.rktd
+          grep -q "0.13.3" VERSION
           raco rivet doctor
           raco rivet build
           raco rivet package
           test -d dist/fulcrum.app
           built_version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/fulcrum.app/Contents/Info.plist)
-          test "$built_version" = "0.13.1"
+          test "$built_version" = "0.13.3"
           /usr/bin/codesign --verify --deep --strict dist/fulcrum.app
           mkdir -p "$HOME/Applications"
           rm -rf "$HOME/Applications/fulcrum.app" "$HOME/Applications/fulcrum.app.old"
           /usr/bin/ditto dist/fulcrum.app "$HOME/Applications/fulcrum.app"
-      - name: Run real signed-feed native update and assert v0.13.2 is healthy
+      - name: Run real signed-feed native update and assert v0.14.0 is healthy
         shell: bash
         run: |
           set -euo pipefail
@@ -76,10 +77,10 @@ jobs:
 
           for _ in $(seq 1 180); do
             current=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist" 2>/dev/null || true)
-            if [ "$current" = "0.13.2" ] && [ ! -e "$app.old" ]; then
-              grep -q "AVAILABLE: 0.13.2" "$log"
+            if [ "$current" = "0.14.0" ] && [ ! -e "$app.old" ]; then
+              grep -q "AVAILABLE: 0.14.0" "$log"
               grep -q "INSTALL_STARTED" "$log"
-              echo "PASS: authenticated v0.13.2 manifest downloaded and installed; new app survived health check"
+              echo "PASS: authenticated v0.14.0 manifest downloaded and installed; new app survived health check"
               cat "$log"
               exit 0
             fi
