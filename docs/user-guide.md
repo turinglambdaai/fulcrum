@@ -283,6 +283,14 @@ results while the launcher is open. Use your configured summon shortcut or
 `fulcrum --toggle` to bring the hidden launcher back; actual startup,
 shortcut, and update errors are still shown in its status area.
 
+**Ubuntu 26.04 Wayland global shortcut:** Some GNOME portal versions reject
+`GlobalShortcuts.CreateSession` with `An app id is required` for ordinary
+desktop launches. If the launcher says the portal hotkey failed, configure
+a custom desktop keyboard shortcut that runs `fulcrum --toggle`. The portal
+failure remains visible rather than being covered by a generic "ready"
+message. This is a documented recovery path, not a claim that portal
+registration itself is fixed. See [issue #111](https://github.com/turinglambdaai/fulcrum/issues/111).
+
 On **Windows**, the tray menu's **Check for Updates** opens a visible
 `update` view rather than reporting into a hidden footer. The list refreshes
 after checking: choose **Download** to fetch and verify the signed MSI, wait

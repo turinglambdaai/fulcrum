@@ -109,6 +109,23 @@ int main() {
   launcher.set_status(tr("ready"));
   check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
         "clearing an actionable status removes its layout space");
+  // Ubuntu 26.04 may reject portal CreateSession before backend startup.
+  // The late backend ready notification must not conceal a broken hotkey.
+  Launcher::post_hotkey_failure(
+      "Portal hotkey failed: An app id is required. "
+      "Bind fulcrum --toggle in desktop Settings.");
+  pump(30);
+  launcher.set_status(tr("ready"));
+  check(launcher.hotkey_failure_active &&
+            gtk_widget_get_visible(GTK_WIDGET(launcher.status)) &&
+            has_label(GTK_WIDGET(launcher.status),
+                      "Portal hotkey failed: An app id is required. "
+                      "Bind fulcrum --toggle in desktop Settings."),
+        "Wayland portal rejection remains visible after backend ready");
+  launcher.hotkey_failure_active = false;
+  launcher.set_status(tr("ready"));
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
+        "normal ready status may clear after explicit hotkey-error recovery");
   // Regression: a normal interactive summon must not map the bare search
   // placeholder before the first asynchronous backend result arrives.
   launcher.hide();

@@ -928,6 +928,9 @@ struct Launcher {
   // GNOME's stock activate-window-menu binding owns Alt+Space: the tray
   // grows a one-click fix while the conflict stands.
   bool hotkey_shadowed{false};
+  // A failed Wayland portal bind must not be replaced by the later generic
+  // backend "ready" notification (Ubuntu 26.04's missing app-id case).
+  bool hotkey_failure_active{false};
   GtkApplication* app{nullptr};
   std::vector<ResultRow> rows;
   guint search_source{0};
@@ -980,6 +983,9 @@ struct Launcher {
   }
 
   void set_status(std::string const& message) {
+    if (message == tr("ready") && hotkey_failure_active) {
+      return;
+    }
     gtk_label_set_text(status, message.c_str());
     // The resident ready/hotkey hint duplicates the search chrome and is
     // especially misleading while the panel is already open. Only show
@@ -994,6 +1000,19 @@ struct Launcher {
     g_idle_add([](gpointer user_data) -> int {
       std::unique_ptr<std::string> text(static_cast<std::string*>(user_data));
       Launcher::instance().set_status(*text);
+      return G_SOURCE_REMOVE;
+    }, new std::string(std::move(message)));
+  }
+
+  // Preserve permission/portal failures across the asynchronous backend
+  // startup. This callback runs on the GTK main loop, so it cannot race
+  // with set_status() or the startup handoff's ready notification.
+  static void post_hotkey_failure(std::string message) {
+    g_idle_add([](gpointer user_data) -> int {
+      std::unique_ptr<std::string> text(static_cast<std::string*>(user_data));
+      auto& launcher = Launcher::instance();
+      launcher.hotkey_failure_active = true;
+      launcher.set_status(*text);
       return G_SOURCE_REMOVE;
     }, new std::string(std::move(message)));
   }
@@ -2966,6 +2985,7 @@ void tray_fix_hotkey() {
   Launcher& launcher = Launcher::instance();
   if (rc == 0) {
     launcher.hotkey_shadowed = false;
+    launcher.hotkey_failure_active = false;
     if (launcher.hotkey_fix != nullptr) {
       gtk_widget_set_visible(GTK_WIDGET(launcher.hotkey_fix), FALSE);
     }
@@ -3063,7 +3083,7 @@ void check_hotkey_shadowing(std::string const& trigger) {
     gtk_widget_set_visible(GTK_WIDGET(launcher.hotkey_fix), TRUE);
   }
   rebuild_tray_menu();
-  Launcher::post_status(tr_format("hotkeyShadowed", {trigger}));
+  Launcher::post_hotkey_failure(tr_format("hotkeyShadowed", {trigger}));
 }
 
 // The menu is composed at tray construction with the startup language; the
@@ -3506,10 +3526,9 @@ void on_activate(GtkApplication* app, gpointer) {
         [](rivet::system::GlobalShortcutBindResult const& result) {
           switch (result.status) {
             case rivet::system::GlobalShortcutBindStatus::cancelled:
-              Launcher::post_status(
+              Launcher::post_hotkey_failure(
                   "Hotkey permission was dismissed. Reopen Fulcrum and allow "
                   "the shortcut, or bind `fulcrum --toggle` in Settings.");
-              check_hotkey_shadowing("Alt+Space");
               // Login items must remain silent even if the compositor
               // rejects the shortcut permission prompt. Interactive starts
               // still expose the recovery notice and launcher.
@@ -3518,10 +3537,9 @@ void on_activate(GtkApplication* app, gpointer) {
               }
               break;
             case rivet::system::GlobalShortcutBindStatus::failed:
-              Launcher::post_status(
+              Launcher::post_hotkey_failure(
                   "Portal hotkey failed: " + result.message +
                   ". Bind `fulcrum --toggle` in desktop Settings.");
-              check_hotkey_shadowing("Alt+Space");
               // Login items must remain silent even if the compositor
               // rejects the shortcut permission prompt. Interactive starts
               // still expose the recovery notice and launcher.
