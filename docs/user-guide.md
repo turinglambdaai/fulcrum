@@ -286,9 +286,10 @@ shortcut, and update errors are still shown in its status area.
 **Ubuntu 26.04 Wayland global shortcut:** Fulcrum now attempts the host-app
 `Registry.Register` handshake on its retained shared D-Bus connection
 **before** requesting global shortcuts, identifying the installed
-`site.jrtx.fulcrum.desktop` entry. This addresses the portal's `An app id is required` rejection on
-standard native installs. Portal availability and compositor consent are
-still required, and stock GNOME 50 real-machine verification remains tracked
+`site.jrtx.fulcrum.desktop` entry. This is intended to address the portal's `An app id is required`
+rejection on native installs; it has **not yet been verified** on stock
+Ubuntu 26.04 GNOME 50. Portal availability and compositor consent are
+still required, and real-machine verification remains tracked
 in [issue #111](https://github.com/turinglambdaai/fulcrum/issues/111).
 If the portal still rejects a shortcut (for example from an AppImage with no
 installed desktop integration), add a custom desktop shortcut that runs
@@ -304,15 +305,14 @@ explicit error; you can also open the downloaded MSI folder from the same
 update results. The installation handoff requires an MSI-installed copy; a
 portable ZIP isn't upgraded in place by an MSI.
 
-On **Windows and macOS**, open **Settings** from the tray/menu bar or launcher,
-then choose **General**, **Features**, **AI**, **Commands**, or **Sync & Updates**
-from the left sidebar. Select the hotkey field in General and press your desired
-modifier plus a key (Esc cancels); Windows now records it instead of requiring
-you to type `alt+space`. Under **Commands**, configure each command's alias
-and keyboard shortcut. Windows uses native WinUI controls and shows the Fulcrum
-app icon in its Settings title bar; macOS uses native AppKit/SwiftUI window
-chrome. Linux currently offers a grouped scrollable GTK settings form, without
-the separate Commands page.
+On **macOS, Windows and Linux**, open **Settings** from the menu bar, tray,
+or launcher and choose **General**, **Features**, **AI**, **Commands**, or
+**Sync & Updates** in the native sidebar. General records the summon shortcut
+by pressing the desired key combination (Esc cancels). Commands edits aliases
+on all three platforms; per-command global hotkeys are **not supported on
+Linux** and its control is disabled rather than saving a nonfunctional binding.
+Windows uses native WinUI controls and shows the app icon in the Settings title
+bar; macOS uses native AppKit/SwiftUI chrome; Linux uses GTK4.
 
 Query `settings` and run a row to change it:
 
