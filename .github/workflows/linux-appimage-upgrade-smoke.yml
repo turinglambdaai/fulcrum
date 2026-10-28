@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  RIVET_PIN: 746a1c043b9e6fc13e986aee9942afb5500d1f25
+  RIVET_PIN: e18c28e6b6b18ab0f59559e82e30c51c4229d91f
 
 jobs:
   installed-upgrade:
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@746a1c043b9e6fc13e986aee9942afb5500d1f25
+        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
       - name: Install Rivet (pinned source)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
