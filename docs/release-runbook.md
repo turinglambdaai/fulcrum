@@ -234,6 +234,23 @@ Weston) to record the following for each Linux installer kind claimed as
 supported. Keep exact artifact names, SHA-256, desktop ID and installed
 version in the evidence. Do not silently substitute source builds.
 
+After installing each exact candidate artifact on that desktop, run the
+**environment preflight** from the release branch:
+
+```bash
+bash scripts/acceptance/gnome50-portal-preflight.sh --kind deb
+bash scripts/acceptance/gnome50-portal-preflight.sh --kind appimage
+```
+
+Run the appropriate command separately for the actual installed DEB and
+AppImage cases. Capture and redact its output before attaching it to #111.
+Its exit status checks only the host OS/session, portal Registry interface,
+installed desktop identity and, for DEB, package version. It **cannot**
+assert that the running Fulcrum process registered successfully, obtained
+GNOME consent or received an `Activated` signal. These remain operator
+checks below. CI runs only the script syntax and a deliberately failing
+non-Wayland guard test; that CI result is not GNOME 50 acceptance.
+
 1. Capture `echo "$XDG_SESSION_TYPE"`, `gnome-shell --version`,
    `dpkg-query -W xdg-desktop-portal xdg-desktop-portal-gnome` (or the
    matching package-manager query), and the installed
