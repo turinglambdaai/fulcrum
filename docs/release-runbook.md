@@ -234,6 +234,19 @@ Weston) to record the following for each Linux installer kind claimed as
 supported. Keep exact artifact names, SHA-256, desktop ID and installed
 version in the evidence. Do not silently substitute source builds.
 
+For pre-release manual diagnosis on **Ubuntu x86_64**, download the
+`fulcrum-0.14.1-gnome50-qa-UNSIGNED` artifact from the **Linux packaged
+GTK4 acceptance** job attached to PR #104's latest **successful SHA**.
+It contains a v0.14.1 DEB, AppImage, SHA256SUMS and an explicit QA-only
+warning. Check the artifact's workflow commit SHA, then use
+`sha256sum -c gnome50-qa-only-SHA256SUMS` before installation. These
+are short-lived **development/unsigned test packages**, not a Github
+Release and never part of the stable update feed. A successful test of a
+QA package must still be reconciled with the eventual distribution build;
+no signed-production, GNOME-permission or global hotkey conclusion follows
+from artifact creation alone. Production release secrets are not used for
+these QA packages.
+
 After installing each exact candidate artifact on that desktop, run the
 **environment preflight** from the release branch:
 
