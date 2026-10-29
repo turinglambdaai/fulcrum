@@ -507,7 +507,7 @@ jobs:
             # follow what the release actually contains.
             if [ -f "release/$src" ]; then cp "release/$src" "stable-alias/$dst"; fi
           done
-          gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turinglambdaai/fulcrum
+          gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber --repo "$GITHUB_REPOSITORY"
 
   publish:
     name: Verify assets and publish release
@@ -570,8 +570,7 @@ jobs:
           # unsigned channel is a second, equally explicit approval: it
           # changes the signing posture, never the approval requirement.
           if [[ "$GITHUB_REF_NAME" != *-rc.* \
-                && "$FULCRUM_STABLE_RELEASE_APPROVED" != "true" \
-                && "$FULCRUM_UNSIGNED_RELEASE_APPROVED" != "true" ]]; then
+                && "$FULCRUM_STABLE_RELEASE_APPROVED" != "true" ]]; then
             echo "::error::Stable release promotion is not approved; draft remains unpublished"
             exit 1
           fi
