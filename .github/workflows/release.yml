@@ -148,13 +148,13 @@ jobs:
             rpm desktop-file-utils
       - name: Set up embeddable Racket CS (Linux)
         if: matrix.platform == 'linux'
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
       # Installed after the embeddable runtime so Rivet's catalog closure and
       # Fulcrum's SQLite dependency (db-lib) resolve against the minimal build.
       - name: Install Rivet (catalog)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
       - name: Install WiX (v5; v7 requires EULA acceptance, v5 runs the v4 schema)
         if: matrix.platform == 'windows'
@@ -251,7 +251,7 @@ jobs:
       - name: Release (production signed)
         if: vars.FULCRUM_UNSIGNED_RELEASE_APPROVED != 'true' || matrix.platform == 'linux'
         env:
-          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
+          RIVET_UPDATE_BASE_URL: https://github.com/turlamai/fulcrum/releases/download/${{ github.ref_name }}
           RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
           RIVET_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
           RIVET_WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -285,7 +285,7 @@ jobs:
       - name: Release (unsigned, honestly labeled)
         if: vars.FULCRUM_UNSIGNED_RELEASE_APPROVED == 'true' && matrix.platform != 'linux'
         env:
-          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
+          RIVET_UPDATE_BASE_URL: https://github.com/turlamai/fulcrum/releases/download/${{ github.ref_name }}
           RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
           RIVET_UPDATE_PRIVATE_KEY_PEM: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
           APPIMAGE_EXTRACT_AND_RUN: '1'
@@ -415,7 +415,7 @@ jobs:
       - name: Install Rivet (catalog)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
       - uses: actions/download-artifact@v4
         with:
@@ -431,7 +431,7 @@ jobs:
           # Manifest URLs are tag-pinned (never re-upload under an existing
           # version URL — hashes are pinned by the signed manifest). The
           # signing key + key id still come from the RIVET_UPDATE_* secrets.
-          RIVET_UPDATE_BASE_URL: https://github.com/turinglambdaai/fulcrum/releases/download/${{ github.ref_name }}
+          RIVET_UPDATE_BASE_URL: https://github.com/turlamai/fulcrum/releases/download/${{ github.ref_name }}
           RIVET_UPDATE_PRIVATE_KEY: ${{ secrets.RIVET_UPDATE_PRIVATE_KEY }}
           RIVET_UPDATE_KEY_ID: ${{ secrets.RIVET_UPDATE_KEY_ID }}
         run: |
@@ -507,7 +507,7 @@ jobs:
             # follow what the release actually contains.
             if [ -f "release/$src" ]; then cp "release/$src" "stable-alias/$dst"; fi
           done
-          gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turinglambdaai/fulcrum
+          gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber -R turlamai/fulcrum
 
   publish:
     name: Verify assets and publish release
