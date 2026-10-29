@@ -123,7 +123,15 @@ jobs:
           PATH="$FULL_RACKET_BIN:$PATH" raco rivet release --development
           test -f dist/fulcrum-0.14.1-linux-amd64.deb
           test -f dist/fulcrum-0.14.1-linux-x86_64.AppImage
-          sha256sum dist/fulcrum-0.14.1-linux-amd64.deb dist/fulcrum-0.14.1-linux-x86_64.AppImage             > dist/gnome50-qa-only-SHA256SUMS
+          # actions/upload-artifact strips the common dist/ root. Use
+          # filenames relative to that extraction root so manual verification
+          # works immediately after downloading this QA-only artifact.
+          (
+            cd dist
+            sha256sum fulcrum-0.14.1-linux-amd64.deb \
+              fulcrum-0.14.1-linux-x86_64.AppImage > gnome50-qa-only-SHA256SUMS
+            sha256sum -c gnome50-qa-only-SHA256SUMS
+          )
           printf '%s\n' 'QA ONLY - development/unsigned, not a production release.'             'No real GNOME 50 hotkey verification is implied by these packages.'             > dist/gnome50-qa-only-README.txt
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'pull_request' && github.head_ref == 'release/v0.14.1-windows-lifecycle'
