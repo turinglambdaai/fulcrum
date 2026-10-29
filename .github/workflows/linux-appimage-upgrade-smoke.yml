@@ -31,11 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
       - name: Install Rivet (pinned source)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
+          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
       - name: Install native and headless GUI dependencies
         run: |
           sudo apt-get update
