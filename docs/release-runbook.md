@@ -66,11 +66,15 @@ git push origin v0.1.0
 `.github/workflows/release.yml` then, per platform matrix (macOS arm64 +
 x64, Windows x64, Linux x64):
 
-1. validates the tag against `VERSION`, `rivet.rktd` and the changelog;
+1. validates the tag against `VERSION`, `rivet.rktd` and the changelog
+   after the main-branch `VERSION` workflow has verified stable release
+   authorization, required credentials and exact-SHA CI/Product Acceptance;
 2. provisions platform signing credentials from the repository secret store;
-3. runs `raco rivet release` followed by `raco rivet verify --production`
-   to build and verify the signed/notarized installer, update manifest,
-   CycloneDX SBOM and third-party notices;
+3. runs `raco rivet release` with production-signing and verification
+   when publisher credentials are provisioned, or the separately approved
+   and explicitly labelled unsigned desktop channel (Linux artifact and
+   update-feed signatures remain mandatory), to build the installers,
+   update manifest, CycloneDX SBOM and third-party notices;
 4. renames artifacts to the versioned, architecture-suffixed release names
    (`fulcrum-<version>-macos-<arch>.dmg` / `.zip`,
    `fulcrum-<version>-windows-x64.msi`,
@@ -96,8 +100,10 @@ Windows Authenticode), setting the repository variable
 - macOS packages are ad-hoc signed; users right-click → Open on first
   launch. Windows packages carry no Authenticode signature; SmartScreen
   warns. The publish job prepends a warning banner to the release notes,
-  and the publish approval accepts either this variable or
-  `FULCRUM_STABLE_RELEASE_APPROVED=true` — approval is required either way.
+  and publication still requires the independent
+  `FULCRUM_STABLE_RELEASE_APPROVED=true` gate. The unsigned-channel variable
+  selects the distribution **signing posture**, not permission to publish;
+  both approvals must be explicit for an unsigned stable release.
 - What stays signed: the Ed25519 update feed (in-app updates verify byte
   integrity identically) and the Linux detached artifact signatures — the
   Linux job never enters the unsigned branch.
@@ -211,16 +217,73 @@ or disabling Gatekeeper.
 
 ---
 
+## 3b. Ubuntu 26.04 GNOME 50 Wayland release-quality gate (v0.14.1)
+
+Issue [#111](https://github.com/turinglambdaai/fulcrum/issues/111)
+reported that the stock GNOME 50 session rejects the global summon hotkey's
+`GlobalShortcuts.CreateSession` with `An app id is required`. The v0.14.1
+candidate registers the reverse-DNS `site.jrtx.fulcrum` app ID with the
+host portal over a retained D-Bus peer and sets the matching installed
+`site.jrtx.fulcrum.desktop` identity. A compiled fixture or nested Weston
+acceptance run **does not** prove that GNOME 50's real portal consent and
+shortcut activation work.
+
+Before authorizing the v0.14.1 stable release, use an actual Ubuntu 26.04
+GNOME 50 Wayland desktop (physical or a genuine GNOME VM, not just nested
+Weston) to record the following for each Linux installer kind claimed as
+supported. Keep exact artifact names, SHA-256, desktop ID and installed
+version in the evidence. Do not silently substitute source builds.
+
+1. Capture `echo "$XDG_SESSION_TYPE"`, `gnome-shell --version`,
+   `dpkg-query -W xdg-desktop-portal xdg-desktop-portal-gnome` (or the
+   matching package-manager query), and the installed
+   `site.jrtx.fulcrum.desktop` file's `Exec` and `Name` fields.
+2. Install the candidate **DEB** and launch through GNOME Activities, then
+   separately via `gtk-launch site.jrtx.fulcrum`. Verify that the portal
+   consent dialog appears, approval succeeds, and the configured shortcut
+   activates Fulcrum from another focused application repeatedly (summon,
+   hide, summon). Record the actual `Registry.Register`,
+   `CreateSession`, `BindShortcuts` and `Activated` outcomes, not only
+   that the Settings UI renders.
+3. Quit completely; test opt-in **Start at Login**, a logout/login round
+   trip and shortcut activation without a visible startup launcher.
+   Change the hotkey through native Settings and verify the new key and
+   persisted consent after relaunch.
+4. Reject portal consent, then verify the launcher keeps an actionable
+   hotkey failure visible after backend readiness and that the documented
+   desktop shortcut pointing at `fulcrum --toggle` really works. Restore
+   the original desktop bindings and consent after the test.
+5. Repeat the applicable checks for the **AppImage** installation form,
+   distinguishing an integrated desktop-file install from an unintegrated
+   portable copy. Record unsupported cases honestly in the release notes.
+
+For debugging, `busctl --user monitor org.freedesktop.portal.Desktop` and
+`journalctl --user -b -u xdg-desktop-portal.service` may help explain
+identity and authorization failures. Portal bus traffic can contain data
+from unrelated applications: capture locally, restrict file permissions,
+review and redact before sharing; never auto-upload full logs.
+
+**Decision:** Attach the real desktop results to #111 and the v0.14.1 PR.
+If there is no passing GNOME 50 evidence, keep #111 open; do not mark it
+fixed or claim global-hotkey parity. A release with the limitation is only
+permissible if the release owner explicitly accepts that known defect and
+publishes the exact unsupported scenario and documented fallback in the
+release notes. CI success alone cannot make that decision.
+
 ## 4. Publish checklist
 
 - [ ] Draft release notes link the changelog section.
 - [ ] `manifest.json` verifies against the embedded **Ed25519 feed
       public key**; `raco rivet verify --production` is a separate
       platform-package/signature verification, not a manifest verifier.
-- [ ] Both macOS DMGs and installed apps pass Developer ID, Gatekeeper,
-      notarization and stapling checks; Windows MSI/EXE pass Authenticode
-      verification; both Linux tarballs have verified detached signatures.
-- [ ] Install the signed artifact on a clean VM for each OS; run one
+- [ ] For a **production-signed release**, both macOS DMGs/installed apps
+      pass Developer ID, Gatekeeper, notarization and stapling checks, and
+      Windows MSI/EXE pass Authenticode verification. For an **explicitly
+      approved unsigned release**, macOS ad-hoc and Windows unsigned status
+      is disclosed in release notes and install guidance, not represented
+      as production-signed. Both Linux tarballs keep verified detached
+      Ed25519 signatures in either channel.
+- [ ] Install the **actual release artifact** on a clean VM for each OS; run one
       search, one clipboard copy, one plugin query, one update check.
 - [ ] In-app update check reports the new version on the previous release.
 - [ ] Site pricing/download links still match reality.
