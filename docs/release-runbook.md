@@ -293,6 +293,18 @@ identity and authorization failures. Portal bus traffic can contain data
 from unrelated applications: capture locally, restrict file permissions,
 review and redact before sharing; never auto-upload full logs.
 
+**Real Ubuntu 26.04.1 GNOME 50.1 Wayland arm64 VM evidence (2026-10-29):**
+[Issue #111 report](https://github.com/turlamai/fulcrum/issues/111#issuecomment-6494145964)
+records installed DEB/AppImage SHA-256, matching identity, successful
+`Registry.Register` and `CreateSession`, actual approval,
+repeated `Activated`, relaunch and login persistence. It also records
+a first-consent stall in the upstream GNOME GlobalShortcutsProvider,
+an unverified Settings hotkey-change path, and an incomplete denial UX.
+The working fallback is a custom GNOME shortcut running
+`fulcrum --toggle`. This is **arm64 VM** evidence, not x64 or
+production-signed installer acceptance. Publish these known limitations
+in release notes if the release owner explicitly accepts this scope.
+
 **Decision:** Attach the real desktop results to #111 and the v0.14.1 PR.
 If there is no passing GNOME 50 evidence, keep #111 open; do not mark it
 fixed or claim global-hotkey parity. A release with the limitation is only

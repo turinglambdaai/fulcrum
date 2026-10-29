@@ -8,6 +8,19 @@ independently per platform packaging run.
 
 ## [0.14.1] - 2026-10-27
 
+### Known limitations
+
+- **Ubuntu 26.04 GNOME 50 Wayland first-time shortcut consent:** On some
+  desktops the upstream GNOME GlobalShortcutsProvider stalls before the
+  authorization dialog responds. This was reproduced on a genuine GNOME 50.1
+  arm64 VM even with an alternative working launch identity. After approval,
+  repeated Alt+Space activation and login persistence passed; changing the
+  shortcut through Settings and the denied-consent status were not verified
+  in that VM. If the portal cannot authorize, create a GNOME custom shortcut
+  that executes `fulcrum --toggle`. See [issue #111](https://github.com/turlamai/fulcrum/issues/111).
+  This limitation requires an explicit release-owner acceptance before a
+  stable release; CI passing does not imply otherwise.
+
 ### Fixed
 
 - **Windows launcher no longer flashes an empty search panel.** It waits for
@@ -66,11 +79,12 @@ independently per platform packaging run.
 
 ### Regression coverage
 
-- Ubuntu 26.04 GNOME 50 Wayland portal identity: native installs now
-  register their reverse-DNS `site.jrtx.fulcrum.desktop` app id on
-  a retained shared GDBus connection
-  before requesting shortcuts; the fallback remains visible if registration
-  or permission fails. Full stock-desktop verification remains open in #111.
+- Ubuntu 26.04 GNOME 50 Wayland portal identity: native installs
+  register `site.jrtx.fulcrum` on a retained shared D-Bus connection.
+  A real Ubuntu 26.04.1 GNOME 50.1 Wayland **arm64** VM verified
+  `Registry.Register`, `CreateSession`, consent approval, repeated
+  `Activated`, and login-startup persistence; see issue #111.
+  This is not evidence for other architectures or all denial/settings paths.
 - Linux widget tests cover the deferred first frame, five Settings sections,
   and enable/disable round-trip of a temporary XDG login entry. Windows and
   macOS host checks and packaged acceptance remain release gates.

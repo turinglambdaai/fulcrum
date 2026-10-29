@@ -283,17 +283,21 @@ results while the launcher is open. Use your configured summon shortcut or
 `fulcrum --toggle` to bring the hidden launcher back; actual startup,
 shortcut, and update errors are still shown in its status area.
 
-**Ubuntu 26.04 Wayland global shortcut:** Fulcrum now attempts the host-app
-`Registry.Register` handshake on its retained shared D-Bus connection
-**before** requesting global shortcuts, identifying the installed
-`site.jrtx.fulcrum.desktop` entry. This is intended to address the portal's `An app id is required`
-rejection on native installs; it has **not yet been verified** on stock
-Ubuntu 26.04 GNOME 50. Portal availability and compositor consent are
-still required, and real-machine verification remains tracked
-in [issue #111](https://github.com/turlamai/fulcrum/issues/111).
-If the portal still rejects a shortcut (for example from an AppImage with no
-installed desktop integration), add a custom desktop shortcut that runs
-`fulcrum --toggle`; the failure stays visible rather than showing "ready".
+**Ubuntu 26.04 GNOME 50 Wayland global shortcut:** Native installs
+register `site.jrtx.fulcrum` over a retained shared D-Bus connection before
+`CreateSession`. A real Ubuntu 26.04.1 GNOME 50.1 Wayland **arm64 VM**
+verified that the portal receives the app ID, prompts for approval, fires
+`Activated` repeatedly on Alt+Space, and persists approval after relaunch
+and login restart ([evidence in issue #111](https://github.com/turlamai/fulcrum/issues/111)).
+This does **not** prove every architecture or all permission flows.
+
+**Known GNOME 50 first-consent limitation:** Some GNOME desktops stall in the
+upstream GlobalShortcutsProvider before the first approval dialog responds.
+Shortcut changes through Settings and the denied-consent UX could not be
+fully verified on that VM. If approval does not complete or the portal
+rejects the shortcut, configure a **GNOME custom keyboard shortcut** that
+executes `fulcrum --toggle`; this fallback was verified in the real VM.
+Do not disable system-wide portal security to work around the problem.
 
 On **Windows**, the tray menu's **Check for Updates** opens a visible
 `update` view rather than reporting into a hidden footer. The list refreshes

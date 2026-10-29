@@ -538,6 +538,21 @@ jobs:
           }
           echo "id=$release_id" >> "$GITHUB_OUTPUT"
 
+      - name: Disclose GNOME 50 first-consent limitation in v0.14.1 release notes
+        if: ${{ github.ref_name == 'v0.14.1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(gh api "repos/$GH_REPO/releases/$RELEASE_ID" --jq '.body')"
+          notice='> **Ubuntu 26.04 GNOME 50 Wayland known limitation:** On affected desktops, the first global-shortcut permission prompt may stall in GNOME GlobalShortcutsProvider. The app-id fix and Alt+Space activation after consent were verified on a real arm64 GNOME 50.1 VM, but Settings hotkey changes and denied-consent UX were not fully verified. If authorization stalls, create a GNOME custom shortcut running `fulcrum --toggle`. See [issue #111](https://github.com/turlamai/fulcrum/issues/111).'
+          if [[ "$body" != *"GNOME 50 Wayland known limitation"* ]]; then
+            gh api -X PATCH "repos/$GH_REPO/releases/$RELEASE_ID" \
+              -f body="$(printf '%s\n\n%s' "$notice" "$body")" >/dev/null
+          fi
       - name: Banner unsigned releases before they go public
         env:
           GH_TOKEN: ${{ github.token }}
