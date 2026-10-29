@@ -87,7 +87,7 @@ x64, Windows x64, Linux x64):
    (`releases/download/<tag>/<artifact>`) — never re-upload under an
    existing version URL. The app itself fetches `manifest.json` under its
    `update-base-url` setting (default
-   `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
+   `https://github.com/turlamai/fulcrum/releases/latest/download`),
    so only publishing a non-prerelease release changes the stable feed.
 
 ### The explicitly unsigned channel
@@ -219,7 +219,7 @@ or disabling Gatekeeper.
 
 ## 3b. Ubuntu 26.04 GNOME 50 Wayland release-quality gate (v0.14.1)
 
-Issue [#111](https://github.com/turinglambdaai/fulcrum/issues/111)
+Issue [#111](https://github.com/turlamai/fulcrum/issues/111)
 reported that the stock GNOME 50 session rejects the global summon hotkey's
 `GlobalShortcuts.CreateSession` with `An app id is required`. The v0.14.1
 candidate registers the reverse-DNS `site.jrtx.fulcrum` app ID with the

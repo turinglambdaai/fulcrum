@@ -72,10 +72,10 @@ release. The client never parses anything humans edit.
       "protocol": 1,
       "permissions": [],
       "min-app-version": "0.8.0",
-      "homepage": "https://github.com/turinglambdaai/fulcrum-gallery/tree/main/plugins/epoch",
-      "changelog": "https://github.com/turinglambdaai/fulcrum-gallery/blob/main/plugins/epoch/CHANGELOG.md",
+      "homepage": "https://github.com/turlamai/fulcrum-gallery/tree/main/plugins/epoch",
+      "changelog": "https://github.com/turlamai/fulcrum-gallery/blob/main/plugins/epoch/CHANGELOG.md",
       "artifact": {
-        "url": "https://github.com/turinglambdaai/fulcrum-gallery/releases/download/g-2026-10-12/epoch-1.2.0.zip",
+        "url": "https://github.com/turlamai/fulcrum-gallery/releases/download/g-2026-10-12/epoch-1.2.0.zip",
         "sha256": "…",
         "size-bytes": 8123
       }

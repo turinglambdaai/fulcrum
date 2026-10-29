@@ -8,7 +8,7 @@
 
 ## macOS 安装与首次启动
 
-1. 从 [官方 Releases](https://github.com/turinglambdaai/fulcrum/releases/latest) 下载 **.dmg 安装包**（.zip 主要用于应用内更新）：M 系列 Mac 选 `arm64`，Intel Mac 选 `x64`。
+1. 从 [官方 Releases](https://github.com/turlamai/fulcrum/releases/latest) 下载 **.dmg 安装包**（.zip 主要用于应用内更新）：M 系列 Mac 选 `arm64`，Intel Mac 选 `x64`。
 2. 双击打开 DMG，在 Finder 窗口中将 **Fulcrum.app 拖到 Applications（应用程序）图标**上。如果提示覆盖旧版本，请先退出正在运行的 Fulcrum。等待拷贝完成后，推出 DMG。
 3. 从 **「应用程序」文件夹**启动 Fulcrum。即使搜索面板隐藏，它也会驻留菜单栏；可以使用 <kbd>⌥</kbd>+<kbd>Space</kbd> 或备用热键唤出。
 4. 需要粘贴到前台应用等功能时，macOS 可能请求辅助功能权限。按需在 **系统设置 → 隐私与安全性 → 辅助功能**授权，不必为了安装而预先打开所有权限。
@@ -166,7 +166,7 @@ Linux 设置界面改为与 macOS、Windows 一致的五类侧边导航：Genera
 
 **Ubuntu / Linux 启动器外观：** 搜索图标与「搜索应用、剪贴板、片段、网页…」提示在同一水平线上。面板已显示时，不再常驻展示「就绪 — 使用热键或 `fulcrum --toggle` 唤出」；需要从隐藏状态重新唤出时，仍可使用全局快捷键或 `fulcrum --toggle`。启动失败、快捷键冲突和更新失败等真正需要注意的状态信息仍会显示。
 
-**Ubuntu 26.04 Wayland 全局热键：** Fulcrum 在调用全局快捷键接口前，现会通过与 Rivet 共用、持续存活的 D-Bus 连接注册已安装 `site.jrtx.fulcrum.desktop` 的应用身份（`Registry.Register`），旨在解决新版 portal 对 `An app id is required` 的拒绝，**尚未在 Ubuntu 26.04 GNOME 50 原生实机验证成功**。仍需桌面 portal 支持及用户授权；GNOME 50 原生实机验收见 [Issue #111](https://github.com/turinglambdaai/fulcrum/issues/111)，**尚不能宣称实机通过**。若仍失败（例如未集成桌面文件的 AppImage），请在桌面自定义快捷键中设置 `fulcrum --toggle`；失败状态仍会显示，不会被「就绪」掩盖。
+**Ubuntu 26.04 Wayland 全局热键：** Fulcrum 在调用全局快捷键接口前，现会通过与 Rivet 共用、持续存活的 D-Bus 连接注册已安装 `site.jrtx.fulcrum.desktop` 的应用身份（`Registry.Register`），旨在解决新版 portal 对 `An app id is required` 的拒绝，**尚未在 Ubuntu 26.04 GNOME 50 原生实机验证成功**。仍需桌面 portal 支持及用户授权；GNOME 50 原生实机验收见 [Issue #111](https://github.com/turlamai/fulcrum/issues/111)，**尚不能宣称实机通过**。若仍失败（例如未集成桌面文件的 AppImage），请在桌面自定义快捷键中设置 `fulcrum --toggle`；失败状态仍会显示，不会被「就绪」掩盖。
 
 **Windows 更新操作：** 从系统托盘选择「Check for Updates（检查更新）」会直接打开可见的 `update` 页面。检查后会自动刷新下载操作；点击 Download（下载）获取并校验签名 MSI，等下载结束后点击 Quit and install（退出并安装），程序退出后由系统安装器升级并重新启动。如果 Windows 要求管理员确认，按系统提示操作；失败时可以查看错误或从更新页面打开下载目录。**便携 ZIP 版本不会被 MSI 原地替换**，建议从正式 MSI 安装版使用此自动升级路径。
 
@@ -273,7 +273,7 @@ Fulcrum 建在 [Rivet](https://rivet.jrtx.site) 之上：一个 Racket 大脑嵌
 
 提供 macOS、Windows、Linux 桌面开发预览。权限与快捷键行为取决于系统及 Linux 图形会话。
 
-从[官方 Releases](https://github.com/turinglambdaai/fulcrum/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
+从[官方 Releases](https://github.com/turlamai/fulcrum/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
 
 ## 第一次使用
 
@@ -299,6 +299,6 @@ Fulcrum 建在 [Rivet](https://rivet.jrtx.site) 之上：一个 Racket 大脑嵌
 
 ## 获得帮助
 
-在 [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues) 反馈，中文或英文均可。提供版本、系统与架构、安装渠道、复现步骤、预期和实际结果。先用合成样本复现；不要附上密钥、授权文件、数据库、原始私密文档或完整日志。公开支持不承诺响应时限。
+在 [GitHub Issues](https://github.com/turlamai/fulcrum/issues) 反馈，中文或英文均可。提供版本、系统与架构、安装渠道、复现步骤、预期和实际结果。先用合成样本复现；不要附上密钥、授权文件、数据库、原始私密文档或完整日志。公开支持不承诺响应时限。
 
 [敏感漏洞请按 SECURITY.md 的私下流程报告](../SECURITY.md)。
