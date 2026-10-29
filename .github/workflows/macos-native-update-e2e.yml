@@ -46,7 +46,7 @@ jobs:
       - name: Install pinned Rivet
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
+          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
       - name: Build a test-only 0.13.3 app with the native update hook
         shell: bash
         run: |
