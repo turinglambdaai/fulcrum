@@ -83,7 +83,7 @@ x64, Windows x64, Linux x64):
    (`releases/download/<tag>/<artifact>`) — never re-upload under an
    existing version URL. The app itself fetches `manifest.json` under its
    `update-base-url` setting (default
-   `https://github.com/turinglambdaai/fulcrum/releases/latest/download`),
+   `https://github.com/turlamai/fulcrum/releases/latest/download`),
    so only publishing a non-prerelease release changes the stable feed.
 
 ### The explicitly unsigned channel

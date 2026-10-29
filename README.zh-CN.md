@@ -2,7 +2,7 @@
 
 一次按键，直达一切。macOS、Windows、Linux 三平台的键盘优先启动器——一个 Racket 大脑，三套第一方原生 UI，全程无 WebView。
 
-[![CI](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turinglambdaai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.14.0-C15F3C)
+[![CI](https://github.com/turlamai/fulcrum/actions/workflows/ci.yml/badge.svg)](https://github.com/turlamai/fulcrum/actions/workflows/ci.yml) ![Windows](https://img.shields.io/badge/Windows-WinUI_3-0078D4?logo=windows11&logoColor=white) ![macOS](https://img.shields.io/badge/macOS-SwiftUI-000000?logo=apple&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-GTK4-F9A03C?logo=linux&logoColor=white) [![License](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE) ![Version](https://img.shields.io/badge/version-0.14.0-C15F3C)
 
 [English](README.md) · **中文**
 
@@ -16,9 +16,9 @@
 
 ## macOS 安装（开发者预览版）
 
-前往 [GitHub Releases](https://github.com/turinglambdaai/fulcrum/releases/latest)，按芯片选择
-[Apple Silicon（M 系列）DMG](https://github.com/turinglambdaai/fulcrum/releases/latest/download/fulcrum-macos-arm64.dmg)
-或 [Intel DMG](https://github.com/turinglambdaai/fulcrum/releases/latest/download/fulcrum-macos-x64.dmg)。
+前往 [GitHub Releases](https://github.com/turlamai/fulcrum/releases/latest)，按芯片选择
+[Apple Silicon（M 系列）DMG](https://github.com/turlamai/fulcrum/releases/latest/download/fulcrum-macos-arm64.dmg)
+或 [Intel DMG](https://github.com/turlamai/fulcrum/releases/latest/download/fulcrum-macos-x64.dmg)。
 打开 **DMG**，把 **Fulcrum 图标拖到 Applications（应用程序）文件夹**，推出安装磁盘映像，再从**应用程序文件夹**启动 Fulcrum。不要直接从 DMG 中运行。
 
 **安全提示：** 当前版本的自动发布流程使用开发用临时签名，**尚未提供 Apple Developer ID 公证**，所以首次启动时可能被 Gatekeeper 拦截。请先确认下载自官方 Releases，再依据 [Apple 官方说明](https://support.apple.com/102445) 决定是否手动允许打开。**不建议关闭 Gatekeeper 或用 `xattr -cr` 清除隔离信息。** 在使用需要权限的功能时再授权「辅助功能」，详见 [macOS 初次安装与启动](docs/user-guide.zh-CN.md#macos-安装与首次启动)。
@@ -76,7 +76,7 @@ fulcrum/
 
 ## 状态（开发者预览）
 
-开发者预览。后端已完成并通过全部测试（101 个 test case，覆盖排序、存储、插件、AI、签名更新链路），内置二十六个第一方插件的 gallery（查询 `gallery` 安装）与设置/片段同步 beta（`sync-root`）。三个宿主均对齐后端契约：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主通过 [Rivet 0.3](https://github.com/turinglambdaai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。已知的平台边界在[用户指南](docs/user-guide.zh-CN.md#疑难排查)里如实列明：文件搜索依赖各平台索引（Windows 索引未开启的机器回退到有界慢扫描）；Linux 的 Wayland 粘贴到前台需要 `wtype`。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
+开发者预览。后端已完成并通过全部测试（101 个 test case，覆盖排序、存储、插件、AI、签名更新链路），内置二十六个第一方插件的 gallery（查询 `gallery` 安装）与设置/片段同步 beta（`sync-root`）。三个宿主均对齐后端契约：Windows（WinUI 3）、macOS（SwiftUI）、Linux（GTK4）——Linux 宿主通过 [Rivet 0.3](https://github.com/turlamai/rivet) 引入的官方 `raco rivet build` Linux 路径构建。已知的平台边界在[用户指南](docs/user-guide.zh-CN.md#疑难排查)里如实列明：文件搜索依赖各平台索引（Windows 索引未开启的机器回退到有界慢扫描）；Linux 的 Wayland 粘贴到前台需要 `wtype`。`raco rivet doctor` / `dev` 是所有平台受支持的开发循环。
 
 ## 开发
 

@@ -8,7 +8,7 @@ Press one key. Everything on your computer is within reach.
 
 ## Install and first launch on macOS
 
-1. Download the **.dmg installer**, not the portable **.zip** (the ZIP is primarily for the signed in-app update feed). Select `arm64` for Apple Silicon M-series Macs and `x64` for Intel Macs. Only use the [official releases page](https://github.com/turinglambdaai/fulcrum/releases/latest).
+1. Download the **.dmg installer**, not the portable **.zip** (the ZIP is primarily for the signed in-app update feed). Select `arm64` for Apple Silicon M-series Macs and `x64` for Intel Macs. Only use the [official releases page](https://github.com/turlamai/fulcrum/releases/latest).
 2. Double-click the DMG, then **drag Fulcrum.app onto the Applications icon** in the Finder window. If prompted to replace an earlier copy, close that copy first. Wait for copying to finish and eject the DMG.
 3. Launch **Applications → Fulcrum**. It runs from the menu bar even when its search panel is hidden; summon it with <kbd>⌥</kbd>+<kbd>Space</kbd> or the fallback configured hotkey.
 4. If a feature needs Accessibility (for example paste into the previous app), macOS may ask you to enable Fulcrum in **System Settings → Privacy & Security → Accessibility**. Grant the permission only when you intend to use that feature.
@@ -420,7 +420,7 @@ Existing launcher, clipboard, plugins and BYOK features remain free. No Pro chec
 
 Desktop developer previews for macOS, Windows and Linux. Permission and shortcut behavior varies with the OS and Linux display session.
 
-Use [official Releases](https://github.com/turinglambdaai/fulcrum/releases), select an explicitly listed OS/architecture asset, read its release notes and check supplied checksums. An absent asset/platform is not a delivery promise. Preview builds may lack publisher signing or notarization; do not disable system-wide security protections to install them.
+Use [official Releases](https://github.com/turlamai/fulcrum/releases), select an explicitly listed OS/architecture asset, read its release notes and check supplied checksums. An absent asset/platform is not a delivery promise. Preview builds may lack publisher signing or notarization; do not disable system-wide security protections to install them.
 
 ## Your first successful session
 
@@ -446,6 +446,6 @@ Back up data and read the destination release notes first. An in-app update chec
 
 ## Get help
 
-Report problems in [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues), in English or Chinese. Include the version, OS/architecture, installation channel, steps, expected result and actual result. Reproduce with synthetic input first; do not attach keys, credentials, databases, private source documents or complete logs. Public support has no guaranteed response time.
+Report problems in [GitHub Issues](https://github.com/turlamai/fulcrum/issues), in English or Chinese. Include the version, OS/architecture, installation channel, steps, expected result and actual result. Reproduce with synthetic input first; do not attach keys, credentials, databases, private source documents or complete logs. Public support has no guaranteed response time.
 
 For sensitive vulnerabilities, follow the private process in [SECURITY.md](../SECURITY.md).

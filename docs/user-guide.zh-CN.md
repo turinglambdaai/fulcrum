@@ -8,7 +8,7 @@
 
 ## macOS 安装与首次启动
 
-1. 从 [官方 Releases](https://github.com/turinglambdaai/fulcrum/releases/latest) 下载 **.dmg 安装包**（.zip 主要用于应用内更新）：M 系列 Mac 选 `arm64`，Intel Mac 选 `x64`。
+1. 从 [官方 Releases](https://github.com/turlamai/fulcrum/releases/latest) 下载 **.dmg 安装包**（.zip 主要用于应用内更新）：M 系列 Mac 选 `arm64`，Intel Mac 选 `x64`。
 2. 双击打开 DMG，在 Finder 窗口中将 **Fulcrum.app 拖到 Applications（应用程序）图标**上。如果提示覆盖旧版本，请先退出正在运行的 Fulcrum。等待拷贝完成后，推出 DMG。
 3. 从 **「应用程序」文件夹**启动 Fulcrum。即使搜索面板隐藏，它也会驻留菜单栏；可以使用 <kbd>⌥</kbd>+<kbd>Space</kbd> 或备用热键唤出。
 4. 需要粘贴到前台应用等功能时，macOS 可能请求辅助功能权限。按需在 **系统设置 → 隐私与安全性 → 辅助功能**授权，不必为了安装而预先打开所有权限。
@@ -261,7 +261,7 @@ Fulcrum 建在 [Rivet](https://rivet.jrtx.site) 之上：一个 Racket 大脑嵌
 
 提供 macOS、Windows、Linux 桌面开发预览。权限与快捷键行为取决于系统及 Linux 图形会话。
 
-从[官方 Releases](https://github.com/turinglambdaai/fulcrum/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
+从[官方 Releases](https://github.com/turlamai/fulcrum/releases)选择明确标注系统和架构的附件，阅读该版本说明并核对附带校验文件。未列出的附件或平台不视为已交付。预览构建可能没有系统发行者签名或公证；不要为安装而关闭系统安全保护。
 
 ## 第一次使用
 
@@ -287,6 +287,6 @@ Fulcrum 建在 [Rivet](https://rivet.jrtx.site) 之上：一个 Racket 大脑嵌
 
 ## 获得帮助
 
-在 [GitHub Issues](https://github.com/turinglambdaai/fulcrum/issues) 反馈，中文或英文均可。提供版本、系统与架构、安装渠道、复现步骤、预期和实际结果。先用合成样本复现；不要附上密钥、授权文件、数据库、原始私密文档或完整日志。公开支持不承诺响应时限。
+在 [GitHub Issues](https://github.com/turlamai/fulcrum/issues) 反馈，中文或英文均可。提供版本、系统与架构、安装渠道、复现步骤、预期和实际结果。先用合成样本复现；不要附上密钥、授权文件、数据库、原始私密文档或完整日志。公开支持不承诺响应时限。
 
 [敏感漏洞请按 SECURITY.md 的私下流程报告](../SECURITY.md)。
