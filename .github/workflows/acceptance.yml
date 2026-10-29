@@ -120,7 +120,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PATH="$FULL_RACKET_BIN:$PATH" raco rivet release --development
+          # Real QA installer packages only. Upstream Rivet's release CLI
+          # requires private update signing keys unless --without-updates is
+          # explicit. Never touch production keys or publish a QA update feed.
+          PATH="$FULL_RACKET_BIN:$PATH" raco rivet release --development --without-updates
           test -f dist/fulcrum-0.14.1-linux-amd64.deb
           test -f dist/fulcrum-0.14.1-linux-x86_64.AppImage
           # actions/upload-artifact strips the common dist/ root. Use
