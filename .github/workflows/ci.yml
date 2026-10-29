@@ -108,6 +108,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: GNOME 50 release preflight script sanity (not desktop acceptance)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/acceptance/gnome50-portal-preflight.sh
+          bash scripts/acceptance/gnome50-portal-preflight.sh --help >/dev/null
+          # A synthetic non-Wayland environment must fail closed, regardless
+          # of the current runner OS. This is NOT an Ubuntu 26.04 test.
+          if env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 \
+              bash scripts/acceptance/gnome50-portal-preflight.sh --kind deb > /dev/null 2>&1; then
+            echo "::error::GNOME preflight incorrectly passed without Wayland"
+            exit 1
+          fi
       # Match packaged Linux acceptance: install dependencies in full Racket,
       # then configure the embeddable runtime used in staged applications.
       # Minimal embedded Racket's db-lib catalog fetch has timed out in CI.
