@@ -73,7 +73,7 @@ if ! command -v gdbus >/dev/null 2>&1; then
 elif ! timeout 8s gdbus introspect --session \
     --dest org.freedesktop.portal.Desktop \
     --object-path /org/freedesktop/portal/desktop 2>/dev/null |
-    grep -Fq "org.freedesktop.host.portal.Registry"; then
+    grep -F "org.freedesktop.host.portal.Registry" >/dev/null; then
   fail "Host portal Registry is unavailable on the user session bus"
 else
   note "Host portal Registry interface advertised (not proof of registration)"
