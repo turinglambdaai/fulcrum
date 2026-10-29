@@ -35,7 +35,7 @@ jobs:
       - name: Install Rivet (catalog)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
       - name: Schema baseline is compatible
         run: raco rivet schema check rivet-schema.json --json
@@ -135,12 +135,12 @@ jobs:
         shell: bash
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
       - name: Remember full Racket command path
         shell: bash
         run: echo "FULL_RACKET_BIN=$(dirname "$(command -v raco)")" >> "$GITHUB_ENV"
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
       - name: Install Linux toolchain
         run: |
           sudo apt-get update
@@ -195,7 +195,7 @@ jobs:
       - name: Install Rivet (catalog)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
       - name: Verify macOS Finder DMG artwork
         run: |
@@ -259,7 +259,7 @@ jobs:
       - name: Install Rivet (catalog)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
         shell: bash
       - name: raco rivet doctor
         run: raco rivet doctor
@@ -293,7 +293,7 @@ jobs:
       - name: Install Rivet (catalog)
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs 'https://github.com/turinglambdaai/rivet.git#${{ env.RIVET_PIN }}'
+          raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
       - name: Install fixture plugin
         run: |
           mkdir -p /tmp/fulcrum-fixture/plugins

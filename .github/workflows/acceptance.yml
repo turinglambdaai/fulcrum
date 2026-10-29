@@ -32,7 +32,7 @@ jobs:
         run: |
           racket -e '(dynamic-require (quote db) #f)'
           if ($LASTEXITCODE -ne 0) { raco pkg install --auto --no-docs db-lib }
-          raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#$env:RIVET_PIN"
+          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#$env:RIVET_PIN"
       - name: Run executable product acceptance
         run: raco rivet acceptance --json
       - name: Require generated Windows client to be current
@@ -68,7 +68,7 @@ jobs:
       - name: Install pinned Rivet and dependencies
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
+          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
       - name: Run executable product acceptance
         run: raco rivet acceptance --json
       - name: Require generated macOS client to be current
@@ -102,11 +102,11 @@ jobs:
       - name: Install pinned Rivet and dependencies
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
-          raco pkg install --auto --no-docs "https://github.com/turinglambdaai/rivet.git#${RIVET_PIN}"
+          raco pkg install --auto --no-docs "https://github.com/turlamai/rivet.git#${RIVET_PIN}"
       - name: Remember full Racket command path
         run: echo "FULL_RACKET_BIN=$(dirname "$(command -v raco)")" >> "$GITHUB_ENV"
       - name: Set up embeddable Racket CS
-        uses: turinglambdaai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
       - name: Run executable product acceptance
         run: PATH="$FULL_RACKET_BIN:$PATH" dbus-run-session -- raco rivet acceptance --json
       - name: Require generated Linux client to be current
