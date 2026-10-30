@@ -311,7 +311,7 @@
    "try{$full=[IO.Path]::GetFullPath($item);"
    "if($full -ne [IO.Path]::GetPathRoot($full)){"
    "$roots=@($full)+@($roots)}}catch{}"
-   "}};"
+   "}}};"
    "foreach($cloud in @($env:OneDriveConsumer,$env:OneDrive)){"
    "if($cloud){$roots+=@((Join-Path $cloud 'Desktop'),"
    "(Join-Path $cloud 'Documents'))}};"

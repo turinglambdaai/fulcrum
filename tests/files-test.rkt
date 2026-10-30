@@ -114,6 +114,9 @@
   (check-true (string-contains? script "Start-Job"))
   (check-true (string-contains? script "Wait-Job -Job $job -Timeout 2"))
   (check-true (string-contains? script "FULCRUM_FILE_SEARCH_ROOTS"))
+  ;; The configured root scope must close before the regular known folders.
+  ;; Otherwise unset opt-in excludes all ordinary files on Windows.
+  (check-true (string-contains? script "}}};foreach($cloud"))
   (check-true (string-contains? script "SYSTEMINDEX"))
   (check-true (string-contains? script "CONTAINS(System.FileName,"))
   (check-true (string-contains? script "FREETEXT(System.FileName,"))
@@ -135,9 +138,9 @@
              "C:\\Users\\me\\Documents\\project-report.txt\r\nfile:///D:/Projects/project-report.txt\r\n")))
   (check-equal? (file-search-result-status result) 'ok)
   (check-equal? (length (file-search-result-hits result)) 2)
-  (check-true (member "C:\\Users\\me\\Documents\\project-report.txt"
+  (check-not-false (member "C:\\Users\\me\\Documents\\project-report.txt"
                       (map cdr (file-search-result-hits result))))
-  (check-true (member "D:/Projects/project-report.txt"
+  (check-not-false (member "D:/Projects/project-report.txt"
                       (map cdr (file-search-result-hits result)))))
 
 (test-case "Windows explicit find resolves a real fixture with the production PowerShell runner"
