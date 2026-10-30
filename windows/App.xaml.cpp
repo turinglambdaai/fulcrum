@@ -2,6 +2,7 @@
 #include "App.xaml.h"
 #include "MainWindow.xaml.h"
 #include "WindowsInstance.h"
+#include "Autostart.h"
 
 namespace winrt::RivetHost::implementation {
 
@@ -30,8 +31,10 @@ void App::OnLaunched(Microsoft::UI::Xaml::LaunchActivatedEventArgs const&) {
       application_id);
   if (!instance_lease_->is_primary()) {
     // Reopen the resident launcher; never leave a second headless process.
-    if (HWND existing = fulcrum::windows::FindResidentWindow()) {
-      ::PostMessageW(existing, fulcrum::windows::kSummonResidentMessage, 0, 0);
+    if (!fulcrum::windows::BackgroundLaunch()) {
+      if (HWND existing = fulcrum::windows::FindResidentWindow()) {
+        ::PostMessageW(existing, fulcrum::windows::kSummonResidentMessage, 0, 0);
+      }
     }
     Microsoft::UI::Xaml::Application::Current().Exit();
     return;

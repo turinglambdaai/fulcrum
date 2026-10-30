@@ -123,14 +123,13 @@ struct MainWindow : MainWindowT<MainWindow> {
   std::wstring last_status_;
   // Snippet auto-expansion (WH_KEYBOARD_LL): types the snippet text when
   // its keyword lands against a word boundary in any app.
-  // Updater 0.2 (in-app install stays macOS-only on this line): the silent
-  // launch check is throttled backend-side, and progress polling follows the
-  // backend's download thread, surfacing percent in the status bar. Once the
-  // artifact is downloaded the user gets the open-folder status; the
-  // "update" launcher rows drive check/download/reveal on this state.
+  // Windows in-app updates use the backend's signed manifest, verified MSI
+  // download, and Rivet's external MSI handoff. Keep the update panel visible
+  // and refresh actionable rows when the candidate or download state changes.
   void StartSilentUpdateCheck();
   void StartUpdateProgressPoll();
-  // Tray "Check for Updates…": manual check, result in the footer.
+  void OpenUpdatesPanel();
+  // Tray "Check for Updates…" opens the panel and bypasses the silent throttle.
   void CheckForUpdates();
   // About panel (tray menu + the `about` launcher row): one ContentDialog
   // with version, tagline, license and the site/issue links.

@@ -61,6 +61,24 @@ require 'actions: read'
 require "prerelease: \${{ contains(github.ref_name, '-rc.') }}"
 require "make_latest: \${{ contains(github.ref_name, '-rc.') && 'false' || 'true' }}"
 require "if: \${{ !contains(github.ref_name, '-rc.') }}"
+# A stable promotion needs stable approval regardless of whether the
+# independent unsigned-publisher channel was approved. Never allow a
+# manual tag to bypass the mandatory stable-approval gate.
+publish_guard="$(grep -B4 -F 'Stable release promotion is not approved' "$release")"
+if [[ "$publish_guard" != *'&& "$FULCRUM_STABLE_RELEASE_APPROVED" != "true" ]]; then'* ||
+      "$publish_guard" == *'&& "$FULCRUM_UNSIGNED_RELEASE_APPROVED" != "true"'* ]]; then
+  echo 'release-safety: stable publication must require FULCRUM_STABLE_RELEASE_APPROVED independently of unsigned approval' >&2
+  exit 1
+fi
+# A renamed GitHub owner must not be encoded in signed update URLs or
+# the upload destination; immutable signatures pin those URLs.
+require 'RIVET_UPDATE_BASE_URL: https://github.com/turlamai/fulcrum/releases/download/'
+require 'gh release upload "$GITHUB_REF_NAME" stable-alias/* --clobber --repo "$GITHUB_REPOSITORY"'
+require 'Disclose GNOME 50 first-consent limitation in v0.14.1 release notes'
+if grep -Fq 'turinglambdaai/fulcrum' "$release"; then
+  echo 'release-safety: old owner remains in release workflow' >&2
+  exit 1
+fi
 if grep -Eq 'release_id=.*gh release view .*--json id' "$release"; then
   echo 'release-safety: gh release view returns a GraphQL node id; REST updates require the numeric database id' >&2
   exit 1

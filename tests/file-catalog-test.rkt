@@ -38,6 +38,19 @@
      (check-not-false (member (simple-form-path (build-path home "Documents"))
                               roots)))))
 
+(test-case "Windows explicit search roots never include an entire drive"
+  (when (eq? (system-type 'os) 'windows)
+    (let* ([original (getenv "FULCRUM_FILE_SEARCH_ROOTS")]
+           [drive-root (substring (path->string (find-system-path 'home-dir)) 0 3)]
+           [masked-root (string-append drive-root "workspace\\..")])
+      (dynamic-wind
+        (lambda () (putenv "FULCRUM_FILE_SEARCH_ROOTS" masked-root))
+        (lambda ()
+          (check-false (member (simple-form-path drive-root)
+                               (default-file-catalog-roots #:os 'windows))))
+        (lambda ()
+          (putenv "FULCRUM_FILE_SEARCH_ROOTS" (or original "")))))))
+
 (test-case "Linux roots honor localized XDG user directories"
   (with-temp-tree
    (lambda (home)

@@ -154,6 +154,17 @@ platform search times out or is temporarily unavailable. Install `plocate`
 on Linux for fast broad searches; with neither platform results nor a known
 local match, Fulcrum says so honestly.
 
+**Windows additional drives:** indexed files on D:/E: can be returned by
+Windows Search alongside C: files. Unindexed folders on those drives are not
+scanned by default. To include a workspace such as `D:\\Projects` or
+`E:\\Notes`, set the Windows user environment variable
+`FULCRUM_FILE_SEARCH_ROOTS=D:\\Projects;E:\\Notes`, then fully quit and
+restart Fulcrum. The first `find <query>` starts a persistent, local-only
+catalog of those folders, without duplicating their files. Up to eight
+existing local work directories can be supplied; entire drive roots and
+network shares are intentionally excluded. You can check progress with
+`file index`. The index does not automatically add every disk on the PC.
+
 Type `file index` to see whether the local catalog is idle, scanning, ready,
 partially ready because a folder was unreadable, or failed. A partial scan
 preserves older entries instead of treating an access denial as deletion.
@@ -262,6 +273,61 @@ Write your own plugin: one manifest + one script. See
 ---
 
 ## Settings
+
+**Start at login** is available in **General** on macOS, Windows and
+Ubuntu/Linux. It defaults to off, affects only the current computer, and
+starts Fulcrum quietly after you sign in. macOS may ask you to approve the
+Login Item in System Settings; Windows uses your current user's startup
+setting; Linux uses `~/.config/autostart` (or `XDG_CONFIG_HOME`).
+For Linux AppImage copies, keep the AppImage at a stable path.
+
+On Linux, Settings has the same five sidebar areas as macOS/Windows:
+General, Features, AI, Commands and Sync & Updates. Commands can edit aliases through the shared backend. Linux can record the
+global summon shortcut by pressing keys in General, but individual command
+hotkeys are visibly disabled until native desktop registration is supported.
+The initial launcher panel appears only when its first search results or an
+actionable startup failure is available.
+
+On **Ubuntu/Linux**, the search symbol is aligned with the search placeholder.
+The idle `Ready — hotkey or fulcrum --toggle` message does not stay above the
+results while the launcher is open. Use your configured summon shortcut or
+`fulcrum --toggle` to bring the hidden launcher back; actual startup,
+shortcut, and update errors are still shown in its status area.
+
+**Ubuntu 26.04 GNOME 50 Wayland global shortcut:** Native installs
+register `site.jrtx.fulcrum` over a retained shared D-Bus connection before
+`CreateSession`. A real Ubuntu 26.04.1 GNOME 50.1 Wayland **arm64 VM**
+verified that the portal receives the app ID, prompts for approval, fires
+`Activated` repeatedly on Alt+Space, and persists approval after relaunch
+and login restart ([evidence in issue #111](https://github.com/turlamai/fulcrum/issues/111)).
+This does **not** prove every architecture or all permission flows.
+
+**Known GNOME 50 first-consent limitation:** Some GNOME desktops stall in the
+upstream GlobalShortcutsProvider before the first approval dialog responds.
+Shortcut changes through Settings and the denied-consent UX could not be
+fully verified on that VM. If approval does not complete or the portal
+rejects the shortcut, configure a **GNOME custom keyboard shortcut** that
+executes `fulcrum --toggle`; this fallback was verified in the real VM.
+Do not disable system-wide portal security to work around the problem.
+
+On **Windows**, the tray menu's **Check for Updates** opens a visible
+`update` view rather than reporting into a hidden footer. The list refreshes
+after checking: choose **Download** to fetch and verify the signed MSI, wait
+for the progress to finish, then choose **Quit and install** to upgrade and
+relaunch. Keep the installer window open if Windows requests elevation. If the
+check or installation fails, the original app remains available with an
+explicit error; you can also open the downloaded MSI folder from the same
+update results. The installation handoff requires an MSI-installed copy; a
+portable ZIP isn't upgraded in place by an MSI.
+
+On **macOS, Windows and Linux**, open **Settings** from the menu bar, tray,
+or launcher and choose **General**, **Features**, **AI**, **Commands**, or
+**Sync & Updates** in the native sidebar. General records the summon shortcut
+by pressing the desired key combination (Esc cancels). Commands edits aliases
+on all three platforms; per-command global hotkeys are **not supported on
+Linux** and its control is disabled rather than saving a nonfunctional binding.
+Windows uses native WinUI controls and shows the app icon in the Settings title
+bar; macOS uses native AppKit/SwiftUI chrome; Linux uses GTK4.
 
 Query `settings` and run a row to change it:
 

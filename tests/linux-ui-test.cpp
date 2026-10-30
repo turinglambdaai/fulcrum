@@ -1,4 +1,5 @@
 // Exercise the real launcher widgets without starting its embedded backend.
+#include <cmath>
 #define main fulcrum_host_main
 #include "../linux/src/main.cpp"
 #undef main
@@ -87,6 +88,15 @@ int main() {
   check(small_pos.x == 100 && small_pos.y == 50,
         "small work areas do not produce a negative placement offset");
 
+  // The installed desktop file and portal identity must match exactly.
+  check(std::string(kFulcrumInstalledDesktopId) == "site.jrtx.fulcrum",
+        "host portal app-id agrees with Rivet's reverse-DNS desktop identity");
+  check(should_register_wayland_host_identity("wayland-0", nullptr, nullptr) &&
+            !should_register_wayland_host_identity("", nullptr, nullptr) &&
+            !should_register_wayland_host_identity(nullptr, nullptr, nullptr) &&
+            !should_register_wayland_host_identity("wayland-0", "org.example.App", nullptr) &&
+            !should_register_wayland_host_identity("wayland-0", nullptr, "fulcrum"),
+        "portal host identity registers only for unsandboxed Wayland sessions");
   auto* app = gtk_application_new("site.jrtx.fulcrum.ui-test",
                                    G_APPLICATION_NON_UNIQUE);
   g_application_register(G_APPLICATION(app), nullptr, nullptr);
@@ -94,6 +104,139 @@ int main() {
   auto& launcher = Launcher::instance();
   // The test executable has no adjacent runtime: startup stops before boot.
   check(launcher.api == nullptr, "UI fixture does not start the backend");
+  check(GTK_IS_ENTRY(launcher.search) && launcher.search_icon != nullptr &&
+            GTK_IS_IMAGE(launcher.search_icon),
+        "search uses an editable GTK entry plus a separate native symbolic icon");
+  launcher.set_status(tr("ready"));
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
+        "normal ready/hotkey hint is hidden instead of taking up a search row");
+  launcher.set_status("Failed to register hotkey: change desktop bindings");
+  check(gtk_widget_get_visible(GTK_WIDGET(launcher.status)) &&
+            has_label(GTK_WIDGET(launcher.status),
+                      "Failed to register hotkey: change desktop bindings"),
+        "actionable hotkey failures remain visible in the native status area");
+  launcher.set_status(tr("ready"));
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
+        "clearing an actionable status removes its layout space");
+  // Ubuntu 26.04 may reject portal CreateSession before backend startup.
+  // The late backend ready notification must not conceal a broken hotkey.
+  Launcher::post_hotkey_failure(
+      "Portal hotkey failed: An app id is required. "
+      "Bind fulcrum --toggle in desktop Settings.");
+  pump(30);
+  launcher.set_status(tr("ready"));
+  check(launcher.hotkey_failure_active &&
+            gtk_widget_get_visible(GTK_WIDGET(launcher.status)) &&
+            has_label(GTK_WIDGET(launcher.status),
+                      "Portal hotkey failed: An app id is required. "
+                      "Bind fulcrum --toggle in desktop Settings."),
+        "Wayland portal rejection remains visible after backend ready");
+  launcher.hotkey_failure_active = false;
+  launcher.set_status(tr("ready"));
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.status)),
+        "normal ready status may clear after explicit hotkey-error recovery");
+  // Regression: a normal interactive summon must not map the bare search
+  // placeholder before the first asynchronous backend result arrives.
+  launcher.hide();
+  launcher.initial_results_ready = false;
+  launcher.show();
+  check(!gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+            launcher.summon_when_ready,
+        "startup query shell remains hidden before first native result rows");
+  Launcher::SearchOutcome initial;
+  initial.ok = true;
+  initial.rows.push_back(parse_row(
+      {"settings.open", "Settings…", "Preferences", "Setting", "", "", "", ""}));
+  launcher.apply_search(std::move(initial));
+  check(launcher.initial_results_ready &&
+            gtk_widget_get_visible(GTK_WIDGET(launcher.window)),
+        "first native backend rows reveal the requested launcher exactly once");
+
+  // Error is also a completed first result: a failed backend search must
+  // display the actionable failure, not leave the resident process invisible.
+  launcher.hide();
+  launcher.initial_results_ready = false;
+  launcher.show();
+  Launcher::SearchOutcome failed;
+  failed.ok = false;
+  failed.error = "test query failure";
+  launcher.apply_search(std::move(failed));
+  check(launcher.initial_results_ready &&
+            gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+            has_label(GTK_WIDGET(launcher.status), "Search failed: test query failure"),
+        "initial search RPC errors reveal the launcher and visible diagnostic");
+  launcher.set_status(tr("ready"));
+
+  // A user-authorized login item creates the same backend but never opens
+  // a launcher on its own. Only the later interactive summon reveals it.
+  launcher.hide();
+  g_login_background_start = true;
+  launcher.initial_results_ready = false;
+  Launcher::SearchOutcome login_background;
+  login_background.ok = true;
+  login_background.rows.push_back(parse_row(
+      {"settings.open", "Settings…", "", "Setting", "", "", "", ""}));
+  launcher.apply_search(std::move(login_background));
+  check(launcher.initial_results_ready &&
+            !gtk_widget_get_visible(GTK_WIDGET(launcher.window)) &&
+            !launcher.summon_when_ready,
+        "login background receives native results without revealing the panel");
+  g_login_background_start = false;
+  launcher.show();
+  check(gtk_widget_get_visible(GTK_WIDGET(launcher.window)),
+        "the same resident launcher can still be summoned interactively");
+
+  // The GTK Settings window uses the same five-section information
+  // architecture as Windows/macOS, with a functional Commands content slot.
+  settings_build();
+  check(GTK_IS_STACK(g_settings_form->stack), "GTK Settings has a real native page stack");
+  for (auto const* page : {"general", "features", "ai", "commands", "sync"}) {
+    check(gtk_stack_get_child_by_name(GTK_STACK(g_settings_form->stack), page) != nullptr,
+          "settings stack contains platform-aligned category");
+  }
+  check(g_settings_form->commands_list != nullptr &&
+            has_label(GTK_WIDGET(g_settings_form->window), "Start at login"),
+        "Linux Commands and local startup controls are discoverable");
+  gtk_window_destroy(g_settings_form->window);
+  delete g_settings_form;
+  g_settings_form = nullptr;
+
+  // XDG Exec values are parsed as desktop-entry command syntax. AppImages
+  // can legitimately live in folders containing spaces and '%' characters;
+  // those bytes need quoting / field-code escaping, not a shell invocation.
+  std::string const special_exec =
+      fulcrum_desktop_exec_quote("/tmp/My Files/Fulcrum 50%.AppImage");
+  check(special_exec == "\"/tmp/My Files/Fulcrum 50%%.AppImage\"",
+        "autostart Exec quotes paths and escapes percent field codes");
+
+  char const* saved_xdg = g_getenv("XDG_CONFIG_HOME");
+  std::string const original_xdg = saved_xdg ? saved_xdg : "";
+  bool const had_xdg = saved_xdg != nullptr;
+  gchar* temp_config = g_dir_make_tmp("fulcrum-autostart-ui-XXXXXX", nullptr);
+  check(temp_config != nullptr, "isolated XDG autostart fixture created");
+  if (temp_config != nullptr) {
+    g_setenv("XDG_CONFIG_HOME", temp_config, TRUE);
+    std::string error;
+    check(fulcrum_set_autostart(true, executable_path().string(), error) &&
+              fulcrum_autostart_enabled(), "XDG login item writes only after opt-in");
+    gchar* saved_content = nullptr;
+    if (g_file_get_contents(fulcrum_autostart_path().string().c_str(),
+                            &saved_content, nullptr, nullptr)) {
+      std::string const content(saved_content);
+      check(content.find("--background") != std::string::npos &&
+                content.find("Exec=") != std::string::npos,
+            "Linux login item starts silently with a valid desktop Exec entry");
+      g_free(saved_content);
+    } else {
+      check(false, "XDG login item content can be read back");
+    }
+    check(fulcrum_set_autostart(false, executable_path().string(), error) &&
+              !fulcrum_autostart_enabled(), "disabling login startup removes own entry");
+    std::filesystem::remove_all(temp_config);
+    g_free(temp_config);
+  }
+  if (had_xdg) g_setenv("XDG_CONFIG_HOME", original_xdg.c_str(), TRUE);
+  else g_unsetenv("XDG_CONFIG_HOME");
   // Check that the live X11 window actually advertises its program-chosen
   // position to the WM. The helper runs on every summon, not just startup.
   launcher.show();
@@ -115,6 +258,19 @@ int main() {
   launcher.refresh_results();
   focus(launcher.window);
   pump(80);
+  graphene_rect_t glyph_bounds{}, entry_bounds{};
+  bool const glyph_measured = gtk_widget_compute_bounds(
+      launcher.search_icon, GTK_WIDGET(launcher.window), &glyph_bounds);
+  bool const entry_measured = gtk_widget_compute_bounds(
+      GTK_WIDGET(launcher.search), GTK_WIDGET(launcher.window), &entry_bounds);
+  if (glyph_measured && entry_measured) {
+    auto const glyph_center = glyph_bounds.origin.y + glyph_bounds.size.height / 2.0;
+    auto const entry_center = entry_bounds.origin.y + entry_bounds.size.height / 2.0;
+    check(std::abs(glyph_center - entry_center) <= 3.0,
+          "search glyph and entry share one horizontal visual centerline");
+  } else {
+    check(false, "native search glyph and editable entry must both lay out");
+  }
   auto* scrolled = gtk_widget_get_ancestor(GTK_WIDGET(launcher.results),
                                           GTK_TYPE_SCROLLED_WINDOW);
   auto* first = gtk_list_box_get_row_at_index(launcher.results, 0);
@@ -195,7 +351,7 @@ int main() {
   gtk_list_box_select_row(launcher.results,
                          gtk_list_box_get_row_at_index(launcher.results, 11));
   set_i18n_language("zh");
-  check(std::string(gtk_search_entry_get_placeholder_text(launcher.search)).find(
+  check(std::string(gtk_entry_get_placeholder_text(launcher.search)).find(
             "搜索") != std::string::npos,
         "language changes update the existing search field immediately");
   check(gtk_list_box_row_get_index(gtk_list_box_get_selected_row(launcher.results)) == 11,

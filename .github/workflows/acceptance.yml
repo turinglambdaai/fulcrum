@@ -12,7 +12,7 @@ permissions:
 env:
   # Unified immutable upstream revision containing AppImage handoff,
   # branded-DMG signature preservation, and macOS update rollback safety.
-  RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
+  RIVET_PIN: e18c28e6b6b18ab0f59559e82e30c51c4229d91f
 
 jobs:
   windows:
@@ -98,7 +98,7 @@ jobs:
           sudo apt-get install -y build-essential cmake pkg-config \
             libgtk-4-dev libglib2.0-dev libsecret-1-dev liblz4-dev zlib1g-dev \
             libncurses-dev libx11-dev libxtst-dev weston xvfb xauth xdotool \
-            at-spi2-core python3-pyatspi
+            at-spi2-core python3-pyatspi rpm desktop-file-utils
       - name: Install pinned Rivet and dependencies
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
@@ -106,11 +106,47 @@ jobs:
       - name: Remember full Racket command path
         run: echo "FULL_RACKET_BIN=$(dirname "$(command -v raco)")" >> "$GITHUB_ENV"
       - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
       - name: Run executable product acceptance
         run: PATH="$FULL_RACKET_BIN:$PATH" dbus-run-session -- raco rivet acceptance --json
       - name: Require generated Linux client to be current
         run: git diff --exit-code -- linux/GeneratedBackend.hpp
+      # PR-only, explicitly UNSIGNED QA artifacts. This is deliberately
+      # distinct from tag-driven release.yml and the Ed25519 stable feed.
+      # Allows a real Ubuntu 26.04 GNOME 50 operator to test #111 using
+      # packages built from the exact candidate SHA. Never publish these.
+      - name: Build unsigned Linux GNOME 50 QA installers
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/v0.14.1-windows-lifecycle'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Real QA installer packages only. Upstream Rivet's release CLI
+          # requires private update signing keys unless --without-updates is
+          # explicit. Never touch production keys or publish a QA update feed.
+          PATH="$FULL_RACKET_BIN:$PATH" raco rivet release --development --without-updates
+          test -f dist/fulcrum-0.14.1-linux-amd64.deb
+          test -f dist/fulcrum-0.14.1-linux-x86_64.AppImage
+          # actions/upload-artifact strips the common dist/ root. Use
+          # filenames relative to that extraction root so manual verification
+          # works immediately after downloading this QA-only artifact.
+          (
+            cd dist
+            sha256sum fulcrum-0.14.1-linux-amd64.deb \
+              fulcrum-0.14.1-linux-x86_64.AppImage > gnome50-qa-only-SHA256SUMS
+            sha256sum -c gnome50-qa-only-SHA256SUMS
+          )
+          printf '%s\n' 'QA ONLY - development/unsigned, not a production release.'             'No real GNOME 50 hotkey verification is implied by these packages.'             > dist/gnome50-qa-only-README.txt
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/v0.14.1-windows-lifecycle'
+        with:
+          name: fulcrum-0.14.1-gnome50-qa-UNSIGNED
+          path: |
+            dist/fulcrum-0.14.1-linux-amd64.deb
+            dist/fulcrum-0.14.1-linux-x86_64.AppImage
+            dist/gnome50-qa-only-SHA256SUMS
+            dist/gnome50-qa-only-README.txt
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -32,6 +32,12 @@ the panel has been active once, otherwise the summon operation can erase itself.
   update already-open surfaces without restarting.
 - Platform-specific diagnostic entries are allowed only when the mechanism is
   platform-specific. The GNOME Alt+Space repair action is one such exception.
+- Search glyph and placeholder must share a single horizontal centerline on
+  all hosts. Linux uses a native, centered GtkImage beside GtkEntry rather
+  than GtkSearchEntry's independently padded built-in search icon.
+- A resident-ready status is **not** a visible launcher row when the launcher
+  is already open. Host startup failures, update progress/errors, and
+  platform-specific hotkey recovery remain visible and actionable when needed.
 
 ## Entry and settings parity
 
@@ -47,6 +53,37 @@ feature would incorrectly suggest a different product model.
 
 Settings and snippets remain backend-owned. Hosts may render different native
 form layouts, but keys, values, descriptions and availability must agree.
+
+### Settings information architecture (Windows / macOS)
+
+Windows and macOS must expose the same five settings areas: General, Features,
+AI, Commands, and Sync & Updates. Both use a fixed category sidebar and a
+single current section (native NavigationView + Mica/cards on WinUI, native
+sidebar + grouped Form on SwiftUI). The shared Racket backend owns validation,
+command alias/global bindings, AI key storage and updates; hosts must not
+silently omit the Commands editor on Windows. The summon hotkey and command
+bindings use native in-window key recording, without exposing canonical
+`mod+key` grammar in the default flow. Windows regular titled windows must
+show the product icon from the packaged numeric icon resource; borderless
+launcher windows do not need a fake titlebar or caption icon. macOS follows
+AppKit window decoration, not Win32 caption-icon conventions.
+
+Linux now uses a GTK StackSidebar + five scrollable native content pages
+(General, Features, AI, Commands, Sync & Updates). Its Commands editor uses
+the same backend validation API for aliases/shortcuts as WinUI and SwiftUI;
+Linux records its global summon shortcut directly with GTK key capture.
+Its Commands page edits aliases through the shared backend, but desktop-wide
+*per-command* hotkeys are currently unsupported on Linux; that input is
+visibly disabled rather than accepting inert bindings. Supporting per-command
+X11 grabs and Wayland portal bindings is a remaining explicit parity gap.
+The GTK widget and packaged Wayland acceptance suites must pass.
+
+Start at login is a **per-device opt-in** in General on all three hosts, not
+a synced Racket setting: macOS uses SMAppService and system approval, Windows
+uses HKCU Run, and Linux writes its own XDG autostart .desktop entry. An OS
+login launches a resident *hidden* host; an ordinary interactive launch keeps
+the existing summon behavior. Background login for an already running host
+must never toggle its visible panel.
 
 ## Acceptance contract
 

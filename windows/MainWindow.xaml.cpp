@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "MainWindow.xaml.h"
+#include "Autostart.h"
 #if __has_include("MainWindow.g.cpp")
 #include "MainWindow.g.cpp"
 #endif
@@ -112,6 +113,22 @@ std::filesystem::path executable_path() {
   }
   buffer.resize(length);
   return std::filesystem::path(buffer);
+}
+
+// MSI updates must replace the executable we are about to relaunch. If
+// Fulcrum was unpacked from the portable ZIP, handing an MSI to Windows
+// Installer would upgrade a different Program Files copy while reopening
+// this old ZIP exe, so it would look like the update never took effect.
+// The official x64 MSI installs at %ProgramFiles%\\Fulcrum\\RivetHost.exe.
+bool running_official_msi_installation() {
+  wchar_t program_files[32768]{};
+  auto const length = ::GetEnvironmentVariableW(
+      L"ProgramFiles", program_files, static_cast<DWORD>(std::size(program_files)));
+  if (length == 0 || length >= std::size(program_files)) return false;
+  auto const installed = std::filesystem::path(program_files) /
+                         L"Fulcrum" / L"RivetHost.exe";
+  std::error_code ec;
+  return std::filesystem::equivalent(executable_path(), installed, ec) && !ec;
 }
 
 std::string utf8(std::filesystem::path const& path) {
@@ -1038,6 +1055,21 @@ void MainWindow::FinishNativeSetup() {
                         self->QuitApplication();
                         return 0;
                       }
+                      if (msg == fulcrum::windows::kAcceptanceSettingsMessage &&
+                          self != nullptr && is_acceptance_run()) {
+                        self->ShowSettings();
+                        return 0;
+                      }
+                      if (msg == fulcrum::windows::kAcceptanceUpdateCheckMessage &&
+                          self != nullptr && is_acceptance_run()) {
+                        self->CheckForUpdates();
+                        return 0;
+                      }
+                      if (msg == fulcrum::windows::kAcceptanceHideMessage &&
+                          self != nullptr && is_acceptance_run()) {
+                        self->HideLauncher();
+                        return 0;
+                      }
                       if (msg == WM_NCHITTEST && self != nullptr) {
                         // The borderless panel has no titlebar to drag by,
                         // and the macOS panel stays movable through its
@@ -1607,7 +1639,9 @@ void MainWindow::ApplyResults(std::vector<rivet_app::ResultRow> rows) {
   UpdateEnterChips();
   if (!startup_presented_) {
     startup_presented_ = true;
-    ShowLauncher(false);  // show only after the first native rows are built
+    if (!fulcrum::windows::BackgroundLaunch()) {
+      ShowLauncher(false);  // show only after the first native rows are built
+    }
   }
 }
 
@@ -1719,8 +1753,12 @@ void MainWindow::RunSelected() {
             // ai-stream State drives the streaming panel.
             window->SetStatusOk(t("aiRunning"));
           } else if (status == "stay") {
-            // The result is meant to be read (update check, ...): the
-            // event already wrote the status line; keep the panel open.
+            // The backend has a new signed-feed candidate; refresh the
+            // visible update rows so Download appears without retyping.
+            // Do not replace an unrelated user query while the RPC ran.
+            if (row.id == "update.check" && window->QueryBox().Text() == L"update") {
+              window->SearchAsync(L"update");
+            }
           } else if (status == "detail") {
             // FPP2 plugin detail: fetch the payload and show it in the
             // panel slot. The RPC runs off the UI thread; the result
@@ -1748,15 +1786,25 @@ void MainWindow::RunSelected() {
               }
             }).detach();
           } else if (status == "downloading") {
-            // The backend download thread owns the transfer; the host
-            // mirrors its progress into the status bar.
-            window->HideLauncher();
+            // Keep the update workflow visible. The earlier implementation
+            // hid the launcher and wrote progress into its *hidden* footer,
+            // leaving users with no visible way to install the MSI.
+            window->SetStatusOk(L"Downloading verified update…");
+            if (window->QueryBox().Text() == L"update") {
+              window->SearchAsync(L"update");
+            }
             window->StartUpdateProgressPoll();
           } else if (status == "quit-and-install" &&
                      row.id == "update.install") {
             try {
               if (!update_path) {
                 throw std::runtime_error("downloaded update path is missing");
+              }
+              if (!running_official_msi_installation()) {
+                throw std::runtime_error(
+                    "This copy was not launched from the official MSI installation. "
+                    "Open the verified MSI from the updates folder to install "
+                    "Fulcrum; the portable ZIP cannot be upgraded in place by MSI.");
               }
               auto const msi = std::filesystem::path(to_wide(*update_path));
               rivet::update::MsiHandoff::LaunchVerifiedInstaller(
@@ -2034,11 +2082,19 @@ void MainWindow::AttachStatusBarCopyAffordance() {
   StatusText().ContextFlyout(footer_flyout);
 }
 
-// Manual check from the tray: manual=true bypasses the 4-hour family
-// throttle (the backend stamps the timestamp either way, per the update
-// trigger contract). Results surface in the footer; the `update` launcher
-// rows drive download and install from here.
+// Open the real update search workflow from the tray, even when Fulcrum
+// is resident and hidden. The footer alone is invisible in that state.
+void MainWindow::OpenUpdatesPanel() {
+  ShowLauncher();
+  if (!startup_presented_ || quitting_) return;
+  QueryBox().Text(L"update");
+  SearchAsync(L"update");
+}
+
+// Manual check bypasses the shared four-hour silent-check throttle, but
+// always returns the user to a visible, actionable update surface.
 void MainWindow::CheckForUpdates() {
+  OpenUpdatesPanel();
   if (api_ == nullptr) {
     SetStatusError(L"Update check once the backend is ready.");
     return;
@@ -2076,6 +2132,11 @@ void MainWindow::CheckForUpdates() {
           window->SetStatusError(line);
         } else {
           window->SetStatusOk(line);
+        }
+        // The check updates the candidate in the Racket backend. A stale
+        // WinUI result list otherwise continues to show only Check again.
+        if (window->QueryBox().Text() == L"update") {
+          window->SearchAsync(L"update");
         }
       }
     });
@@ -2126,6 +2187,11 @@ void MainWindow::StartUpdateProgressPoll() {
           dispatcher.TryEnqueue([weak]() mutable {
             if (auto window = weak.get()) {
               window->SetStatusOk(t("updateDownloadedStatusWin"));
+              // Download finished: replace the progress row with the real
+              // verified MSI Install row without requiring another query.
+              if (window->QueryBox().Text() == L"update") {
+                window->SearchAsync(L"update");
+              }
             }
           });
           break;
@@ -2137,6 +2203,9 @@ void MainWindow::StartUpdateProgressPoll() {
               std::wstring const detail =
                   message ? to_wide(*message) : t("updateUnknownError");
               window->SetStatusError(t_format("updateDownloadFailed", {detail}));
+              if (window->QueryBox().Text() == L"update") {
+                window->SearchAsync(L"update");
+              }
             }
           });
           break;
