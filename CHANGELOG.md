@@ -8,6 +8,14 @@ independently per platform packaging run.
 
 ## [0.14.1] - 2026-10-30
 
+### Changed
+
+- **Rivet pin moved to b81d66d**, which makes DMG packaging resilient to
+  slow volume teardown on CI runners: the installer now probes the mount
+  point, retries the graceful detach across the busy window, treats an
+  already-torn-down volume as success, and only then falls back to the
+  forced detach.
+
 ### Fixed
 
 - **Recents no longer remember what you typed.** Only stable launcher
