@@ -6,6 +6,32 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-30
+
+### Fixed
+
+- **Recents no longer remember what you typed.** Only stable launcher
+  identities — app launches, system commands and window commands — are
+  recorded in the recent list; web searches, quicklinks, snippets, and
+  plugin arguments are excluded entirely, and startup scrubs legacy rows
+  that stored them. Read-only environments keep the sanitized in-memory
+  view when the cleanup cannot persist. Regression tests cover the
+  omission and the cleanup.
+- **Shortcut edits stay truthful when saves fail.** Setting or clearing a
+  hotkey now publishes to the resident host only after the atomic write
+  commits, so a failed save can no longer leave a binding live in memory
+  that storage never accepted. The failed set and clear paths are covered
+  by regression tests.
+- **Windows launches and quits as one resident instance.** The first frame
+  stays hidden until the resident process answers, a second launch targets
+  the resident window by its native HWND and exits, and quitting shuts the
+  resident process down so relaunches start clean. The packaged Windows E2E
+  suite asserts the blank-frame, secondary-exit, quit and relaunch behavior.
+- **Draft releases publish reliably.** The release workflow resolves GitHub
+  draft releases by their REST database id — `gh release view` returns a
+  GraphQL node id, which the publish endpoint rejects — instead of trusting
+  the tag-name lookup that 0.14.0 relied on.
+
 ## [0.14.0] - 2026-10-27
 
 ### Added
