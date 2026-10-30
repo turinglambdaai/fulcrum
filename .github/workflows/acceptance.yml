@@ -14,6 +14,10 @@ env:
   # branded-DMG signature preservation, and macOS update rollback safety.
   RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows:
     name: Windows packaged WinUI acceptance
