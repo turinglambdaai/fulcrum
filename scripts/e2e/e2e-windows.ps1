@@ -17,6 +17,8 @@ public static class FulcrumNative {
     public static extern IntPtr SendMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll", EntryPoint="GetClassLongPtrW", SetLastError = true)]
     public static extern IntPtr GetClassLongPtr(IntPtr hwnd, int index);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool IsWindowVisible(IntPtr hwnd);
 }
 '@
 
@@ -45,6 +47,31 @@ function Find-ById {
         [System.Windows.Automation.AutomationElement]::AutomationIdProperty,
         $AutomationId)
     $Root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
+}
+
+# WinUI creates the XAML HWND before the backend's first result is ready.
+# RootElement can return this *hidden* HWND through UI Automation; finding
+# it does not mean the user has seen a frame. Assert on the first window that
+# Win32 actually marks visible instead of racing the hidden startup scaffold.
+function Find-VisibleLauncher {
+    param($Desktop, [int]$TargetProcessId)
+    $condition = [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty,
+        $TargetProcessId)
+    $windows = $Desktop.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+    for ($index = 0; $index -lt $windows.Count; $index++) {
+        $candidate = $windows[$index]
+        try {
+            $handle = [IntPtr]::new([int64]$candidate.Current.NativeWindowHandle)
+            if ($handle -ne [IntPtr]::Zero -and
+                [FulcrumNative]::IsWindowVisible($handle)) {
+                return $candidate
+            }
+        } catch [System.Windows.Automation.ElementNotAvailableException] {
+            # It closed between enumeration and probing; re-enumerate next tick.
+        }
+    }
+    return $null
 }
 
 function Find-ByName {
@@ -100,10 +127,8 @@ try {
         -RedirectStandardOutput (Join-Path $output 'application.stdout.log') `
         -RedirectStandardError (Join-Path $output 'application.stderr.log')
     $desktop = [System.Windows.Automation.AutomationElement]::RootElement
-    $window = Wait-Until 'Fulcrum window' {
-        $condition = [System.Windows.Automation.PropertyCondition]::new(
-            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-        $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    $window = Wait-Until 'first visible Fulcrum window' {
+        Find-VisibleLauncher $desktop $process.Id
     }
     $query = Wait-Until 'Fulcrum query field' { Find-ById $window 'QueryBox' }
     # The first visible WinUI frame must be initialized, not the old empty
@@ -378,15 +403,15 @@ try {
         -WorkingDirectory $repo `
         -RedirectStandardOutput (Join-Path $output 'relaunch.stdout.log') `
         -RedirectStandardError (Join-Path $output 'relaunch.stderr.log')
-    $restarted = Wait-Until 'restarted Fulcrum launcher' {
-        $condition = [System.Windows.Automation.PropertyCondition]::new(
-            [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $process.Id)
-        $desktop.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
+    $restarted = Wait-Until 'first visible restarted Fulcrum launcher' {
+        Find-VisibleLauncher $desktop $process.Id
     }
     [void](Wait-Until 'restarted query field' { Find-ById $restarted 'QueryBox' })
     $restartedStatus = Find-ById $restarted 'StatusText'
     if (-not $restartedStatus -or $restartedStatus.Current.Name -match 'Starting embedded') {
-        throw 'restarted launcher showed uninitialized scaffold'
+        Save-AccessibilitySnapshot $restarted (Join-Path $output 'relaunch-failure-accessibility.json')
+        $statusText = if ($restartedStatus) { $restartedStatus.Current.Name } else { '<missing>' }
+        throw "visible restarted launcher showed uninitialized scaffold; status=$statusText"
     }
 
     [ordered]@{
