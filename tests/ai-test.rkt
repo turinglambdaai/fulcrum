@@ -181,16 +181,21 @@
                      "entropy is a measure of disorder")
        (check-equal? (car (ai-copy-last-answer)) "copied")
 
-       ;; The ⌘K panel of the last-answer row offers paste-back; running
-       ;; it hands the answer to the host event — the emit needs a live
-       ;; server, so the check is that the "no AI answer" refusal is gone
-       ;; and the action reaches the event stage.
+       ;; The ⌘K panel offers paste-back. A headless test cannot deliver
+       ;; host events: Rivet now reports an unbound event emitter rather
+       ;; than the older "no Rivet server" error. Both identify event
+       ;; dispatch, not an empty-answer refusal. A bound emitter can
+       ;; instead accept the action and return "copied".
        (define panel (row-actions-for "ai.copy" "entropy is a measure of disorder"))
        (check-equal? (list-ref (car panel) 0) "ai.paste")
-       (define paste-error
+       (define paste-result
          (with-handlers ([exn:fail? exn-message])
            (run-action "ai.paste" "")))
-       (check-true (string-contains? paste-error "no Rivet server"))
+       (check-true (or (equal? paste-result "copied")
+                       (and (string? paste-result)
+                            (or (string-contains? paste-result "no Rivet server")
+                                (string-contains? paste-result
+                                                  "no Rivet event emitter is bound")))))
 
        ;; "ai model <name>" saves the model through the settings route;
        ;; bare "ai model" offers the syntax with the current value.
