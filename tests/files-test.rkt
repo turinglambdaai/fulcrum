@@ -11,7 +11,8 @@
          racket/string
          rackunit
          "../app/core/engine.rkt"
-         "../app/core/files.rkt")
+         "../app/core/files.rkt"
+         "../app/core/file-catalog.rkt")
 
 (define (row-id row) (list-ref row 0))
 (define (row-kind row) (list-ref row 3))
@@ -165,6 +166,50 @@
             (lambda ()
               (when (file-exists? fixture) (delete-file fixture))
               (when (not already-exists?)
+                (with-handlers ([exn:fail? (lambda (_) (void))])
+                  (delete-directory downloads))))))))))
+
+
+(test-case "Windows native find discovers an opted-in workspace alongside Downloads"
+  (when (eq? (system-type 'os) 'windows)
+    (let ([profile (getenv "USERPROFILE")])
+      (when profile
+        ;; Actions Windows checkout is normally on D:, while Downloads is
+        ;; on C:. This still checks opt-in behavior on a single-volume host.
+        (let* ([token (format "fulcrum-dual-volume-~a"
+                              (current-process-milliseconds))]
+               [downloads (build-path profile "Downloads")]
+               [had-downloads? (directory-exists? downloads)]
+               [workspace (build-path (current-directory) token)]
+               [known (build-path downloads (string-append token "-known.txt"))]
+               [extra (build-path workspace (string-append token "-workspace.txt"))]
+               [previous (getenv "FULCRUM_FILE_SEARCH_ROOTS")])
+          (dynamic-wind
+            (lambda ()
+              (make-directory* downloads)
+              (make-directory* workspace)
+              (display-to-file "known" known #:exists 'truncate)
+              (display-to-file "workspace" extra #:exists 'truncate)
+              (putenv "FULCRUM_FILE_SEARCH_ROOTS" (path->string workspace)))
+            (lambda ()
+              (check-not-false
+               (member (simple-form-path workspace)
+                       (default-file-catalog-roots #:os 'windows)))
+              (define result (file-search/status token 8 #:os 'windows))
+              (check-equal? (file-search-result-status result) 'ok)
+              (define paths (map cdr (file-search-result-hits result)))
+              (check-true
+               (for/or ([path (in-list paths)])
+                 (string-ci=? path (path->string known))))
+              (check-true
+               (for/or ([path (in-list paths)])
+                 (string-ci=? path (path->string extra)))))
+            (lambda ()
+              (putenv "FULCRUM_FILE_SEARCH_ROOTS" (or previous ""))
+              (when (file-exists? known) (delete-file known))
+              (when (directory-exists? workspace)
+                (delete-directory/files workspace))
+              (when (not had-downloads?)
                 (with-handlers ([exn:fail? (lambda (_) (void))])
                   (delete-directory downloads))))))))))
 
