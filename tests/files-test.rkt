@@ -107,7 +107,12 @@
   (check-true (string-contains? script "GetFolderPath('MyDocuments')"))
   (check-true (string-contains? script "OneDriveConsumer"))
   (check-true (string-contains? script "OutputEncoding"))
-  (check-true (string-contains? script "if($out.Count -eq 0){try{"))
+  ;; The index probe is independent of a known-folder hit and time-bounded.
+  (check-false (string-contains? script "if($out.Count -eq 0){try{"))
+  (check-true (string-contains? script "if($out.Count -lt 128){"))
+  (check-true (string-contains? script "Start-Job"))
+  (check-true (string-contains? script "Wait-Job -Job $job -Timeout 2"))
+  (check-true (string-contains? script "FULCRUM_FILE_SEARCH_ROOTS"))
   (check-true (string-contains? script "SYSTEMINDEX"))
   (check-true (string-contains? script "CONTAINS(System.FileName,"))
   (check-true (string-contains? script "FREETEXT(System.FileName,"))
@@ -117,6 +122,22 @@
   ;; The query is neutralized for both SQL and PowerShell single quotes.
   (check-false (string-contains? script "o'brien"))
   (check-true (string-contains? script "o''brien")))
+
+(test-case "Windows combined known-folder and indexed-drive candidates preserve both volumes"
+  (define result
+    (file-search/status
+     "project-report" 8
+     #:os 'windows
+     #:resolve (lambda (program) (and (string=? program "powershell.exe") program))
+     #:run (lambda (_program _args #:timeout-ms [_timeout-ms 3000]
+                                    #:cancel-evt [_cancel-evt never-evt])
+             "C:\\Users\\me\\Documents\\project-report.txt\r\nfile:///D:/Projects/project-report.txt\r\n")))
+  (check-equal? (file-search-result-status result) 'ok)
+  (check-equal? (length (file-search-result-hits result)) 2)
+  (check-true (member "C:\\Users\\me\\Documents\\project-report.txt"
+                      (map cdr (file-search-result-hits result))))
+  (check-true (member "D:/Projects/project-report.txt"
+                      (map cdr (file-search-result-hits result)))))
 
 (test-case "Windows explicit find resolves a real fixture with the production PowerShell runner"
   (when (eq? (system-type 'os) 'windows)

@@ -98,8 +98,25 @@
          (simple-form-path path))]
       [(unix) (xdg-user-roots home-path env)]
       [else '()]))
+  ;; Explicit additional Windows workspaces are indexed on demand; never
+  ;; walk entire disks or UNC shares by default.  The environment variable
+  ;; is read by both this catalog and the bounded PowerShell query.
+  (define configured
+    (if (eq? os 'windows)
+        (let ([raw (env "FULCRUM_FILE_SEARCH_ROOTS")])
+          (if (and (string? raw) (not (string=? raw "")))
+              (for/list ([item (in-list (take (string-split raw ";")
+                                               (min 8 (length (string-split raw ";")))))]
+                         #:do [(define text (string-trim item))]
+                         #:when (and (> (string-length text) 3)
+                                     (regexp-match? #px"^[A-Za-z]:[\\\\/]" text))
+                         #:do [(define directory (existing-directory text))]
+                         #:when directory)
+                directory)
+              '()))
+        '()))
   (remove-duplicates
-   (append base cloud)
+   (append base cloud configured)
    (if (eq? os 'windows) string-ci=? string=?)
    #:key path->string))
 

@@ -154,6 +154,17 @@ platform search times out or is temporarily unavailable. Install `plocate`
 on Linux for fast broad searches; with neither platform results nor a known
 local match, Fulcrum says so honestly.
 
+**Windows additional drives:** indexed files on D:/E: can be returned by
+Windows Search alongside C: files. Unindexed folders on those drives are not
+scanned by default. To include a workspace such as `D:\\Projects` or
+`E:\\Notes`, set the Windows user environment variable
+`FULCRUM_FILE_SEARCH_ROOTS=D:\\Projects;E:\\Notes`, then fully quit and
+restart Fulcrum. The first `find <query>` starts a persistent, local-only
+catalog of those folders, without duplicating their files. Up to eight
+existing local work directories can be supplied; entire drive roots and
+network shares are intentionally excluded. You can check progress with
+`file index`. The index does not automatically add every disk on the PC.
+
 Type `file index` to see whether the local catalog is idle, scanning, ready,
 partially ready because a folder was unreadable, or failed. A partial scan
 preserves older entries instead of treating an access denial as deletion.

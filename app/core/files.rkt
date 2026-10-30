@@ -273,8 +273,12 @@
 ;;   1. Windows known folders — Desktop, Documents and Downloads (including
 ;;      shell-redirected and OneDrive directories), before probing OLE DB.
 ;;      A broken Windows Search service must not prevent common-file results.
-;;   2. Windows Search (SYSTEMINDEX) for other indexed scopes.
+;;   2. Independently collect Windows Search (SYSTEMINDEX) matches from
+;;      indexed C:/D:/E: volumes, even when known-folder files matched.
+;;      Cap this optional probe so a broken index does not discard fast hits.
 ;;   3. A bounded user-profile walk only if the first two tiers found nothing.
+;; FULCRUM_FILE_SEARCH_ROOTS adds up to eight explicit local work directories
+;; (e.g. D:\\Projects;E:\\Notes), never arbitrary unbounded whole-drive roots.
 ;; The former index-first chain frequently spent its entire three-second
 ;; deadline in OLE DB or an enormous USERPROFILE recursion, yielding zero
 ;; results for files that were plainly present under Documents.
@@ -298,6 +302,13 @@
    "$roots=@([Environment]::GetFolderPath('DesktopDirectory'),"
    "[Environment]::GetFolderPath('MyDocuments'),"
    "(Join-Path $env:USERPROFILE 'Downloads'));"
+   "if($env:FULCRUM_FILE_SEARCH_ROOTS){"
+   "foreach($item in @($env:FULCRUM_FILE_SEARCH_ROOTS -split ';' | Select-Object -First 8)){"
+   "$item=$item.Trim();"
+   "if($item.Length -gt 3 -and $item.Substring(0,1) -match '^[A-Za-z]$' -and "
+   "($item.Substring(1,2) -eq ':\\' -or $item.Substring(1,2) -eq ':/')){"
+   "$roots=@($item)+@($roots)"
+   "}}};"
    "foreach($cloud in @($env:OneDriveConsumer,$env:OneDrive)){"
    "if($cloud){$roots+=@((Join-Path $cloud 'Desktop'),"
    "(Join-Path $cloud 'Documents'))}};"
@@ -307,17 +318,29 @@
    "Select-Object -First 128 -ExpandProperty FullName)}catch{};"
    "if($out.Count -ge 128){break}"
    "};"
-   "if($out.Count -eq 0){try{"
+   ;; Windows Search may index D:/E: even when a known folder on C: matched.
+   ;; An OLE DB provider that stalls must not discard the already found paths.
+   ;; Isolate that optional probe in a bounded child PowerShell job.
+   "if($out.Count -lt 128){"
+   "$job=$null;try{"
+   "$job=Start-Job -ArgumentList $qs -ScriptBlock {param($needle);"
+   "$indexed=@();try{"
    "$c=New-Object System.Data.OleDb.OleDbConnection(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
-   "$c.Open();$cmd=$c.CreateCommand();"
-   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
-   "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close();"
-   "if($out.Count -eq 0){"
-   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$qs`\"') AND SCOPE='file:'\";"
-   "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close()"
+   "$c.Open();$cmd=$c.CreateCommand();$cmd.CommandTimeout=2;"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\\\"$needle*`\\\"') AND SCOPE='file:'\";"
+   "$r=$cmd.ExecuteReader();while($r.Read()){$indexed+=$r.GetString(0)};$r.Close();"
+   "if($indexed.Count -eq 0){"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\\\"$needle`\\\"') AND SCOPE='file:'\";"
+   "$r=$cmd.ExecuteReader();while($r.Read()){$indexed+=$r.GetString(0)};$r.Close()"
+   "};$c.Close()"
+   "}catch{};$indexed};"
+   "if(Wait-Job -Job $job -Timeout 2){"
+   "$out+=@(Receive-Job -Job $job -ErrorAction SilentlyContinue)"
    "}"
-   "$c.Close()"
-   "}catch{}};"
+   "}catch{}finally{if($job){"
+   "Stop-Job -Job $job -ErrorAction SilentlyContinue;"
+   "Remove-Job -Job $job -Force -ErrorAction SilentlyContinue"
+   "}}};"
    "if($out.Count -gt 0){"
    "$out|Select-Object -Unique -First 128|ForEach-Object{"
    "if($_ -like 'file:*'){[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
