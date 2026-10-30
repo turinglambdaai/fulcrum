@@ -181,16 +181,18 @@
                      "entropy is a measure of disorder")
        (check-equal? (car (ai-copy-last-answer)) "copied")
 
-       ;; The ⌘K panel of the last-answer row offers paste-back; running
-       ;; it hands the answer to the host event — the emit needs a live
-       ;; server, so the check is that the "no AI answer" refusal is gone
-       ;; and the action reaches the event stage.
+       ;; The ⌘K panel offers paste-back. In a headless test, Rivet may
+       ;; either accept the event for dispatch (returning "copied") or
+       ;; report that no live server is attached. Both paths prove that
+       ;; the action reached event dispatch instead of refusing the answer.
        (define panel (row-actions-for "ai.copy" "entropy is a measure of disorder"))
        (check-equal? (list-ref (car panel) 0) "ai.paste")
-       (define paste-error
+       (define paste-result
          (with-handlers ([exn:fail? exn-message])
            (run-action "ai.paste" "")))
-       (check-true (string-contains? paste-error "no Rivet server"))
+       (check-true (or (equal? paste-result "copied")
+                       (and (string? paste-result)
+                            (string-contains? paste-result "no Rivet server"))))
 
        ;; "ai model <name>" saves the model through the settings route;
        ;; bare "ai model" offers the syntax with the current value.
