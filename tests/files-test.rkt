@@ -195,15 +195,15 @@
               (check-not-false
                (member (simple-form-path workspace)
                        (default-file-catalog-roots #:os 'windows)))
-              (define result (file-search/status token 8 #:os 'windows))
-              (check-equal? (file-search-result-status result) 'ok)
-              (define paths (map cdr (file-search-result-hits result)))
-              (check-true
-               (for/or ([path (in-list paths)])
-                 (string-ci=? path (path->string known))))
-              (check-true
-               (for/or ([path (in-list paths)])
-                 (string-ci=? path (path->string extra)))))
+              (let* ([result (file-search/status token 8 #:os 'windows)]
+                     [paths (map cdr (file-search-result-hits result))])
+                (check-equal? (file-search-result-status result) 'ok)
+                (check-true
+                 (for/or ([path (in-list paths)])
+                   (string-ci=? path (path->string known))))
+                (check-true
+                 (for/or ([path (in-list paths)])
+                   (string-ci=? path (path->string extra))))))
             (lambda ()
               (putenv "FULCRUM_FILE_SEARCH_ROOTS" (or previous ""))
               (when (file-exists? known) (delete-file known))
