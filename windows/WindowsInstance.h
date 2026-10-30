@@ -10,6 +10,9 @@ namespace fulcrum::windows {
 
 inline constexpr UINT kSummonResidentMessage = WM_APP + 5;
 inline constexpr UINT kAcceptanceQuitMessage = WM_APP + 6;
+inline constexpr UINT kAcceptanceSettingsMessage = WM_APP + 7;
+inline constexpr UINT kAcceptanceUpdateCheckMessage = WM_APP + 8;
+inline constexpr UINT kAcceptanceHideMessage = WM_APP + 9;
 
 inline std::wstring InstanceId() {
   std::wstring id = L"site.jrtx.fulcrum";

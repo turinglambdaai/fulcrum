@@ -3,9 +3,9 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Windows 11 Settings grammar: section titles over cards, one row per
-         setting with the control trailing. Every control carries its
-         backend key in Tag; the code-behind writes through settings-set. -->
+    <!-- Shared five-section IA across macOS/Windows/Linux; native WinUI 3
+         NavigationView + card controls preserve the Windows interaction model.
+         Settings and commands are still owned and validated by RVT1. -->
     <Grid>
         <Grid.Resources>
             <Style x:Key="Card" TargetType="Border">
@@ -32,9 +32,22 @@
             </Style>
         </Grid.Resources>
 
-        <ScrollViewer>
-            <StackPanel Margin="32,4,32,32" MaxWidth="720" HorizontalAlignment="Stretch">
+        <NavigationView x:Name="SettingsNavigation" PaneDisplayMode="Left"
+                        OpenPaneLength="190"
+                        IsPaneToggleButtonVisible="False" IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False" IsPaneOpen="True"
+                        SelectionChanged="Navigation_SelectionChanged">
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="General" Tag="general" AutomationProperties.AutomationId="settings-sidebar-general" />
+                <NavigationViewItem Content="Features" Tag="features" AutomationProperties.AutomationId="settings-sidebar-features" />
+                <NavigationViewItem Content="AI" Tag="ai" AutomationProperties.AutomationId="settings-sidebar-ai" />
+                <NavigationViewItem Content="Commands" Tag="commands" AutomationProperties.AutomationId="settings-sidebar-commands" />
+                <NavigationViewItem Content="Sync &amp; Updates" Tag="sync" AutomationProperties.AutomationId="settings-sidebar-sync" />
+            </NavigationView.MenuItems>
+            <ScrollViewer>
+                <StackPanel Margin="24,4,24,24" HorizontalAlignment="Stretch">
 
+                <StackPanel x:Name="GeneralSection" Visibility="Visible" AutomationProperties.AutomationId="settings-general-content">
                 <TextBlock Text="General" Style="{StaticResource SectionTitle}" />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -70,11 +83,25 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="HotkeyLabel" Text="Hotkey" Style="{StaticResource RowLabel}" />
                             <TextBox x:Name="HotkeyBox" Grid.Column="1" Tag="hotkey" MinWidth="200"
-                                     VerticalAlignment="Center" PlaceholderText="alt+space"
-                                     LostFocus="Text_LostFocus" KeyDown="Text_KeyDown" />
+                                     AutomationProperties.AutomationId="settings-record-hotkey"
+                                     VerticalAlignment="Center" PlaceholderText="Focus and press a shortcut"
+                                     IsReadOnly="True" KeyDown="Hotkey_KeyDown" />
+                        </Grid>
+                        <Grid Style="{StaticResource Row}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Start at login" Style="{StaticResource RowLabel}" />
+                            <ToggleSwitch x:Name="LoginStartupSwitch" Grid.Column="1" Tag="local-login-startup"
+                                          AutomationProperties.AutomationId="settings-start-at-login"
+                                          OnContent="" OffContent="" MinWidth="0"
+                                          VerticalAlignment="Center" Toggled="Toggle_Toggled" />
                         </Grid>
                         <TextBlock Style="{StaticResource Hint}"
-                                   Text="Modifiers alt / ctrl / shift / win plus a key: space, a–z, 0–9, f1–f12, comma, period, minus, equal, tab. Applies immediately; a taken combo falls back to Ctrl+Alt+Space." />
+                                   Text="Runs quietly after sign-in. This setting belongs to this PC." />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Focus the hotkey box, then press Alt/Ctrl/Shift/Win plus a key. Esc cancels; a taken combo is rejected with an error." />
                         <Grid Style="{StaticResource Row}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -88,6 +115,9 @@
                     </StackPanel>
                 </Border>
 
+                </StackPanel>
+
+                <StackPanel x:Name="FeaturesSection" Visibility="Collapsed">
                 <TextBlock Text="Features" Style="{StaticResource SectionTitle}" />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -172,6 +202,9 @@
                     </StackPanel>
                 </Border>
 
+                </StackPanel>
+
+                <StackPanel x:Name="AiSection" Visibility="Collapsed">
                 <TextBlock Text="AI" Style="{StaticResource SectionTitle}" />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -238,6 +271,21 @@
                     </StackPanel>
                 </Border>
 
+                </StackPanel>
+
+                <StackPanel x:Name="CommandsSection" Visibility="Collapsed" AutomationProperties.AutomationId="settings-commands-content">
+                    <TextBlock x:Name="CommandsTitle" Text="Commands" Style="{StaticResource SectionTitle}"
+                               AutomationProperties.AutomationId="settings-commands-title" />
+                    <TextBlock Text="Give a command a search alias or a global shortcut. Focus a shortcut box and press modifiers plus a key; Esc cancels." Style="{StaticResource Hint}" />
+                    <TextBlock x:Name="BindingErrorText" Foreground="#D13438" TextWrapping="Wrap" Visibility="Collapsed" />
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel x:Name="CommandRows" Spacing="6">
+                            <TextBlock Text="Loading commands…" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel x:Name="SyncSection" Visibility="Collapsed">
                 <TextBlock Text="Sync &amp; Updates" Style="{StaticResource SectionTitle}" />
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -258,9 +306,12 @@
                     </StackPanel>
                 </Border>
 
+                </StackPanel>
+
                 <TextBlock x:Name="ErrorText" Margin="0,16,0,0" Foreground="#D13438"
                            TextWrapping="Wrap" IsTextSelectionEnabled="True" Visibility="Collapsed" />
-            </StackPanel>
-        </ScrollViewer>
+                </StackPanel>
+            </ScrollViewer>
+        </NavigationView>
     </Grid>
 </Window>

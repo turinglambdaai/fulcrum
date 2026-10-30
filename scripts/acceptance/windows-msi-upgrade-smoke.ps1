@@ -1,11 +1,11 @@
 # Windows MSI real installed-version upgrade smoke.
 # This validates the *installer* lifecycle, not the in-app MsiHandoff UI or
 # Ed25519 feed authorization; both require a separate signed-feed E2E test.
-# Uses immutable Fulcrum v0.13.1 -> v0.13.2 public release assets.
+# Uses immutable Fulcrum v0.13.3 -> v0.14.0 public release assets.
 [CmdletBinding()]
 param(
-  [string]$OldVersion = "0.13.1",
-  [string]$NewVersion = "0.13.2"
+  [string]$OldVersion = "0.13.3",
+  [string]$NewVersion = "0.14.0"
 )
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest

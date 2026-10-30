@@ -6,6 +6,101 @@ independently per platform packaging run.
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-27
+
+### Known limitations
+
+- **Ubuntu 26.04 GNOME 50 Wayland first-time shortcut consent:** On some
+  desktops the upstream GNOME GlobalShortcutsProvider stalls before the
+  authorization dialog responds. This was reproduced on a genuine GNOME 50.1
+  arm64 VM even with an alternative working launch identity. After approval,
+  repeated Alt+Space activation and login persistence passed; changing the
+  shortcut through Settings and the denied-consent status were not verified
+  in that VM. If the portal cannot authorize, create a GNOME custom shortcut
+  that executes `fulcrum --toggle`. See [issue #111](https://github.com/turlamai/fulcrum/issues/111).
+  This limitation requires an explicit release-owner acceptance before a
+  stable release; CI passing does not imply otherwise.
+
+### Fixed
+
+- **Windows launcher no longer flashes an empty search panel.** It waits for
+  the embedded backend's first search result and builds the native rows before
+  showing the window. Startup failures surface a visible diagnostic instead.
+- **Windows second-launch behavior is recoverable.** Launching Fulcrum again
+  summons the resident panel and exits the secondary process cleanly, rather
+  than accumulating headless copies; activation respects the exact lease ID.
+- **Windows Quit releases the background process.** The tray Quit and verified
+  MSI installation paths unregister native hooks, shut down the embedded
+  Racket/RVT1 backend, and terminate WinUI. Esc and Alt+F4 still hide the
+  launcher without quitting the resident service.
+
+- **Windows Settings now matches the macOS navigation model.** A native WinUI
+  NavigationView exposes General, Features, AI, Commands, and Sync & Updates
+  as individual pages; users can edit command aliases and shortcuts, and
+  record the global summon shortcut without typing the backend key grammar.
+- **Windows updater remains visible from the tray.** Check for Updates now opens
+  the launcher directly in its update workflow, refreshes authenticated
+  download actions after checks, keeps native download progress visible,
+  and presents the verified MSI Install action immediately after download.
+  The existing signed Ed25519 manifest, bounded download/SHA-256 checks, and
+  external MSI quit/install/relaunch handoff remain the trust boundary.
+- **Windows Settings shows Fulcrum's brand icon in the title bar.** The window
+  now installs the embedded resource ID 1 through `SetIcon(IconId)` instead of
+  passing `RivetHost.exe` to the `.ico`-path overload.
+- **Windows explicit `find <filename>` search works even if Windows Search is
+  unavailable.** The PowerShell command now searches the user's actual
+  Documents, Desktop, Downloads and redirected OneDrive locations before
+  trying the Windows Search index or a bounded profile fallback; it handles
+  UTF-8 paths. File results remain behind the explicit `find` command —
+  plain searches and the search placeholder are deliberately unchanged.
+
+- **Linux GTK search icon aligns with the search placeholder.** The themed
+  magnifying-glass glyph and editable query now occupy one vertically centered
+  horizontal row instead of relying on GtkSearchEntry's internally padded icon.
+- **Linux hides the redundant resident-ready banner.** The normal `Ready —
+  hotkey or fulcrum --toggle` status no longer sits permanently above search
+  results when the launcher is visible. Actual startup failures, hotkey
+  conflicts, download errors, and progress notices remain discoverable.
+
+- **Linux no longer flashes an empty startup search window.** Initial
+  launcher presentation waits for native search results from the embedded
+  backend. Failed boot still shows a visible diagnostic instead of hiding it.
+- **Linux Settings uses native five-section navigation.** General, Features,
+  AI, Commands and Sync & Updates now share one GTK sidebar/stack, matching
+  the information architecture of macOS and Windows; Commands uses the same
+  bindings-commands/list/set/clear backend API for aliases; desktop-wide
+  command hotkey execution is explicitly disabled on Linux until a native
+  binding runner is implemented.
+- **Start at login is available as an opt-in per-device control on all hosts.**
+  Linux uses XDG Autostart, Windows uses the current-user Run key, and macOS
+  uses SMAppService's main-app Login Item with system approval. No automatic
+  sync or default enablement; Windows/Linux login launches stay resident
+  without popping open the launcher.
+
+### Regression coverage
+
+- Ubuntu 26.04 GNOME 50 Wayland portal identity: native installs
+  register `site.jrtx.fulcrum` on a retained shared D-Bus connection.
+  A real Ubuntu 26.04.1 GNOME 50.1 Wayland **arm64** VM verified
+  `Registry.Register`, `CreateSession`, consent approval, repeated
+  `Activated`, and login-startup persistence; see issue #111.
+  This is not evidence for other architectures or all denial/settings paths.
+- Linux widget tests cover the deferred first frame, five Settings sections,
+  and enable/disable round-trip of a temporary XDG login entry. Windows and
+  macOS host checks and packaged acceptance remain release gates.
+- Windows backend tests and packaged WinUI acceptance seed a real user file
+  and require `find <name>` to return its actual path, not simply invoke a
+  search subprocess. This check is a release gate on the final commit.
+- Linux GTK widget regression checks image/input vertical alignment and
+  routine-ready visibility while preserving actionable status messages; its
+  packaged Wayland/AT-SPI acceptance uses backend result readiness rather than
+  depending on a permanent idle status row.
+- Windows packaged native-UI acceptance exercises ready-on-first-frame,
+  duplicate-launch handoff, normal process exit, and clean restart. Stable
+  release remains subject to the exact-commit CI, installer, signing, and
+  publishing gates documented in the release runbook.
+
+
 ## [0.14.0] - 2026-10-27
 
 ### Added

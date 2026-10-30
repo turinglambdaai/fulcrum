@@ -3,9 +3,9 @@
 ;; File search — per-platform, always available on desktop:
 ;;   macOS: Spotlight (`mdfind -name`) — millisecond responses, deep index
 ;;   Linux: `locate -i` (the mlocate/plocate index) or `find` as fallback
-;;   Windows: the Windows Search index (SYSTEMINDEX) when the service is
-;;     up, falling back in-process to a bounded `Get-ChildItem -Recurse`
-;;     scan when it is not
+;;   Windows: scan the user's actual known folders first (including redirected
+;;     OneDrive locations), then query Windows Search (SYSTEMINDEX) for broader
+;;     indexed results; a bounded profile walk is the last resort.
 ;; Claims `find <query>` queries so it never clutters unrelated searches.
 ;; Opening a result uses the platform opener, the same side-effect path
 ;; application launches use.
@@ -232,7 +232,7 @@
             void
             (lambda ()
               (runner program args
-                      #:timeout-ms 3000
+                      #:timeout-ms (if (eq? os 'windows) 9000 3000)
                       #:cancel-evt (semaphore-peek-evt cancel)))
             (lambda () (release-file-search! cancel))))
         (cond
@@ -268,12 +268,16 @@
 
 ;; ---- windows: index-first search script -----------------------------------
 
-;; One PowerShell invocation, two tiers inside the same 3-second budget:
-;;   1. the Windows Search index (SYSTEMINDEX) — filename prefix match,
-;;      then FREETEXT for the mid-word case; millisecond-fast when the
-;;      service is healthy
-;;   2. a bounded Get-ChildItem scan of the user profile — the honest
-;;      fallback when the index is off, empty or errors
+;; One PowerShell invocation, three tiers inside a bounded explicit-find
+;; request (9 seconds on Windows, not on ordinary launcher typing):
+;;   1. Windows known folders — Desktop, Documents and Downloads (including
+;;      shell-redirected and OneDrive directories), before probing OLE DB.
+;;      A broken Windows Search service must not prevent common-file results.
+;;   2. Windows Search (SYSTEMINDEX) for other indexed scopes.
+;;   3. A bounded user-profile walk only if the first two tiers found nothing.
+;; The former index-first chain frequently spent its entire three-second
+;; deadline in OLE DB or an enormous USERPROFILE recursion, yielding zero
+;; results for files that were plainly present under Documents.
 ;; The script is defensive on purpose: any index failure lands in the
 ;; catch and the scan still answers. Two query spellings travel in the
 ;; script: $q is the raw text (the scan's -Filter wants it literal) and
@@ -287,10 +291,23 @@
   (define sql-q (string-replace raw-q "'" "''"))
   (string-append
    "$ErrorActionPreference='SilentlyContinue';"
+   "[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);"
    "$out=@();"
    "$q='" (ps-literal raw-q) "';"
    "$qs='" (ps-literal sql-q) "';"
-   "try{"
+   "$roots=@([Environment]::GetFolderPath('DesktopDirectory'),"
+   "[Environment]::GetFolderPath('MyDocuments'),"
+   "(Join-Path $env:USERPROFILE 'Downloads'));"
+   "foreach($cloud in @($env:OneDriveConsumer,$env:OneDrive)){"
+   "if($cloud){$roots+=@((Join-Path $cloud 'Desktop'),"
+   "(Join-Path $cloud 'Documents'))}};"
+   "foreach($root in ($roots|Where-Object{$_ -and (Test-Path -LiteralPath $_ -PathType Container)}|Select-Object -Unique)){"
+   "try{$out+=@(Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -File "
+   "-Filter ('*'+$q+'*') -ErrorAction SilentlyContinue|"
+   "Select-Object -First 128 -ExpandProperty FullName)}catch{};"
+   "if($out.Count -ge 128){break}"
+   "};"
+   "if($out.Count -eq 0){try{"
    "$c=New-Object System.Data.OleDb.OleDbConnection(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
    "$c.Open();$cmd=$c.CreateCommand();"
    "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$qs*`\"') AND SCOPE='file:'\";"
@@ -300,9 +317,11 @@
    "$r=$cmd.ExecuteReader();while($r.Read()){$out+=$r.GetString(0)};$r.Close()"
    "}"
    "$c.Close()"
-   "}catch{};"
+   "}catch{}};"
    "if($out.Count -gt 0){"
-   "$out|Select-Object -First 128|ForEach-Object{[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
+   "$out|Select-Object -Unique -First 128|ForEach-Object{"
+   "if($_ -like 'file:*'){[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
+   "else{$_}}"
    "}else{"
    "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 128 -ExpandProperty FullName"
    "}"))

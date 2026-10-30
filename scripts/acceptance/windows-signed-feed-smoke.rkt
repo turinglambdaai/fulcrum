@@ -3,14 +3,14 @@
 ;; Real public-release Ed25519 manifest → Windows MSI download regression.
 ;; This intentionally does NOT call crypto/all use-all-factories!: installed
 ;; Fulcrum's backend must verify using its ordinary crypto factory setup.
-;; Pin the known v0.13.1 → v0.13.2 feed to avoid dependence on "latest".
+;; Pin the known v0.13.3 → v0.14.0 feed to avoid dependence on "latest".
 (require racket/file
          racket/path
          racket/string
          "../../app/update.rkt")
 
 (define base-url
-  "https://github.com/turinglambdaai/fulcrum/releases/download/v0.13.2")
+  "https://github.com/turinglambdaai/fulcrum/releases/download/v0.14.0")
 (define tmp (make-temporary-file "fulcrum-signed-win-update-~a" 'directory))
 (define previous-data-dir (getenv "FULCRUM_DATA_DIR"))
 (define (require! condition fmt . args)
@@ -33,16 +33,16 @@
 (dynamic-wind
   (lambda () (putenv "FULCRUM_DATA_DIR" (path->string tmp)))
   (lambda ()
-    (parameterize ([current-update-version "0.13.1"]
+    (parameterize ([current-update-version "0.13.3"]
                    [current-update-settings #f])
       (define result (perform-check! base-url))
       (require! (equal? (hash-ref result 'status #f) "available")
                 "expected signed update: ~a" result)
-      (require! (equal? (hash-ref result 'availableVersion #f) "0.13.2")
+      (require! (equal? (hash-ref result 'availableVersion #f) "0.14.0")
                 "unexpected signed update version: ~a" result)
       (require! (equal? (hash-ref result 'installer #f) "msi")
                 "installed Windows update must select MSI, got: ~a" result)
-      (displayln "PASS: real signed v0.13.2 Windows manifest verified and MSI selected")
+      (displayln "PASS: real signed v0.14.0 Windows manifest verified and MSI selected")
       (start-download! tmp)
       (let* ([snapshot (wait-for-download!)]
              [downloaded (hash-ref snapshot 'downloadedPath #f)]

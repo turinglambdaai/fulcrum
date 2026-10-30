@@ -160,6 +160,18 @@ Fulcrum 的 AI 用你自己的 OpenAI、Anthropic 或本地 Ollama 密钥。Fulc
 
 ## 设置
 
+**开机启动（登录后启动）：** 三平台均可在 **General（常规）→ Start at login** 自行开启或关闭，默认关闭，仅对当前设备生效，不随同步复制。登录系统后会在后台常驻，不自动弹出搜索界面。macOS 可能需要在系统设置的登录项中批准；Windows 使用当前用户的启动项；Ubuntu/Linux 使用 XDG 自动启动。AppImage 用户开启后请勿随意移动安装文件。
+
+Linux 设置界面改为与 macOS、Windows 一致的五类侧边导航：General、Features、AI、Commands、Sync & Updates。Commands 可通过共同的后端编辑命令别名，但 Linux 的**单个命令全局快捷键**目前尚不支持执行，界面明确禁用以避免保存无效绑定。常规 General 中的全局唤出快捷键支持直接按键录制。Ubuntu 启动器会在首批搜索结果准备好后显示，避免只看到空白搜索框。
+
+**Ubuntu / Linux 启动器外观：** 搜索图标与「搜索应用、剪贴板、片段、网页…」提示在同一水平线上。面板已显示时，不再常驻展示「就绪 — 使用热键或 `fulcrum --toggle` 唤出」；需要从隐藏状态重新唤出时，仍可使用全局快捷键或 `fulcrum --toggle`。启动失败、快捷键冲突和更新失败等真正需要注意的状态信息仍会显示。
+
+**Ubuntu 26.04 GNOME 50 Wayland 全局热键：** 原生安装包使用持续存活的 D-Bus 连接注册 `site.jrtx.fulcrum`，再请求 `CreateSession`。已在真实 Ubuntu 26.04.1 GNOME 50.1 Wayland **arm64 虚拟机**验证：应用身份被正确识别，授权弹窗能出现，允许后 Alt+Space 会多次触发 `Activated`，重新启动和登录自启动后仍能工作（[Issue #111 实机证据](https://github.com/turlamai/fulcrum/issues/111)）。这不代表其他架构、所有授权分支都已验证。**已知限制：** 部分 GNOME 50 环境的上游 GlobalShortcutsProvider 会在首次授权时卡住；该虚拟机上的 Settings 修改热键、拒绝授权后的错误体验仍未完整验收。如果授权无法完成或热键失效，请在 GNOME 设置中配置**自定义键盘快捷键**，执行 `fulcrum --toggle`（此回退已在真实虚拟机验证）。不要关闭系统级 portal 安全机制。
+
+**Windows 更新操作：** 从系统托盘选择「Check for Updates（检查更新）」会直接打开可见的 `update` 页面。检查后会自动刷新下载操作；点击 Download（下载）获取并校验签名 MSI，等下载结束后点击 Quit and install（退出并安装），程序退出后由系统安装器升级并重新启动。如果 Windows 要求管理员确认，按系统提示操作；失败时可以查看错误或从更新页面打开下载目录。**便携 ZIP 版本不会被 MSI 原地替换**，建议从正式 MSI 安装版使用此自动升级路径。
+
+**macOS、Windows 和 Linux** 的设置窗口均使用左侧五类导航：**General（常规）**、**Features（功能）**、**AI**、**Commands（命令）**、**Sync & Updates（同步与更新）**，可从菜单栏、托盘或启动器进入。三平台都可在 General 中直接按组合键录制全局唤出快捷键（Esc 取消），无需输入 `alt+space` 等内部格式；Commands 均可编辑命令别名。**Linux 暂不支持单个命令的全局快捷键**，对应控件已禁用，不会保存无效绑定。Windows 使用 WinUI 原生控件和带品牌图标的设置标题栏；macOS 使用 AppKit/SwiftUI；Linux 使用 GTK4 原生侧边导航。
+
 输入 `settings`，运行对应的行即可修改：
 
 | 设置 | 说明 |

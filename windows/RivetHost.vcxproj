@@ -73,7 +73,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(RIVET_RACKET_INCLUDE);$(RIVET_ROOT)\runtime\include;$(RIVET_ROOT)\platform\windows\runtime;$(RIVET_ROOT)\platform\windows\system;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
-    <Link><AdditionalDependencies>$(RIVET_RACKET_IMPORT_LIB);%(AdditionalDependencies)</AdditionalDependencies></Link>
+    <Link><AdditionalDependencies>$(RIVET_RACKET_IMPORT_LIB);Shell32.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'"><ClCompile><PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile></ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
@@ -97,6 +97,7 @@
     <ClInclude Include="App.xaml.h"><DependentUpon>App.xaml</DependentUpon></ClInclude>
     <ClInclude Include="MainWindow.xaml.h"><DependentUpon>MainWindow.xaml</DependentUpon></ClInclude>
     <ClInclude Include="WindowsInstance.h" />
+    <ClInclude Include="Autostart.h" />
     <ClInclude Include="SettingsWindow.xaml.h"><DependentUpon>SettingsWindow.xaml</DependentUpon></ClInclude>
     <ClInclude Include="GeneratedBackend.hpp" />
     <ClInclude Include="WindowCommands.h" />

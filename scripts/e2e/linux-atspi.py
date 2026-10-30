@@ -69,7 +69,12 @@ def main():
     application = wait_for("Fulcrum application", find_application)
     window = wait_for("Fulcrum frame", lambda: next((n for n in walk(application) if role(n) == "frame"), None))
     query = wait_for("FulcrumQuery", lambda: next((n for n in walk(window) if (n.name or "") == "FulcrumQuery"), None))
-    wait_for("embedded backend ready", lambda: contains(window, "Ready") or contains(window, "就绪"))
+    # Product readiness is proved by backend-owned native result rows, not
+    # by a permanent \"Ready — use hotkey or --toggle\" label. The launcher is
+    # already summoned in acceptance; that hint must not occupy an extra row.
+    wait_for("embedded backend ready search results", lambda: contains(window, "Settings…"))
+    if contains(window, "Ready — hotkey") or contains(window, "就绪 — 使用热键"):
+        raise AssertionError("routine resident-ready hint is visible above results")
     wait_for("summoned query focus", lambda: focused(query))
     # AT-SPI exposes and verifies focus, but Wayland intentionally rejects its
     # synthetic-key API. Send XTest input to the focused nested Weston window;
@@ -84,6 +89,6 @@ def main():
     wait_for("typed query 12*12", lambda: text(query) == "12*12")
     wait_for("calculator result 144 from embedded backend", lambda: contains(window, "144"))
     (args.output / "accessibility.json").write_text(json.dumps(snapshot(application), ensure_ascii=False, indent=2), encoding="utf-8")
-    (args.output / "interaction-trace.json").write_text(json.dumps({"platform": "linux", "actions": ["summon:activation-handler", "type-via-weston-seat:12*12"], "assertions": ["packaged GTK4 panel started hidden and was summoned through the global-hotkey activation handoff", "summoned panel remained visible after the focus-loss debounce", "FulcrumQuery held keyboard focus", "XTest input crossed the nested Weston Wayland seat and RVT1 into the embedded backend", "native result list contains 144"]}, indent=2), encoding="utf-8")
+    (args.output / "interaction-trace.json").write_text(json.dumps({"platform": "linux", "actions": ["summon:activation-handler", "type-via-weston-seat:12*12"], "assertions": ["packaged GTK4 panel started hidden and was summoned through the global-hotkey activation handoff", "summoned panel remained visible after the focus-loss debounce", "FulcrumQuery held keyboard focus", "XTest input crossed the nested Weston Wayland seat and RVT1 into the embedded backend", "native result list contains 144", "ready state does not render a redundant line above search results"]}, indent=2), encoding="utf-8")
 
 if __name__ == "__main__": main()

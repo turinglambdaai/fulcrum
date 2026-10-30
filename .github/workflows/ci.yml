@@ -16,7 +16,7 @@ concurrency:
 env:
   # Unified immutable upstream revision containing AppImage handoff,
   # branded-DMG signature preservation, and macOS update rollback safety.
-  RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
+  RIVET_PIN: e18c28e6b6b18ab0f59559e82e30c51c4229d91f
 jobs:
   backend:
     name: Backend tests (${{ matrix.os }})
@@ -108,14 +108,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up embeddable Racket CS
-        uses: turlamai/rivet/.github/actions/setup-embed-racket@a92877c02b6453b1826bfd061d7bbe70647ce5fa
-      # Installed after the embeddable runtime so Rivet's catalog closure and
-      # Fulcrum's SQLite dependency (db-lib) resolve against the minimal build.
-      - name: Install Rivet (catalog)
+      - name: GNOME 50 release preflight script sanity (not desktop acceptance)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/acceptance/gnome50-portal-preflight.sh
+          bash scripts/acceptance/gnome50-portal-preflight.sh --help >/dev/null
+          # A synthetic non-Wayland environment must fail closed, regardless
+          # of the current runner OS. This is NOT an Ubuntu 26.04 test.
+          if env -u WAYLAND_DISPLAY XDG_SESSION_TYPE=x11 \
+              bash scripts/acceptance/gnome50-portal-preflight.sh --kind deb > /dev/null 2>&1; then
+            echo "::error::GNOME preflight incorrectly passed without Wayland"
+            exit 1
+          fi
+      # Match packaged Linux acceptance: install dependencies in full Racket,
+      # then configure the embeddable runtime used in staged applications.
+      # Minimal embedded Racket's db-lib catalog fetch has timed out in CI.
+      - name: Install full Racket CS 9.3
+        uses: Bogdanp/setup-racket@v1.15
+        with:
+          version: '9.3'
+          architecture: x64
+          distribution: full
+          variant: CS
+      - name: Install Rivet and SQLite dependencies in full Racket
+        shell: bash
         run: |
           racket -e '(dynamic-require (quote db) #f)' || raco pkg install --auto --no-docs db-lib
           raco pkg install --auto --no-docs 'https://github.com/turlamai/rivet.git#${{ env.RIVET_PIN }}'
+      - name: Remember full Racket command path
+        shell: bash
+        run: echo "FULL_RACKET_BIN=$(dirname "$(command -v raco)")" >> "$GITHUB_ENV"
+      - name: Set up embeddable Racket CS
+        uses: turlamai/rivet/.github/actions/setup-embed-racket@e18c28e6b6b18ab0f59559e82e30c51c4229d91f
       - name: Install Linux toolchain
         run: |
           sudo apt-get update
@@ -126,10 +151,10 @@ jobs:
         run: python3 tests/run-linux-hotkey-tests.py
       - name: raco rivet doctor
         shell: bash
-        run: raco rivet doctor
+        run: PATH="$FULL_RACKET_BIN:$PATH" raco rivet doctor
       - name: raco rivet build
         shell: bash
-        run: raco rivet build
+        run: PATH="$FULL_RACKET_BIN:$PATH" raco rivet build
       - name: Generated Linux client is current
         shell: bash
         run: git diff --exit-code -- linux/GeneratedBackend.hpp
