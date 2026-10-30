@@ -15,6 +15,10 @@ permissions:
 env:
   RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   installed-upgrade:
     name: Official AppImage upgrade (${{ matrix.arch }})

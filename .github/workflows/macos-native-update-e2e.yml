@@ -18,6 +18,10 @@ env:
   RIVET_PIN: a92877c02b6453b1826bfd061d7bbe70647ce5fa
   FULCRUM_UPDATE_E2E_TESTING: "1"
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   signed-old-to-new:
     # The upgrade target is pinned to the immutable v0.14.0 official feed;
