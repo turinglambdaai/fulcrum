@@ -111,7 +111,14 @@
                          #:when (and (> (string-length text) 3)
                                      (regexp-match? #px"^[A-Za-z]:[\\\\/]" text))
                          #:do [(define directory (existing-directory text))]
-                         #:when directory)
+                         ;; Canonicalize before rejecting drive roots, including
+                         ;; D:\\Workspace\\.. and repeated trailing separators.
+                         #:when (and directory
+                                     (> (string-length
+                                         (regexp-replace*
+                                          #px"[/\\\\]+$"
+                                          (path->string directory) ""))
+                                        2)))
                 directory)
               '()))
         '()))

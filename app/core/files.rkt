@@ -305,9 +305,63 @@
    "if($env:FULCRUM_FILE_SEARCH_ROOTS){"
    "foreach($item in @($env:FULCRUM_FILE_SEARCH_ROOTS -split ';' | Select-Object -First 8)){"
    "$item=$item.Trim();"
-   "if($item.Length -gt 3 -and $item.Substring(0,1) -match '^[A-Za-z]$' -and "
+   "if($item.Length -gt 3 -and $item.Substring(0,1) -match '^[A-Za-z]
+   "foreach($cloud in @($env:OneDriveConsumer,$env:OneDrive)){"
+   "if($cloud){$roots+=@((Join-Path $cloud 'Desktop'),"
+   "(Join-Path $cloud 'Documents'))}};"
+   "foreach($root in ($roots|Where-Object{$_ -and (Test-Path -LiteralPath $_ -PathType Container)}|Select-Object -Unique)){"
+   "try{$out+=@(Get-ChildItem -LiteralPath $root -Recurse -Depth 4 -File "
+   "-Filter ('*'+$q+'*') -ErrorAction SilentlyContinue|"
+   "Select-Object -First 128 -ExpandProperty FullName)}catch{};"
+   "if($out.Count -ge 128){break}"
+   "};"
+   ;; Windows Search may index D:/E: even when a known folder on C: matched.
+   ;; An OLE DB provider that stalls must not discard the already found paths.
+   ;; Isolate that optional probe in a bounded child PowerShell job.
+   "if($out.Count -lt 128){"
+   "$job=$null;try{"
+   "$job=Start-Job -ArgumentList $qs -ScriptBlock {param($needle);"
+   "$indexed=@();try{"
+   "$c=New-Object System.Data.OleDb.OleDbConnection(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
+   "$c.Open();$cmd=$c.CreateCommand();$cmd.CommandTimeout=2;"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE CONTAINS(System.FileName,'`\"$needle*`\"') AND SCOPE='file:'\";"
+   "$r=$cmd.ExecuteReader();while($r.Read()){$indexed+=$r.GetString(0)};$r.Close();"
+   "if($indexed.Count -eq 0){"
+   "$cmd.CommandText=\"SELECT TOP 128 System.ItemUrl FROM SYSTEMINDEX WHERE FREETEXT(System.FileName,'`\"$needle`\"') AND SCOPE='file:'\";"
+   "$r=$cmd.ExecuteReader();while($r.Read()){$indexed+=$r.GetString(0)};$r.Close()"
+   "};$c.Close()"
+   "}catch{};$indexed};"
+   "if(Wait-Job -Job $job -Timeout 2){"
+   "$out+=@(Receive-Job -Job $job -ErrorAction SilentlyContinue)"
+   "}"
+   "}catch{}finally{if($job){"
+   "Stop-Job -Job $job -ErrorAction SilentlyContinue;"
+   "Remove-Job -Job $job -Force -ErrorAction SilentlyContinue"
+   "}}};"
+   "if($out.Count -gt 0){"
+   "$out|Select-Object -Unique -First 128|ForEach-Object{"
+   "if($_ -like 'file:*'){[System.Uri]::UnescapeDataString($_ -replace '^file:/+','')}"
+   "else{$_}}"
+   "}else{"
+   "Get-ChildItem -Path $env:USERPROFILE -Recurse -Depth 3 -Filter ('*'+$q+'*') -File -ErrorAction SilentlyContinue|Select-Object -First 128 -ExpandProperty FullName"
+   "}"))
+
+(define (opener-for-platform)
+  (case (system-type 'os)
+    [(macosx) "open"]
+    [(windows) "explorer.exe"]
+    [else "xdg-open"]))
+
+;; Fire-and-forget, like application launches. #f means the opener could
+;; not run at all.
+(define (file-open! path)
+  (spawn-command (opener-for-platform) (list (path->string (simple-form-path path)))))
+ -and "
    "($item.Substring(1,2) -eq ':\\' -or $item.Substring(1,2) -eq ':/')){"
-   "$roots=@($item)+@($roots)"
+   "try{$full=[System.IO.Path]::GetFullPath($item);"
+   "if($full.TrimEnd([char[]]@([char]92,[char]47)).Length -gt 2){"
+   "$roots=@($full)+@($roots)"
+   "}}catch{}"
    "}}};"
    "foreach($cloud in @($env:OneDriveConsumer,$env:OneDrive)){"
    "if($cloud){$roots+=@((Join-Path $cloud 'Desktop'),"
