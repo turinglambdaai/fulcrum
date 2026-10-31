@@ -141,12 +141,29 @@ do {
         contains(window, fragment: "144") ? true : nil
     }
     try writeJSON(snapshot(application), to: output.appendingPathComponent("accessibility.json"))
-    guard AXUIElementSetAttributeValue(query, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
-        throw DriverError.failure("could not refocus FulcrumQuery before Return")
+    // Hosted macOS runners can briefly lose keyboard focus between the
+    // accessibility query edit and a synthesized Return. Retry the *same
+    // native keyboard action* after re-raising and refocusing the window;
+    // never replace the action assertion with a backend-only shortcut.
+    var copiedFromReturn = false
+    for attempt in 1...3 {
+        _ = AXUIElementSetAttributeValue(application, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        _ = AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        guard AXUIElementSetAttributeValue(query, kAXFocusedAttribute as CFString, kCFBooleanTrue) == .success else {
+            throw DriverError.failure("could not refocus FulcrumQuery before Return")
+        }
+        try pressReturn(pid: pid)
+        let copied: Bool? = try? waitFor("calculator action clipboard event", timeout: 12) {
+            NSPasteboard.general.string(forType: .string) == "144" ? true : nil
+        }
+        if copied == true {
+            copiedFromReturn = true
+            break
+        }
+        FileHandle.standardError.write(Data("Fulcrum macOS acceptance: Return attempt \\(attempt) produced no clipboard event; refocusing\\n".utf8))
     }
-    try pressReturn(pid: pid)
-    _ = try waitFor("calculator action clipboard event") {
-        NSPasteboard.general.string(forType: .string) == "144" ? true : nil
+    guard copiedFromReturn else {
+        throw DriverError.failure("timed out waiting for calculator action clipboard event after 3 focused Return attempts")
     }
 
     // Settings is a separate AppKit window. Exercise the real macOS Settings
