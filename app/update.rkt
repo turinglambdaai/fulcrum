@@ -86,7 +86,7 @@
 ;; update-base-url setting at an unreachable local URL instead of touching
 ;; the network.
 (define default-update-base-url
-  "https://github.com/turinglambdaai/fulcrum/releases/latest/download")
+  "https://github.com/turlamai/fulcrum/releases/latest/download")
 
 (define maximum-download-bytes (* 512 1024 1024))
 
