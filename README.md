@@ -43,17 +43,9 @@ Press one global hotkey and a floating command palette appears:
 
 Local search (including indexed file names and paths), history and snippets are stored on your device. Plugins, BYOK requests and configured sync have separate network/data destinations.
 
-## Why another launcher?
+## Design and implementation
 
-Because nothing offers Raycast-grade polish on all three desktops with a *native* UI. Fulcrum is built on [Rivet](https://rivet.jrtx.site): one shared Racket backend embedded into each app, with SwiftUI on macOS, WinUI 3 on Windows, and GTK4 on Linux. Not Electron. Not a web wrapper. The Windows app is a Windows app; the macOS app is a macOS app.
-
-| | Fulcrum | Raycast | PowerToys Run | Ulauncher |
-|---|---|---|---|---|
-| Platforms | macOS + Windows + Linux | macOS (+ Windows beta) | Windows | Linux |
-| Native UI | **per-platform first-party** | macOS-native | WinUI (WPF shell) | GTK |
-| Backend | one embedded Racket CS | per-platform | C# | Python |
-| Plugins | JSON over stdio, any language | TypeScript, in-process | C# | Python |
-| Price | free core; Pro planned for 1.0 | free + Pro | free | free |
+Fulcrum provides a consistent keyboard-first workflow across macOS, Windows, and Linux. It uses a shared Racket backend with native SwiftUI, WinUI 3, and GTK4 interfaces. Search, clipboard history, snippets, system commands, and plugins are documented by their own behavior rather than competitor comparisons.
 
 ## Repository layout
 
