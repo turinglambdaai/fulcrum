@@ -160,7 +160,7 @@ do {
             copiedFromReturn = true
             break
         }
-        FileHandle.standardError.write(Data("Fulcrum macOS acceptance: Return attempt \\(attempt) produced no clipboard event; refocusing\\n".utf8))
+        FileHandle.standardError.write(Data("Fulcrum macOS acceptance: Return attempt \(attempt) produced no clipboard event; refocusing\n".utf8))
     }
     guard copiedFromReturn else {
         throw DriverError.failure("timed out waiting for calculator action clipboard event after 3 focused Return attempts")
