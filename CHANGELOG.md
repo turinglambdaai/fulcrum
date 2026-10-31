@@ -14,7 +14,9 @@ independently per platform packaging run.
   slow volume teardown on CI runners: the installer now probes the mount
   point, retries the graceful detach across the busy window, treats an
   already-torn-down volume as success, and only then falls back to the
-  forced detach.
+  forced detach. The pin also renames the server-absent emit error to
+  "no Rivet event emitter…"; the test asserting the old wording follows
+  it.
 
 ### Fixed
 
